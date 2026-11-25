@@ -408,3 +408,139 @@ async fn api_errors_are_parsed_from_real_http() {
         ApiError::InvalidResponse { status: 500, .. }
     ));
 }
+
+#[tokio::test]
+async fn relogin_revokes_previous_token() {
+    let server = MockServer::start().await;
+    mount_device_code(&server, 900).await;
+    mount_token_sequence(
+        &server,
+        vec![ResponseTemplate::new(200)
+            .set_body_json(json!({ "accessToken": TOKEN, "deviceId": "d2" }))],
+    )
+    .await;
+    mount_whoami(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/agent/v1/logout"))
+        .and(header("authorization", "Bearer tld_old_token"))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .named("logout bằng token cũ")
+        .mount(&server)
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    ctx.credentials
+        .set_token(&server.uri(), "tld_old_token")
+        .unwrap();
+
+    login::run(&ctx, login_args(Some(&server.uri())), &mut Vec::new())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        ctx.credentials.get_token(&server.uri()).unwrap().as_deref(),
+        Some(TOKEN)
+    );
+    server.verify().await;
+}
+
+#[tokio::test]
+async fn relogin_continues_when_revoking_old_token_fails() {
+    let server = MockServer::start().await;
+    mount_device_code(&server, 900).await;
+    mount_token_sequence(
+        &server,
+        vec![ResponseTemplate::new(200)
+            .set_body_json(json!({ "accessToken": TOKEN, "deviceId": "d2" }))],
+    )
+    .await;
+    mount_whoami(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/agent/v1/logout"))
+        .respond_with(api_error(401, "invalid_token"))
+        .mount(&server)
+        .await;
+
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    ctx.credentials
+        .set_token(&server.uri(), "tld_old_token")
+        .unwrap();
+
+    login::run(&ctx, login_args(Some(&server.uri())), &mut Vec::new())
+        .await
+        .expect("lỗi khi thu hồi token cũ không được chặn đăng nhập");
+    assert_eq!(
+        ctx.credentials.get_token(&server.uri()).unwrap().as_deref(),
+        Some(TOKEN)
+    );
+}
+
+#[tokio::test]
+async fn login_retries_on_proxy_5xx_while_polling() {
+    let server = MockServer::start().await;
+    mount_device_code(&server, 900).await;
+    let calls = mount_token_sequence(
+        &server,
+        vec![
+            ResponseTemplate::new(502).set_body_string("Bad Gateway"),
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "accessToken": TOKEN, "deviceId": "d1" })),
+        ],
+    )
+    .await;
+    mount_whoami(&server).await;
+
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    let outcome = login::run(&ctx, login_args(Some(&server.uri())), &mut Vec::new())
+        .await
+        .expect("502 từ proxy phải được thử lại");
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(outcome.polls, 2);
+}
+
+#[tokio::test]
+async fn login_gives_up_after_repeated_5xx() {
+    let server = MockServer::start().await;
+    mount_device_code(&server, 900).await;
+    let calls = mount_token_sequence(
+        &server,
+        vec![ResponseTemplate::new(503).set_body_string("Service Unavailable")],
+    )
+    .await;
+
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    let err = login::run(&ctx, login_args(Some(&server.uri())), &mut Vec::new())
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("503"), "{err}");
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn status_text_has_no_trailing_whitespace() {
+    let server = MockServer::start().await;
+    mount_whoami(&server).await;
+
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    ctx.save_config(&Config {
+        server_url: Some(server.uri()),
+    })
+    .unwrap();
+    ctx.credentials.set_token(&server.uri(), TOKEN).unwrap();
+
+    let mut out = Vec::new();
+    status::run(&ctx, status::StatusArgs { json: false }, &mut out)
+        .await
+        .unwrap();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.lines().any(|l| l == "Project:"), "{text}");
+    for line in text.lines() {
+        assert_eq!(line, line.trim_end(), "dòng có khoảng trắng thừa: {line:?}");
+    }
+}

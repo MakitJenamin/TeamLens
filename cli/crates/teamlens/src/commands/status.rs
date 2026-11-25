@@ -119,7 +119,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
         if me.projects.is_empty() {
             w("Project:", "chưa thuộc project nào");
         } else {
-            w("Project:", "");
+            let _ = writeln!(out, "Project:");
             for p in &me.projects {
                 let _ = writeln!(out, "  - {} ({}) · {}", p.name, p.slug, p.role);
                 if p.repo_patterns.is_empty() {
