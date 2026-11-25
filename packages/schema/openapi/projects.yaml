@@ -232,6 +232,15 @@ paths:
           $ref: './common.yaml#/components/responses/Forbidden'
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: last_leader
+                message: Project phải còn ít nhất một leader.
     delete:
       operationId: removeProjectMember
       tags: [projects]
@@ -247,6 +256,15 @@ paths:
           $ref: './common.yaml#/components/responses/Forbidden'
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: last_leader
+                message: Project phải còn ít nhất một leader.
 
   /api/v1/projects/{projectId}/repos:
     parameters:

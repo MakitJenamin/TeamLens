@@ -1032,6 +1032,21 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "last_leader",
+                     *       "message": "Project phải còn ít nhất một leader."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     updateProjectMember: {
@@ -1065,6 +1080,21 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "last_leader",
+                     *       "message": "Project phải còn ít nhất một leader."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listProjectRepos: {

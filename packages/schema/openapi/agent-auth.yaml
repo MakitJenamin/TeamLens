@@ -1,6 +1,6 @@
 # Nhóm `agent-auth`: device login của CLI (giống `gh auth login`), whoami và logout.
 # Token thiết bị có tiền tố `tld_`, gửi qua header `Authorization: Bearer tld_...`.
-# Mọi request hợp lệ bằng device token cập nhật `devices.last_seen_at`.
+# Request hợp lệ bằng device token cập nhật `devices.last_seen_at` (tối đa 5 phút một lần).
 paths:
   /agent/v1/device/code:
     post:
