@@ -13,5 +13,5 @@ export default async function ProjectMembersPage({ params }: PageProps<"/[locale
   setRequestLocale(locale);
   const t = await getTranslations("members");
 
-  return <PagePlaceholder title={t("title")} description={t("description")} task="M3-X1/M3-Y4" />;
+  return <PagePlaceholder title={t("title")} description={t("description")} task="M4.2" />;
 }

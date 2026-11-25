@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Task: M1-Y1, M4-Y2.
+# KHUNG — chưa có endpoint. Task: M1.1, M4.1.
 #
 # Endpoint dashboard xem session (cookieAuth), spec mục 7.4:
 # - GET /api/v1/sessions?project=&user=&agent=&from=&to=&q=

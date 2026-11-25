@@ -5,10 +5,10 @@
 //!
 //! | Module | Task |
 //! | --- | --- |
-//! | [`session`] | M1-X2 |
-//! | [`scope`] | M1-X4 |
-//! | [`redact`] | M1-X5, M2-Y1 |
-//! | [`truncate`] | M1-X5 |
+//! | [`session`] | M1.2 |
+//! | [`scope`] | M1.4 |
+//! | [`redact`] | M1.5, M2.1 |
+//! | [`truncate`] | M1.5 |
 
 pub mod redact;
 pub mod scope;

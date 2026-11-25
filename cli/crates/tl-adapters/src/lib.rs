@@ -4,8 +4,8 @@
 //!
 //! | Module | Agent | Task |
 //! | --- | --- | --- |
-//! | [`claude_code`] | Claude Code | M1-X3, M2-Y2, M2-Y3 |
-//! | [`codex`] | Codex CLI | M2-Y4 |
+//! | [`claude_code`] | Claude Code | M1.3, M2.3, M2.4 |
+//! | [`codex`] | Codex CLI | M2.5 |
 //!
 //! Quy tắc chung: bản ghi không nhận ra thì bỏ qua và đếm vào `parse_warnings`,
 //! không crash; dòng quá [`MAX_LINE_BYTES`] bị cắt; ghi lại `agent_version` đọc được.

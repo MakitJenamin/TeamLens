@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Task: M1-Y1 (ingest), M2-X1 (config), M3-Y3 (heartbeat).
+# KHUNG — chưa có endpoint. Task: M1.1 (ingest), M2.2 (config), M3.3 (heartbeat).
 #
 # Endpoint cho CLI (xác thực `deviceToken`), spec mục 7.2 và 7.3:
 # - POST /agent/v1/ingest: gửi một batch session theo session.v1.schema.json (IngestBatch),

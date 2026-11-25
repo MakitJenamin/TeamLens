@@ -1,6 +1,6 @@
 //! `tl uninstall` — gỡ task khởi động, xóa config và hàng đợi, báo server.
 //!
-//! Chưa làm, thuộc task M3-X3.
+//! Chưa làm, thuộc task M3.7.
 
 use clap::Args;
 
@@ -12,6 +12,6 @@ pub struct UninstallArgs {}
 pub fn run(_args: UninstallArgs) -> Result<(), AppError> {
     Err(AppError::NotImplemented {
         command: "uninstall",
-        task: "M3-X3",
+        task: "M3.7",
     })
 }

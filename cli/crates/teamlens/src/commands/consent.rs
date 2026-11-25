@@ -1,6 +1,6 @@
 //! `tl consent` — quản lý đồng ý thu thập dữ liệu.
 //!
-//! Chưa làm, thuộc task M3-X3.
+//! Chưa làm, thuộc task M3.7.
 
 use clap::{Args, Subcommand};
 
@@ -22,7 +22,7 @@ pub fn run(args: ConsentArgs) -> Result<(), AppError> {
     match args.command {
         ConsentCommand::Revoke => Err(AppError::NotImplemented {
             command: "consent revoke",
-            task: "M3-X3",
+            task: "M3.7",
         }),
     }
 }

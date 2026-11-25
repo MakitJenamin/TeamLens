@@ -97,10 +97,10 @@ mod tests {
     fn not_implemented_exits_with_code_2() {
         let e = AppError::NotImplemented {
             command: "sync",
-            task: "M1-X6",
+            task: "M1.7",
         };
         assert_eq!(e.exit_code(), 2);
-        assert_eq!(e.to_string(), "Chưa làm: lệnh sync thuộc task M1-X6");
+        assert_eq!(e.to_string(), "Chưa làm: lệnh sync thuộc task M1.7");
     }
 
     #[test]
