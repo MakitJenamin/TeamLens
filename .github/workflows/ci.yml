@@ -25,16 +25,6 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -53,9 +43,31 @@ jobs:
       - name: Type sinh từ OpenAPI đã được commit
         run: git diff --exit-code -- packages/schema/src/generated/api.ts
 
-      - name: Rust CLI (fmt, clippy, test)
+  # Chạy song song với `validate`. Dùng Windows vì tl.exe có code riêng cho Windows (Credential Manager, mutex).
+  rust-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
         working-directory: cli
-        run: |
-          cargo fmt --all --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test
