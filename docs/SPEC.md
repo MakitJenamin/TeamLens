@@ -292,7 +292,9 @@ Rule chạy tự động trên server sau mỗi lần ingest và cho ra điểm 
 
 ### 9.1 Nhóm kỹ năng và rule khởi đầu
 
-| Nhóm | Ví dụ rule (MVP khoảng 15 rule) |
+Danh mục đầy đủ (24 rule MVP, ngưỡng, nguồn, rule bị loại và lý do) nằm ở [RULES.md](RULES.md); bảng dưới chỉ là ví dụ.
+
+| Nhóm | Ví dụ rule |
 | --- | --- |
 | Chất lượng prompt | Prompt đầu session dưới 15 từ mà không tham chiếu file; prompt chỉ có "fix", "làm tiếp", "sai rồi"; không nêu tiêu chí hoàn thành |
 | Cung cấp context | Không có file hướng dẫn (CLAUDE.md, AGENTS.md, copilot-instructions) trong repo; dán log lỗi dài thay vì chỉ đường dẫn; không đính file liên quan |
@@ -306,7 +308,7 @@ Prompt trong session con (subagent) do agent chính viết, không phải ngư�
 
 ### 9.2 Định nghĩa rule
 
-Rule là JSON khai báo, lưu trong DB, không chạy code tùy ý. MVP hỗ trợ các phép: đếm, so sánh ngưỡng, regex trên text, chuỗi lượt liên tiếp.
+Rule là JSON khai báo, lưu trong DB, không chạy code tùy ý. MVP hỗ trợ các phép: đếm, so sánh ngưỡng, regex trên text, chuỗi lượt liên tiếp. Rule có phạm vi `session` (finding cho từng session) hoặc `user_week` (tỉ lệ trên các session của một người trong tuần, có `min_sample`), và kèm ca kiểm thử nội tuyến (`tests`), xem RULES.md mục 5.
 
 ```json
 {
@@ -424,7 +426,7 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 Còn mở:
 
 - [ ] Tên TeamLens: kiểm tra nhãn hiệu, tạo GitHub org, giữ crate `teamlens` khi publish bản đầu. Code gom tên sản phẩm vào ít chỗ (tên crate, tiền tố `TEAMLENS_`, thư mục `%LOCALAPPDATA%\teamlens`) để dễ đổi.
-- [ ] Trọng số điểm và bộ 15 rule đầu tiên: dùng giá trị trong mục 9.1 làm điểm khởi đầu, chỉnh sau khi chạy thử trên log thật của team ở cuối Phase 1.
+- [ ] Trọng số điểm và ngưỡng của 24 rule MVP ([RULES.md](RULES.md)): dùng giá trị hiện tại làm điểm khởi đầu, chỉnh sau khi chạy thử trên log thật của team ở cuối Phase 1.
 
 ### 12.3 Tiêu chí hoàn thành MVP
 
