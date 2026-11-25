@@ -1,0 +1,35 @@
+[package]
+name = "teamlens"
+description = "TeamLens CLI (tl.exe): thu thập session AI agent trong repo của team, che secret, gửi về server tự host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "tl"
+path = "src/main.rs"
+
+[dependencies]
+tl-platform = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+webbrowser = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

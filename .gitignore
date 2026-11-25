@@ -1,0 +1,30 @@
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# Rust
+target/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Công cụ cá nhân (không đẩy lên repo)
+.codegraph/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

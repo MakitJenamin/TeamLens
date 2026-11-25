@@ -1,0 +1,356 @@
+# Nhóm `projects`: project, thành viên (vai trò theo project) và repo pattern.
+# Quyền: admin thấy và sửa mọi project; leader quản lý project của mình; member chỉ xem.
+paths:
+  /api/v1/projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: Danh sách project của user hiện tại
+      description: Admin thấy mọi project; `role` là `null` với project admin không là thành viên.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách project.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './common.yaml#/components/schemas/ProjectListItem'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Tạo project (chỉ admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                slug:
+                  $ref: './common.yaml#/components/schemas/ProjectSlug'
+      responses:
+        '201':
+          description: Project vừa tạo.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Project'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          description: 'Slug đã được dùng (`error`: `slug_taken`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: slug_taken
+                message: Slug này đã được dùng cho project khác.
+
+  /api/v1/projects/{projectId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Chi tiết project (thành viên hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Chi tiết project kèm repo pattern.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/ProjectDetail'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Sửa tên hoặc cấu hình project (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                settings:
+                  $ref: './common.yaml#/components/schemas/ProjectSettings'
+      responses:
+        '200':
+          description: Project sau khi sửa.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Project'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/members:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectMembers
+      tags: [projects]
+      summary: Danh sách thành viên (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Thành viên của project.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './common.yaml#/components/schemas/Member'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: addProjectMember
+      tags: [projects]
+      summary: Thêm thành viên đã có tài khoản (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: './common.yaml#/components/schemas/Role'
+      responses:
+        '201':
+          description: Thành viên vừa thêm.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Member'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          description: 'Không có user với email này (`error`: `user_not_found`), hoặc project không tồn tại (`not_found`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: user_not_found
+                message: Không tìm thấy người dùng với email này.
+        '409':
+          description: 'User đã là thành viên của project (`error`: `already_member`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: already_member
+                message: Người dùng đã là thành viên của project.
+
+  /api/v1/projects/{projectId}/members/{userId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: './common.yaml#/components/parameters/UserId'
+    patch:
+      operationId: updateProjectMember
+      tags: [projects]
+      summary: Đổi vai trò thành viên (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              additionalProperties: false
+              properties:
+                role:
+                  $ref: './common.yaml#/components/schemas/Role'
+      responses:
+        '200':
+          description: Thành viên sau khi đổi vai trò.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Member'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: last_leader
+                message: Project phải còn ít nhất một leader.
+    delete:
+      operationId: removeProjectMember
+      tags: [projects]
+      summary: Xóa thành viên khỏi project (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: last_leader
+                message: Project phải còn ít nhất một leader.
+
+  /api/v1/projects/{projectId}/repos:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectRepos
+      tags: [projects]
+      summary: Danh sách repo pattern (thành viên hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Repo pattern của project.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './common.yaml#/components/schemas/Repo'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: addProjectRepo
+      tags: [projects]
+      summary: Thêm repo pattern (leader hoặc admin)
+      description: |
+        `remotePattern` được chuẩn hóa trước khi lưu (chữ thường, bỏ scheme, `git@`, `.git`, `/` cuối;
+        `host:org` thành `host/org`). Sau chuẩn hóa phải có dạng `host/org/repo` hoặc `host/org/*`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [remotePattern]
+              additionalProperties: false
+              properties:
+                remotePattern:
+                  type: string
+                  minLength: 1
+                  description: Pattern chưa chuẩn hóa, vd. `git@github.com:acme/*` hoặc `https://github.com/acme/api.git`.
+      responses:
+        '201':
+          description: Repo pattern đã chuẩn hóa và lưu.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Repo'
+        '400':
+          description: 'Pattern không hợp lệ sau khi chuẩn hóa (`error`: `invalid_pattern`), hoặc body sai (`validation_error`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: invalid_pattern
+                message: Pattern phải có dạng host/org/repo hoặc host/org/*.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/repos/{repoId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: './common.yaml#/components/parameters/RepoId'
+    delete:
+      operationId: removeProjectRepo
+      tags: [projects]
+      summary: Xóa repo pattern (leader hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'

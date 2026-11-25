@@ -1,0 +1,18 @@
+[package]
+name = "tl-platform"
+description = "Phần phụ thuộc hệ điều hành của TeamLens CLI: thư mục dữ liệu, credential store, mutex, Task Scheduler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+keyring = { workspace = true }
+directories = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[lints]
+workspace = true

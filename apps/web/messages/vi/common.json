@@ -1,0 +1,30 @@
+{
+  "appName": "TeamLens",
+  "tagline": "Xem team làm việc với AI coding agent",
+  "loading": "Đang tải...",
+  "retry": "Thử lại",
+  "backHome": "Về trang chủ",
+  "taskLabel": "Task: {code}",
+  "comingSoon": "Màn hình này đang được xây dựng.",
+  "language": "Ngôn ngữ",
+  "switchLanguage": "Đổi ngôn ngữ",
+  "languages": {
+    "vi": "Tiếng Việt",
+    "en": "English"
+  },
+  "errors": {
+    "generic": "Đã có lỗi xảy ra. Vui lòng thử lại.",
+    "network": "Không kết nối được tới máy chủ.",
+    "dashboardTitle": "Không tải được dữ liệu",
+    "dashboardDescription": "Máy chủ API không phản hồi hoặc trả về lỗi. Kiểm tra API đang chạy rồi thử lại."
+  },
+  "notFound": {
+    "title": "Không tìm thấy trang",
+    "description": "Trang bạn tìm không tồn tại hoặc đã bị di chuyển."
+  },
+  "home": {
+    "noProjectsTitle": "Chưa có project",
+    "noProjectsDescription": "Bạn chưa thuộc project nào. Hãy nhờ leader hoặc admin thêm bạn vào một project.",
+    "noProjectsAdmin": "Vào trang Quản trị để tạo project đầu tiên."
+  }
+}

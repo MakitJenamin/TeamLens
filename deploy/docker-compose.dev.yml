@@ -1,0 +1,20 @@
+# Chỉ dùng khi phát triển trên máy: Postgres cho apps/api.
+# Bản production (api, web, postgres, caddy) nằm ở deploy/docker-compose.yml (làm sau).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: teamlens
+      POSTGRES_PASSWORD: teamlens
+      POSTGRES_DB: teamlens
+    ports:
+      - "5433:5432"
+    volumes:
+      - teamlens-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamlens"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  teamlens-pg:

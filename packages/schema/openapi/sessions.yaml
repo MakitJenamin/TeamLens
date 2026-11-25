@@ -1,0 +1,17 @@
+# KHUNG — chưa có endpoint. Vùng sở hữu: A · Đường dữ liệu (task A8, A12).
+#
+# Endpoint dashboard xem session (cookieAuth), spec mục 7.4:
+# - GET /api/v1/sessions?project=&user=&agent=&from=&to=&q=
+# - GET /api/v1/sessions/{sessionId} (ghi audit khi xem session của người khác)
+# - POST /api/v1/sessions/{sessionId}/llm-review
+# - GET/POST /api/v1/sessions/{sessionId}/notes
+#
+# Cách thêm endpoint:
+# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
+#    tham chiếu `./common.yaml#/components/...`.
+# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
+#      /agent/v1/ingest:
+#        $ref: './sessions.yaml#/paths/~1agent~1v1~1ingest'
+#    (`/` trong path viết thành `~1` theo JSON Pointer).
+# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
+paths: {}

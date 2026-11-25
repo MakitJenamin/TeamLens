@@ -1,0 +1,11 @@
+{
+  "list": {
+    "title": "Session",
+    "description": "Danh sách session của project, lọc theo thành viên, agent và khoảng ngày; leader thấy cả team, member chỉ thấy của mình."
+  },
+  "detail": {
+    "title": "Xem lại session",
+    "description": "Dòng hội thoại: prompt, câu trả lời, tool call thu gọn, diff tô màu, đánh dấu turn dính finding; nút \"Chấm bằng LLM\"; ghi chú của leader theo turn; tìm kiếm trong session.",
+    "sessionId": "Mã session: {id}"
+  }
+}

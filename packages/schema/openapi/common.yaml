@@ -1,0 +1,299 @@
+# Thành phần dùng chung cho mọi nhóm endpoint (schema, response lỗi, tham số, header).
+# File nhóm tham chiếu bằng `./common.yaml#/components/...`; file gốc openapi.yaml
+# đăng ký lại các schema này dưới `components.schemas` để type sinh ra có tên ổn định.
+components:
+  schemas:
+    Error:
+      type: object
+      description: Dạng lỗi chung của mọi endpoint.
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Mã lỗi cho máy đọc (snake_case), vd. `unauthenticated`.
+          examples: [unauthenticated]
+        message:
+          type: string
+          description: Mô tả lỗi bằng tiếng Việt cho người đọc.
+          examples: [Bạn cần đăng nhập.]
+
+    Id:
+      type: string
+      format: uuid
+      description: Định danh (UUID).
+
+    Role:
+      type: string
+      enum: [leader, member]
+      description: Vai trò trong project.
+
+    User:
+      type: object
+      required: [id, email, name, isAdmin]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        isAdmin:
+          type: boolean
+
+    UserRef:
+      type: object
+      description: Thông tin rút gọn của user (dùng cho CLI).
+      required: [id, email, name]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Membership:
+      type: object
+      required: [projectId, projectName, projectSlug, role]
+      additionalProperties: false
+      properties:
+        projectId:
+          $ref: '#/components/schemas/Id'
+        projectName:
+          type: string
+        projectSlug:
+          $ref: '#/components/schemas/ProjectSlug'
+        role:
+          $ref: '#/components/schemas/Role'
+
+    ProjectSlug:
+      type: string
+      description: Chữ thường, số và dấu gạch ngang; 1–64 ký tự, không bắt đầu hay kết thúc bằng `-`.
+      pattern: '^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$'
+      examples: [teamlens]
+
+    ProjectSettings:
+      type: object
+      description: Cấu hình riêng của project (jsonb). Các khóa cụ thể bổ sung dần theo tính năng.
+      additionalProperties: true
+
+    ProjectListItem:
+      type: object
+      required: [id, name, slug, role]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/ProjectSlug'
+        role:
+          description: Vai trò của user hiện tại; `null` khi admin không là thành viên.
+          oneOf:
+            - $ref: '#/components/schemas/Role'
+            - type: 'null'
+
+    Project:
+      type: object
+      required: [id, name, slug, settings]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/ProjectSlug'
+        settings:
+          $ref: '#/components/schemas/ProjectSettings'
+
+    ProjectDetail:
+      type: object
+      required: [id, name, slug, settings, repos]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/ProjectSlug'
+        settings:
+          $ref: '#/components/schemas/ProjectSettings'
+        repos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Repo'
+
+    RemotePattern:
+      type: string
+      description: |
+        Pattern git remote đã chuẩn hóa: chữ thường, bỏ `https://`, `ssh://`, `git@`,
+        đổi `host:org` thành `host/org`, bỏ `.git` và `/` ở cuối.
+        Dạng hợp lệ: `host/org/repo` hoặc `host/org/*`.
+      examples: [github.com/makitjenamin/teamlens]
+
+    Repo:
+      type: object
+      required: [id, remotePattern]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        remotePattern:
+          $ref: '#/components/schemas/RemotePattern'
+
+    Member:
+      type: object
+      required: [userId, email, name, role]
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+
+    DeviceStatus:
+      type: string
+      enum: [online, offline, paused, consent_revoked]
+      description: Trạng thái daemon trên thiết bị (thiết bị bị thu hồi xem qua `revokedAt`).
+
+    DeviceRef:
+      type: object
+      required: [id, name]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+
+    Device:
+      type: object
+      required: [id, name, os, cliVersion, status, lastSeenAt, createdAt, revokedAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        os:
+          type: string
+          examples: [windows]
+        cliVersion:
+          type: string
+          examples: [0.1.0]
+        status:
+          $ref: '#/components/schemas/DeviceStatus'
+        lastSeenAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+
+    UserCode:
+      type: string
+      description: Mã ngắn 8 ký tự dạng `XXXX-XXXX`, bảng chữ `BCDFGHJKLMNPQRSTVWXZ`.
+      pattern: '^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$'
+      examples: [WDJB-MJHT]
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    RepoId:
+      name: repoId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+
+  headers:
+    SetSessionCookie:
+      description: |
+        Cookie phiên đăng nhập `tl_session` (httpOnly, SameSite=Lax, path `/`,
+        Secure khi `TEAMLENS_PUBLIC_URL` là https, hết hạn 30 ngày).
+      schema:
+        type: string
+      example: 'tl_session=abc123; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000'
+    ClearSessionCookie:
+      description: Xóa cookie `tl_session` (Max-Age=0).
+      schema:
+        type: string
+      example: 'tl_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+
+  responses:
+    ValidationError:
+      description: 'Body hoặc tham số không hợp lệ (`error`: `validation_error`).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: validation_error
+            message: Dữ liệu gửi lên không hợp lệ.
+    Unauthenticated:
+      description: 'Chưa đăng nhập hoặc phiên đã hết hạn (`error`: `unauthenticated`).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthenticated
+            message: Bạn cần đăng nhập.
+    Forbidden:
+      description: 'Không đủ quyền (`error`: `forbidden`).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: forbidden
+            message: Bạn không có quyền thực hiện thao tác này.
+    NotFound:
+      description: 'Không tìm thấy (`error`: `not_found`).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: not_found
+            message: Không tìm thấy.
+    InvalidToken:
+      description: 'Device token sai hoặc đã bị thu hồi (`error`: `invalid_token`).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: invalid_token
+            message: Token thiết bị không hợp lệ hoặc đã bị thu hồi. Chạy `tl login` để đăng nhập lại.

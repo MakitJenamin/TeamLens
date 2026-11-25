@@ -1,0 +1,15 @@
+# KHUNG — chưa có endpoint. Vùng sở hữu: B · Con người và điểm số (task B6, B10).
+#
+# Quản lý rule theo project, spec mục 9:
+# - GET/PATCH /api/v1/projects/{projectId}/rules (bật/tắt, ngưỡng, mức độ)
+# - POST .../rules/{ruleId}/try (thử trên 50 session gần nhất), POST .../rules/rerun (chạy lại)
+#
+# Cách thêm endpoint:
+# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
+#    tham chiếu `./common.yaml#/components/...`.
+# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
+#      /agent/v1/ingest:
+#        $ref: './rules.yaml#/paths/~1agent~1v1~1ingest'
+#    (`/` trong path viết thành `~1` theo JSON Pointer).
+# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
+paths: {}

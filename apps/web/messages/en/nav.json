@@ -1,0 +1,22 @@
+{
+  "project": "Project",
+  "selectProject": "Select project",
+  "noProjects": "No projects",
+  "notMember": "Not a member",
+  "roles": {
+    "leader": "Leader",
+    "member": "Member",
+    "admin": "Admin"
+  },
+  "overview": "Overview",
+  "members": "Members",
+  "sessions": "Sessions",
+  "leaderboard": "Leaderboard",
+  "rules": "Rules",
+  "general": "General",
+  "me": "My account",
+  "admin": "Administration",
+  "logout": "Sign out",
+  "logoutFailed": "Could not sign out.",
+  "toggleSidebar": "Toggle sidebar"
+}

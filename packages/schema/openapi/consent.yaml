@@ -1,0 +1,15 @@
+# KHUNG — chưa có endpoint. Vùng sở hữu: B · Con người và điểm số (task B3, B5).
+#
+# Đồng ý thu thập dữ liệu, spec mục 4.3:
+# - POST /agent/v1/consent (deviceToken): ghi nhận đồng ý (text_version, backfill) hoặc rút đồng ý.
+# - Endpoint dashboard cho trang "Của tôi": đồng ý đã cấp, audit log ai đã xem session của mình.
+#
+# Cách thêm endpoint:
+# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
+#    tham chiếu `./common.yaml#/components/...`.
+# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
+#      /agent/v1/ingest:
+#        $ref: './consent.yaml#/paths/~1agent~1v1~1ingest'
+#    (`/` trong path viết thành `~1` theo JSON Pointer).
+# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
+paths: {}

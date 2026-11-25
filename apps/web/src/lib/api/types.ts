@@ -1,0 +1,57 @@
+// Kiểu dữ liệu API của dashboard, lấy từ contract OpenAPI (@teamlens/schema).
+// Không viết tay kiểu mới ở đây: sửa contract trong packages/schema rồi sinh lại type.
+// Các alias giữ tên cũ để code web không phụ thuộc trực tiếp vào cấu trúc file sinh ra.
+import type { RequestBody, ResponseBody, Schemas } from "@teamlens/schema";
+
+/** Mã lỗi máy đọc được trong body { error, message } (theo các response của contract). */
+export type ApiErrorCode =
+  | "validation_error"
+  | "unauthenticated"
+  | "forbidden"
+  | "not_found"
+  | "invalid_credentials"
+  | "already_setup"
+  | "email_taken"
+  | "slug_taken"
+  | "already_member"
+  | "user_not_found"
+  | "invalid_pattern"
+  | "invalid_code"
+  | "expired_code";
+
+/** Độ dài mật khẩu tối thiểu (minLength trong setup.yaml, users.yaml). */
+export const PASSWORD_MIN_LENGTH = 8;
+
+// --- Schema có tên ---
+export type ApiErrorBody = Schemas["Error"];
+export type Role = Schemas["Role"];
+export type User = Schemas["User"];
+export type Membership = Schemas["Membership"];
+export type ProjectSettings = Schemas["ProjectSettings"];
+/** Một dòng của `GET /projects` (`role` = null khi admin không là thành viên). */
+export type ProjectSummary = Schemas["ProjectListItem"];
+/** Trả về từ POST/PATCH project (không kèm repos). */
+export type Project = Schemas["Project"];
+/** Trả về từ GET /projects/:projectId (kèm repos). */
+export type ProjectDetail = Schemas["ProjectDetail"];
+export type Repo = Schemas["Repo"];
+export type Member = Schemas["Member"];
+export type DeviceStatus = Schemas["DeviceStatus"];
+export type Device = Schemas["Device"];
+
+// --- Body request / response theo operationId ---
+export type SetupStatus = ResponseBody<"getSetupStatus", 200>;
+export type SetupRequest = RequestBody<"setup">;
+export type LoginRequest = RequestBody<"login">;
+export type UserResponse = ResponseBody<"login", 200>;
+export type MeResponse = ResponseBody<"getMe", 200>;
+
+export type CreateProjectRequest = RequestBody<"createProject">;
+export type UpdateProjectRequest = RequestBody<"updateProject">;
+export type AddMemberRequest = RequestBody<"addProjectMember">;
+export type UpdateMemberRequest = RequestBody<"updateProjectMember">;
+export type CreateRepoRequest = RequestBody<"addProjectRepo">;
+export type CreateUserRequest = RequestBody<"createUser">;
+
+export type DeviceApproveRequest = RequestBody<"approveDevice">;
+export type DeviceApproveResponse = ResponseBody<"approveDevice", 200>;
