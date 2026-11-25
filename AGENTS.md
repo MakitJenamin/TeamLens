@@ -90,6 +90,7 @@ Sửa vùng nền: PR riêng, nhỏ, merge sớm rồi báo người kia `git pu
 ## 6. Quy ước làm việc
 
 - Mỗi task một nhánh `feat/<mã-task>-<tên-ngắn>` (ví dụ `feat/a3-claude-normalize`) và một PR vào `main`. CI xanh mới merge, dùng squash merge.
+- CI trên PR chỉ chạy job liên quan tới file đã đổi: `validate` (JS/TS) khi đổi `apps/`, `packages/`, file cấu hình pnpm/turbo; `rust-windows` khi đổi `cli/` hoặc `packages/schema/`. Job không liên quan hiện "skipped" và vẫn tính là đạt. Push lên `main` luôn chạy đủ. Bộ lọc nằm ở job `changes` trong `.github/workflows/ci.yml`; thêm thư mục mới mà job cần đọc thì nhớ thêm vào đó.
 - Commit theo Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`).
 - Tên biến, hàm, file bằng tiếng Anh; comment, tài liệu và thông báo người dùng bằng tiếng Việt.
 - Mỗi PR phải kèm test hoặc ghi rõ cách đã tự test.
