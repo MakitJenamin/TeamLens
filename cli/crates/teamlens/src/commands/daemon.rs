@@ -1,6 +1,6 @@
 //! `tl daemon` — chế độ nền, do Task Scheduler gọi (ẩn khỏi help).
 //!
-//! Chưa làm, thuộc task M3-Y2.
+//! Chưa làm, thuộc task M3.2.
 
 use clap::Args;
 
@@ -12,6 +12,6 @@ pub struct DaemonArgs {}
 pub fn run(_args: DaemonArgs) -> Result<(), AppError> {
     Err(AppError::NotImplemented {
         command: "daemon",
-        task: "M3-Y2",
+        task: "M3.2",
     })
 }

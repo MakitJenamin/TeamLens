@@ -41,7 +41,7 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 - Lỗi nghiệp vụ: `throw new ApiError(status, 'ma_loi', 'Thông báo tiếng Việt')`.
 - JSON REST dùng camelCase; DB dùng snake_case.
 - Bảng `turns` partition theo tháng của `ts` (SQL tay trong `drizzle/0001_turns_partitioned.sql`), PK `(session_id, seq, ts)`. Trước khi ghi turn của tháng cũ, gọi `SELECT ensure_turns_partitions(<ts>, 0)`.
-- Phát job: `queue.send(JOBS.sessionIngested, { sessionId })`. Muốn enqueue cùng transaction với ingest thì truyền `options.db` (adapter `IDatabase` của pg-boss bọc transaction hiện tại, M1-Y2 sẽ làm).
+- Phát job: `queue.send(JOBS.sessionIngested, { sessionId })`. Muốn enqueue cùng transaction với ingest thì truyền `options.db` (adapter `IDatabase` của pg-boss bọc transaction hiện tại, M1.6 sẽ làm).
 
 ## NestJS 12
 

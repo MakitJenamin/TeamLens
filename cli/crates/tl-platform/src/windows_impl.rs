@@ -57,14 +57,14 @@ impl Platform for WindowsPlatform {
     fn register_autostart(&self, _exe: &Path) -> Result<(), PlatformError> {
         Err(PlatformError::NotImplemented {
             feature: "Đăng ký Task Scheduler",
-            task: "M3-X4",
+            task: "M3.8",
         })
     }
 
     fn unregister_autostart(&self) -> Result<(), PlatformError> {
         Err(PlatformError::NotImplemented {
             feature: "Gỡ Task Scheduler",
-            task: "M3-X4",
+            task: "M3.8",
         })
     }
 }

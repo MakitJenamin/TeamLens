@@ -1,6 +1,6 @@
 //! `tl sync` — ép quét và gửi ngay.
 //!
-//! Chưa làm, thuộc task M1-X6.
+//! Chưa làm, thuộc task M1.7.
 
 use clap::Args;
 
@@ -12,6 +12,6 @@ pub struct SyncArgs {}
 pub fn run(_args: SyncArgs) -> Result<(), AppError> {
     Err(AppError::NotImplemented {
         command: "sync",
-        task: "M1-X6",
+        task: "M1.7",
     })
 }

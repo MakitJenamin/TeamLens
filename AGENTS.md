@@ -29,11 +29,24 @@ cd cli && cargo fmt --check && cargo clippy --all-targets -- -D warnings && carg
 
 Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`.
 
-## 3. Vùng file theo task (quan trọng nhất)
+## 3. Vùng sở hữu (quan trọng nhất)
 
-Hai người làm song song theo mốc trong [docs/TASKS.md](docs/TASKS.md). Đầu mỗi mốc ghi rõ vùng file của từng người; hai vùng không chồng nhau, và vai đổi sau mỗi mốc. **Chỉ sửa file trong vùng của task đang làm.** Cần sửa ngoài vùng thì dừng lại, hỏi người dùng; nếu được đồng ý thì tách thành PR riêng thật nhỏ.
+Mỗi người sở hữu trọn một nhóm tính năng từ CLI tới DB tới web và giữ vùng đó suốt dự án (danh sách việc: [docs/TASKS.md](docs/TASKS.md)). **Chỉ sửa file trong vùng của mình.** Cần sửa ngoài vùng thì dừng lại, hỏi người dùng; nếu được đồng ý thì tách thành PR riêng thật nhỏ.
 
-Luồng chính và code của từng khúc: [docs/FLOW.md](docs/FLOW.md). Hết mỗi mốc, người làm cập nhật phần ghi chú của khúc mình trong file đó.
+| | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
+| --- | --- | --- |
+| CLI | `cli/crates/tl-core`, `cli/crates/tl-adapters`, `cli/crates/teamlens/src/{pipeline,queue,daemon,sync}/`, lệnh `status`, `preview`, `sync`, `daemon`, `pause`, `resume` | `cli/crates/tl-platform` (phần Task Scheduler), `cli/crates/teamlens/src/consent/`, lệnh `join`, `consent`, `uninstall` |
+| API (`apps/api/src/modules/`) | `agent/` (ingest, config, heartbeat), `sessions/` | `invites/`, `consent/`, `rules/`, `stats/`, `admin/`, `retention/` |
+| Web (`apps/web/src/app/[locale]/`) | `(dashboard)/projects/[projectId]/sessions/`, `(dashboard)/projects/[projectId]/members/page.tsx` | `(auth)/i/[code]/`, `(dashboard)/projects/[projectId]/{overview,leaderboard,rules}/`, `(dashboard)/projects/[projectId]/members/[userId]/`, `(dashboard)/{admin,me}/` |
+| Schema | `session.v1.schema.json`, `examples/`, `openapi/agent.yaml`, `openapi/sessions.yaml` | `openapi/{invites,consent,rules,stats,admin}.yaml` |
+| Phát hành | `deploy/install.ps1`, `.github/workflows/release.yml` | `deploy/docker-compose.yml`, `deploy/Caddyfile`, Dockerfile của api/web |
+
+**Điểm chạm giữa hai vùng** (chốt bằng contract, không sửa code của nhau):
+- Trang xem session (Người 1) gọi API findings (Người 2, `GET /api/v1/sessions/{sessionId}/findings`).
+- Pipeline gửi của CLI (Người 1) hỏi module `consent` (Người 2) trước khi gửi.
+- `tl join` (Người 2) dùng lại `login` và `config` của vùng nền.
+
+Luồng chính và code của từng khúc: [docs/FLOW.md](docs/FLOW.md). Hết mỗi mốc, mỗi người cập nhật phần ghi chú khúc của mình trong file đó.
 
 **Vùng nền (dùng chung, đã làm xong ở giai đoạn nền):** `auth`, `device`, `projects`, `access` (phân quyền + audit) trong API; trang login/setup/device và layout/sidebar trong web; lệnh `login`/`logout` và HTTP client cơ sở trong CLI; `apps/api/src/db/`, migration, seed; mọi file cấu hình gốc (`package.json`, lockfile, `Cargo.toml` workspace, `turbo.json`, `app.module.ts`, `next.config.*`, CI).
 

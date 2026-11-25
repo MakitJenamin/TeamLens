@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Task: M2-X1, M4-Y3, M5-X3.
+# KHUNG — chưa có endpoint. Task: M4.5, M4.6, M5.6.
 #
 # Quản trị toàn server (chỉ admin), spec mục 7.4 và 11:
 # - GET/PATCH /api/v1/admin/settings (LLM provider, retention, pattern redaction)

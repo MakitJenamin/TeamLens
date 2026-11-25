@@ -13,5 +13,5 @@ export default async function ProjectRulesPage({ params }: PageProps<"/[locale]/
   setRequestLocale(locale);
   const t = await getTranslations("rules");
 
-  return <PagePlaceholder title={t("title")} description={t("description")} task="M4-Y1" />;
+  return <PagePlaceholder title={t("title")} description={t("description")} task="M4.4" />;
 }

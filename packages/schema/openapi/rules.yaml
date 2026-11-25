@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Task: M4-Y1.
+# KHUNG — chưa có endpoint. Task: M1.9 (findings), M4.4 (quản lý rule).
 #
 # Quản lý rule theo project, spec mục 9:
 # - GET/PATCH /api/v1/projects/{projectId}/rules (bật/tắt, ngưỡng, mức độ)

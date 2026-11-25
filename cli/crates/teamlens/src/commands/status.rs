@@ -1,6 +1,6 @@
 //! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`).
 //!
-//! Phần daemon, agent phát hiện được, hàng đợi thuộc task M3-Y2, M3-Y3.
+//! Phần daemon, agent phát hiện được, hàng đợi thuộc task M3.2, M3.3.
 
 use std::io::Write;
 
@@ -11,7 +11,7 @@ use crate::api_client::{ApiClient, ApiErrorCode, WhoamiResponse};
 use crate::context::AppContext;
 use crate::error::AppError;
 
-const PENDING_DAEMON: &str = "chưa có (task M3-Y3)";
+const PENDING_DAEMON: &str = "chưa có (task M3.3)";
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {

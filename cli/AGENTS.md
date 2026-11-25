@@ -21,16 +21,16 @@ Nếu shell không thấy `cargo`, dùng `%USERPROFILE%\.cargo\bin\cargo.exe`. C
 
 | Crate | Nội dung | Ghi chú |
 | --- | --- | --- |
-| `crates/tl-core` | Logic thuần: `session` (M1-X2), `scope` (M1-X4), `redact` (M1-X5, M2-Y1), `truncate` (M1-X5) | **Không** phụ thuộc tokio, reqwest, không đọc/ghi file |
-| `crates/tl-adapters` | Trait `Adapter` (spec 5.2), `AgentKind`, `SourceFile`, `Offset`, `RawEvent`, `ParseError`; `claude_code/` (M1-X3, M2-Y2, M2-Y3), `codex/` (M2-Y4) | Fixtures ở `tests/fixtures/`, phải che trước khi commit |
-| `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler là task M3-X4 |
-| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1-X6), `queue/` (M3-Y1), `daemon/` (M3-Y2), `sync/` (M1-X6) | Test tích hợp ở `tests/` |
+| `crates/tl-core` | Logic thuần: `session` (M1.2), `scope` (M1.4), `redact` (M1.5, M2.1), `truncate` (M1.5) | **Không** phụ thuộc tokio, reqwest, không đọc/ghi file |
+| `crates/tl-adapters` | Trait `Adapter` (spec 5.2), `AgentKind`, `SourceFile`, `Offset`, `RawEvent`, `ParseError`; `claude_code/` (M1.3, M2.3, M2.4), `codex/` (M2.5) | Fixtures ở `tests/fixtures/`, phải che trước khi commit |
+| `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler là task M3.8 |
+| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7) | Test tích hợp ở `tests/` |
 
 Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.dependencies]` của `Cargo.toml` gốc. Crate con chỉ thêm dòng `ten = { workspace = true }` cho thứ nó dùng. Cần thư viện mới ngoài danh sách thì sửa `Cargo.toml` gốc bằng PR riêng (vùng nền).
 
 ## Vùng file
 
-Vùng file của từng task ghi ở đầu mỗi mốc trong `docs/TASKS.md` (vai đổi sau mỗi mốc).
+Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENTS.md` gốc, mục 3. Module `crates/teamlens/src/consent/` (Người 2) sẽ được tạo ở M3.7.
 
 **Vùng nền** (đã làm ở F8, sửa thì PR riêng nhỏ): `Cargo.toml` workspace, `rust-toolchain.toml`, lệnh `login`/`logout`, `api_client`, `config`, `context`, `error`, `cli.rs`, `main.rs`.
 

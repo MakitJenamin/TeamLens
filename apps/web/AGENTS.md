@@ -44,7 +44,7 @@ src/app/[locale]/(dashboard)/        # layout có sidebar + các màn hình
 
 ## Vùng sở hữu
 
-Vùng file của từng task ghi ở đầu mỗi mốc trong `docs/TASKS.md`. Layout, sidebar, `(auth)/{login,setup,device}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
+Vùng sở hữu của Người 1 và Người 2: bảng ở `AGENTS.md` gốc, mục 3. Layout, sidebar, `(auth)/{login,setup,device}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

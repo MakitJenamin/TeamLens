@@ -9,7 +9,7 @@
 //! | Thư mục dữ liệu `%LOCALAPPDATA%\teamlens` | xong |
 //! | Credential store (Windows Credential Manager qua `keyring`) | xong |
 //! | Named mutex (một instance daemon) | xong |
-//! | Task Scheduler "At log on" | task M3-X4 |
+//! | Task Scheduler "At log on" | task M3.8 |
 
 mod credentials;
 #[cfg(windows)]
