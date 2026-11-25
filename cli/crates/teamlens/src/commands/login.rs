@@ -17,8 +17,8 @@ use crate::error::AppError;
 
 /// Số giây cộng thêm vào `interval` mỗi lần server trả `slow_down`.
 pub const SLOW_DOWN_STEP_SECS: u64 = 5;
-/// Số lần lỗi mạng liên tiếp tối đa khi poll trước khi bỏ cuộc.
-const MAX_CONSECUTIVE_NETWORK_ERRORS: u32 = 3;
+/// Số lần lỗi tạm thời liên tiếp tối đa (mất mạng, proxy 5xx) khi poll trước khi bỏ cuộc.
+const MAX_CONSECUTIVE_TRANSIENT_ERRORS: u32 = 3;
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
@@ -87,6 +87,7 @@ pub async fn run(
 
     let polled = poll_for_token(ctx, &client, &code).await?;
 
+    revoke_previous_token(ctx, &server_url, &polled.access_token).await;
     ctx.credentials
         .set_token(&server_url, &polled.access_token)?;
     config.server_url = Some(server_url.clone());
@@ -120,6 +121,36 @@ pub async fn run(
     })
 }
 
+/// Máy đã có token cho server này (đăng nhập lại): báo server thu hồi token cũ để nó
+/// không còn hiệu lực. Best effort: mọi lỗi đều bỏ qua, không chặn đăng nhập.
+async fn revoke_previous_token(ctx: &AppContext, server_url: &str, new_token: &str) {
+    let old = match ctx.credentials.get_token(server_url) {
+        Ok(Some(old)) if old != new_token => old,
+        Ok(_) => return,
+        Err(e) => {
+            tracing::debug!(error = ?e, "không đọc được token cũ để thu hồi");
+            return;
+        }
+    };
+    match ApiClient::new(server_url, Some(old)) {
+        Ok(client) => {
+            if let Err(e) = client.logout().await {
+                tracing::debug!(error = ?e, "thu hồi token cũ thất bại, bỏ qua");
+            }
+        }
+        Err(e) => tracing::debug!(error = ?e, "không tạo được HTTP client để thu hồi token cũ"),
+    }
+}
+
+/// Lỗi tạm thời khi poll: mất mạng, hoặc proxy trả 5xx (502/503/504) không đúng định dạng API.
+fn is_transient(e: &ApiError) -> bool {
+    match e {
+        ApiError::Network { .. } => true,
+        ApiError::InvalidResponse { status, .. } => *status >= 500,
+        _ => false,
+    }
+}
+
 struct Polled {
     access_token: String,
     device_id: String,
@@ -135,7 +166,7 @@ async fn poll_for_token(
     let mut interval = code.interval.max(1);
     let mut waited: u64 = 0;
     let mut polls: u32 = 0;
-    let mut network_errors: u32 = 0;
+    let mut transient_errors: u32 = 0;
 
     loop {
         if waited >= code.expires_in {
@@ -155,7 +186,7 @@ async fn poll_for_token(
                 })
             }
             Err(ApiError::Api { code: c, .. }) => {
-                network_errors = 0;
+                transient_errors = 0;
                 match c {
                     ApiErrorCode::AuthorizationPending => {}
                     ApiErrorCode::SlowDown => interval += SLOW_DOWN_STEP_SECS,
@@ -177,10 +208,10 @@ async fn poll_for_token(
                     }
                 }
             }
-            Err(e @ ApiError::Network { .. }) => {
-                network_errors += 1;
-                tracing::debug!(error = ?e, network_errors, "lỗi mạng khi poll token");
-                if network_errors >= MAX_CONSECUTIVE_NETWORK_ERRORS {
+            Err(e) if is_transient(&e) => {
+                transient_errors += 1;
+                tracing::debug!(error = ?e, transient_errors, "lỗi tạm thời khi poll token");
+                if transient_errors >= MAX_CONSECUTIVE_TRANSIENT_ERRORS {
                     return Err(e.into());
                 }
             }
