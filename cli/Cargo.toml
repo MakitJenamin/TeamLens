@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = ["crates/tl-core", "crates/tl-adapters", "crates/tl-platform", "crates/teamlens"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/makitjenamin/teamlens"
+rust-version = "1.85"
+
+# Khai báo sẵn mọi thư viện dự kiến cho cả MVP để sau này không phải sửa file gốc.
+# Crate con chỉ khai báo những gì nó thật sự dùng: `ten = { workspace = true }`.
+[workspace.dependencies]
+# Nội bộ
+tl-core = { path = "crates/tl-core" }
+tl-adapters = { path = "crates/tl-adapters" }
+tl-platform = { path = "crates/tl-platform" }
+
+# CLI và async
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["full"] }
+# reqwest 0.12 + rustls (ring): không cần OpenSSL, không cần CMake/NASM khi build trên Windows.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip"] }
+
+# Đọc log, lưu trạng thái
+notify = "9"
+rusqlite = { version = "0.43", features = ["bundled"] }
+
+# Dữ liệu
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+toml = "1"
+
+# Lỗi và log
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Hệ điều hành
+directories = "6"
+keyring = { version = "3", features = ["windows-native"] }
+webbrowser = "1"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Threading",
+  "Win32_System_TaskScheduler",
+  "Win32_System_Com",
+  "Win32_System_Variant",
+  "Win32_System_Ole",
+] }
+self_update = { version = "1", default-features = false, features = ["reqwest", "rustls", "github", "archive-zip", "compression-zip-deflate"] }
+
+# Test
+jsonschema = "0.63"
+insta = { version = "1", features = ["json"] }
+tempfile = "3"
+wiremock = "0.6"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
+
+# Các dependency ở trên được khai báo trước cho task sau, nên tạm chưa crate nào dùng.
+[workspace.lints.cargo]
+unused_workspace_dependencies = "allow"

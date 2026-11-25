@@ -1,0 +1,14 @@
+[package]
+name = "tl-core"
+description = "Logic thuần của TeamLens CLI: schema session, lọc phạm vi, che secret, cắt output"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+# Quy tắc: crate này KHÔNG phụ thuộc tokio, reqwest hay đọc/ghi file.
+# Mọi I/O nằm ở `teamlens` hoặc `tl-adapters`, để logic ở đây test được thuần túy.
+[dependencies]
+
+[lints]
+workspace = true
