@@ -1,0 +1,73 @@
+# Nhóm `setup`: tạo tài khoản admin đầu tiên khi server mới cài (trang /setup).
+paths:
+  /api/v1/setup/status:
+    get:
+      operationId: getSetupStatus
+      tags: [setup]
+      summary: Kiểm tra server đã được setup chưa
+      security: []
+      responses:
+        '200':
+          description: Trạng thái setup.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [needsSetup]
+                additionalProperties: false
+                properties:
+                  needsSetup:
+                    type: boolean
+                    description: '`true` khi chưa có user nào trong hệ thống.'
+
+  /api/v1/setup:
+    post:
+      operationId: setup
+      tags: [setup]
+      summary: Tạo admin đầu tiên và đăng nhập luôn
+      description: Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `isAdmin = true`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                name:
+                  type: string
+                  minLength: 1
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: Đã tạo admin; cookie `tl_session` được đặt.
+          headers:
+            Set-Cookie:
+              $ref: './common.yaml#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/User'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '409':
+          description: 'Server đã có user (`error`: `already_setup`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: already_setup
+                message: Server đã được cài đặt.

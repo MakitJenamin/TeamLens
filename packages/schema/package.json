@@ -1,0 +1,35 @@
+{
+  "name": "@teamlens/schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contract của TeamLens: OpenAPI (dashboard + CLI) và JSON Schema session chuẩn hóa v1",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./session.v1.schema.json": "./session.v1.schema.json",
+    "./openapi.yaml": "./dist/openapi.yaml"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "pnpm run build",
+    "bundle": "redocly lint openapi/openapi.yaml && redocly bundle openapi/openapi.yaml --output dist/openapi.yaml",
+    "generate": "openapi-typescript dist/openapi.yaml --output src/generated/api.ts",
+    "build": "pnpm run bundle && pnpm run generate",
+    "lint": "redocly lint openapi/openapi.yaml",
+    "typecheck": "tsc --noEmit",
+    "validate-examples": "node scripts/validate-examples.mjs",
+    "test": "pnpm run validate-examples"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.83.0",
+    "@types/node": "^22.10.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~5.9.3"
+  }
+}

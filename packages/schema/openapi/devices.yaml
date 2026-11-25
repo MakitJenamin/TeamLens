@@ -1,0 +1,96 @@
+# Nhóm `devices` (phía dashboard): duyệt mã device login và quản lý thiết bị của mình.
+# Phía CLI của device login nằm ở agent-auth.yaml.
+paths:
+  /api/v1/device/approve:
+    post:
+      operationId: approveDevice
+      tags: [devices]
+      summary: Duyệt mã device login cho user đang đăng nhập
+      description: Người dùng nhập `userCode` mà CLI hiển thị trên trang `/device`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode]
+              additionalProperties: false
+              properties:
+                userCode:
+                  type: string
+                  description: Mã `XXXX-XXXX` do CLI hiển thị (server chấp nhận chữ thường và bỏ khoảng trắng).
+                  examples: [WDJB-MJHT]
+      responses:
+        '200':
+          description: Đã duyệt; CLI sẽ nhận token ở lần poll kế tiếp.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device]
+                additionalProperties: false
+                properties:
+                  device:
+                    $ref: './common.yaml#/components/schemas/DeviceRef'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '404':
+          description: 'Mã không tồn tại hoặc đã dùng (`error`: `invalid_code`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: invalid_code
+                message: Mã không đúng. Kiểm tra lại mã hiển thị trong terminal.
+        '410':
+          description: 'Mã đã hết hạn (`error`: `expired_code`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: expired_code
+                message: Mã đã hết hạn. Chạy lại `tl login` để lấy mã mới.
+
+  /api/v1/devices:
+    get:
+      operationId: listMyDevices
+      tags: [devices]
+      summary: Thiết bị của chính user đang đăng nhập
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách thiết bị (kể cả đã thu hồi).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './common.yaml#/components/schemas/Device'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/devices/{deviceId}/revoke:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/DeviceId'
+    post:
+      operationId: revokeDevice
+      tags: [devices]
+      summary: Thu hồi token của một thiết bị (chủ thiết bị hoặc admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã thu hồi (gọi lại trên thiết bị đã thu hồi cũng trả 204).
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
