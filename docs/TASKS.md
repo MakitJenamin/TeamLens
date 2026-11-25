@@ -24,15 +24,15 @@ Quy ước: mỗi task là một nhánh `feat/<mã>-<tên-ngắn>` và một PR.
 
 | # | Việc | Cần xong trước | Tự test |
 | --- | --- | --- | --- |
-| A1 | `tl-core`: kiểu dữ liệu session v1 | Nền | Test khớp JSON Schema với file trong `examples/` |
+| A1 | `tl-core`: kiểu dữ liệu session v1 (kèm các trường mới ở RULES.md mục 4, PR contract riêng trước) | Nền | Test khớp JSON Schema với file trong `examples/` |
 | A2 | Adapter Claude Code: tìm file, đọc JSONL tăng dần theo offset; thu thập fixtures đã che | A1 | Test trên fixtures |
-| A3 | Adapter Claude Code: chuẩn hóa turns, usage đếm một lần theo `message.id`, session con (subagent) | A2 | Snapshot test; `tl preview <file>` in JSON |
+| A3 | Adapter Claude Code: chuẩn hóa turns, usage đếm một lần theo `message.id`, session con (subagent), điền `permission_mode`, `instruction_files`, `interrupted` | A2 | Snapshot test; `tl preview <file>` in JSON |
 | A4 | Lọc phạm vi theo git remote (worktree, submodule, cache) | A3 | Test repo giả; test "ngoài phạm vi không bao giờ gửi" |
 | A5 | Che secret (≥30 loại + entropy) + cắt output + đổi đường dẫn tuyệt đối | A3 | Bộ test secret mẫu; `tl preview` |
 | A6 | API `POST /agent/v1/ingest` (validate, idempotent `batch_id`, upsert, phát job `session.ingested`) + `GET /agent/v1/config` | Nền | Gửi file mẫu bằng curl |
 | A7 | `tl sync`: pipeline đầy đủ → gửi batch gzip | A4, A5, A6 | Session thật của mình vào DB |
 | A8 | API + web xem session: danh sách, chi tiết, diff, session con | A6 | Mở trình duyệt xem session vừa gửi |
-| A9 | Adapter Codex (fixtures, đọc, chuẩn hóa) | A1 | Snapshot test; `tl sync` |
+| A9 | Adapter Codex (fixtures, đọc, chuẩn hóa; điền `permission_mode`, `interrupted`, `reasoning_effort`) | A1 | Snapshot test; `tl sync` |
 | A10 | Hàng đợi SQLite + retry/backoff + giới hạn 500 MB + xử lý `426` | A7 | Tắt API rồi bật lại: không mất, không trùng |
 | A11 | Daemon: watch file, quét 10 phút, ổn định 2 phút; heartbeat (CLI + API); `status`/`pause`/`resume` | A10 | Dùng Claude Code và thấy session hiện lên |
 | A12 | Full-text search session | A8 | Tìm theo nội dung prompt trên web |
@@ -46,8 +46,8 @@ Quy ước: mỗi task là một nhánh `feat/<mã>-<tên-ngắn>` và một PR.
 | B3 | `tl join`: lưu server từ invite → login → màn hình đồng ý → `POST /agent/v1/consent`; `consent revoke`, `uninstall` | B2 | Chạy `tl join` với invite local |
 | B4 | `tl-platform`: Task Scheduler (At log on) + named mutex; `tl join` đăng ký daemon | B3 | Đăng xuất Windows rồi đăng nhập lại |
 | B5 | Trang "Của tôi" (đồng ý, thiết bị, ai đã xem session của mình) + trang audit cho admin | Nền | Đăng nhập 2 tài khoản seed |
-| B6 | Rule engine: thông dịch JSON (đếm, ngưỡng, regex, chuỗi liên tiếp) | Nền | Unit test trên session seed |
-| B7 | Worker nhận job `session.ingested` + 15 rule đầu (seed) + ghi `findings` | B6 | Ingest file mẫu → có finding |
+| B6 | Rule engine: thông dịch JSON (đếm, ngưỡng, regex, chuỗi liên tiếp), phạm vi `session` và `user_week`, chạy `tests` nội tuyến (RULES.md mục 5) | Nền | Unit test trên session seed |
+| B7 | Worker nhận job `session.ingested` + 24 rule MVP theo `docs/RULES.md` (seed) + ghi `findings` | B6 | Ingest file mẫu → có finding |
 | B8 | Điểm 5 nhóm + `user_weekly_stats` (chỉ session gốc) | B7 | Test với dữ liệu seed |
 | B9 | Màn hình tổng quan project + hồ sơ thành viên | B8 | Xem trên web với dữ liệu seed |
 | B10 | Leaderboard (công tắc theo project) + màn hình quản lý rule (thử 50 session, chạy lại) | B8 | Xem trên web |
