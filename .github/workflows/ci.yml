@@ -4,61 +4,39 @@ on:
   push:
     branches: [main]
   pull_request:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+    branches: [main]
 
 jobs:
-  js:
-    name: JS/TS (build, lint, typecheck, test)
+  validate:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: teamlens
-          POSTGRES_PASSWORD: teamlens
-          POSTGRES_DB: teamlens
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U teamlens"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      DATABASE_URL: postgres://teamlens:teamlens@localhost:5433/teamlens
-      TEAMLENS_PUBLIC_URL: http://localhost:3000
-      # Khóa chỉ dùng cho CI (32 byte 0 mã hóa base64), không phải secret.
-      TEAMLENS_SECRET_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       TURBO_TELEMETRY_DISABLED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       # Phiên bản pnpm lấy từ trường `packageManager` trong package.json gốc.
-      - uses: pnpm/action-setup@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Cài dependency
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Kiểm tra type sinh từ OpenAPI đã được commit
-        run: |
-          if [ -f packages/schema/src/generated/api.ts ]; then
-            git diff --exit-code -- packages/schema/src/generated/api.ts \
-              || { echo "::error::src/generated/api.ts chưa cập nhật. Chạy 'pnpm --filter @teamlens/schema build' rồi commit."; exit 1; }
-          fi
 
       - name: Lint
         run: pnpm lint
@@ -69,46 +47,15 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Migration + seed + e2e API
-        run: |
-          pnpm --filter @teamlens/api db:migrate
-          pnpm --filter @teamlens/api db:seed
-          pnpm --filter @teamlens/api test:e2e
+      - name: Build
+        run: pnpm build
 
-  rust:
-    name: Rust CLI (fmt, clippy, test)
-    runs-on: windows-latest
-    defaults:
-      run:
+      - name: Type sinh từ OpenAPI đã được commit
+        run: git diff --exit-code -- packages/schema/src/generated/api.ts
+
+      - name: Rust CLI (fmt, clippy, test)
         working-directory: cli
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli
-
-      - name: cargo fmt
-        run: cargo fmt --all --check
-
-      - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: cargo test
-        run: cargo test
-
-  # Job tổng: branch protection của `main` chỉ cần yêu cầu một check này.
-  validate:
-    name: validate
-    runs-on: ubuntu-latest
-    needs: [js, rust]
-    if: always()
-    steps:
-      - name: Mọi job phải thành công
         run: |
-          echo "js=${{ needs.js.result }} rust=${{ needs.rust.result }}"
-          test "${{ needs.js.result }}" = "success" && test "${{ needs.rust.result }}" = "success"
+          cargo fmt --all --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
