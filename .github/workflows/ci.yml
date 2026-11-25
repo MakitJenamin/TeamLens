@@ -6,8 +6,48 @@ on:
   pull_request:
     branches: [main]
 
+# PR: commit mới huỷ lần chạy cũ của cùng PR. Push lên main: chạy hết từng commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Xem PR đổi những vùng nào để bỏ qua job không liên quan.
+  # Job bị skip vì `if:` vẫn được tính là đạt cho required check, nên không kẹt branch protection.
+  # Push lên main luôn chạy đủ (lưới an toàn nếu bộ lọc thiếu, và làm mới cache Rust).
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      js: ${{ steps.filter.outputs.js }}
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Pin theo commit SHA (v4.0.3) để tránh tag bị thay đổi.
+      - name: Lọc đường dẫn thay đổi
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            js:
+              - 'apps/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+            rust:
+              - 'cli/**'
+              - 'packages/schema/**'
+              - '.github/workflows/ci.yml'
+
   validate:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.js == 'true'
     runs-on: ubuntu-latest
     env:
       TURBO_TELEMETRY_DISABLED: '1'
@@ -43,8 +83,10 @@ jobs:
       - name: Type sinh từ OpenAPI đã được commit
         run: git diff --exit-code -- packages/schema/src/generated/api.ts
 
-  # Chạy song song với `validate`. Dùng Windows vì tl.exe có code riêng cho Windows (Credential Manager, mutex).
+  # Chạy song song với `validate` (khi cả hai cùng cần chạy). Dùng Windows vì tl.exe có code riêng cho Windows (Credential Manager, mutex).
   rust-windows:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     defaults:
       run:
