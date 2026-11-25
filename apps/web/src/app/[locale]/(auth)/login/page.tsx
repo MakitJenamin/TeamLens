@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { redirect as nextRedirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { LoginForm } from "@/components/auth/login-form";
 import { redirect } from "@/i18n/navigation";
 import { fetchNeedsSetup, serverApiOrNull } from "@/lib/api/server";
 import type { MeResponse } from "@/lib/api/types";
-import { SESSION_COOKIE, safeNextPath } from "@/lib/auth-paths";
+import { SESSION_COOKIE, resolveNextPath, safeNextPath } from "@/lib/auth-paths";
 
 export async function generateMetadata({
   params,
@@ -31,8 +30,8 @@ export default async function LoginPage({ params, searchParams }: PageProps<"/[l
   if ((await cookies()).has(SESSION_COOKIE)) {
     const me = await serverApiOrNull<MeResponse>("/auth/me").catch(() => null);
     if (me) {
-      // ?next= đã có sẵn prefix locale nên dùng redirect gốc của Next.
-      if (nextPath) nextRedirect(nextPath);
+      // ?next= đã có sẵn prefix locale: tách ra rồi redirect đúng locale đó.
+      if (nextPath) redirect(resolveNextPath(nextPath));
       redirect({ href: "/", locale });
     }
   }

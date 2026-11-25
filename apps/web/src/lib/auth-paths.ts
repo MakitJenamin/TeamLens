@@ -30,7 +30,16 @@ export function safeNextPath(next: string | null | undefined): string {
   return next;
 }
 
-/** Thêm prefix locale theo quy tắc as-needed (vi không có prefix). */
+/**
+ * Tách ?next= (đã có prefix locale do proxy tạo) thành đường dẫn không prefix + locale,
+ * để điều hướng bằng router/redirect của @/i18n/navigation: "/en/me" → { href: "/me", locale: "en" }.
+ */
+export function resolveNextPath(next: string | null | undefined): { href: string; locale: string } {
+  const { locale, path } = splitLocale(safeNextPath(next));
+  return { href: path, locale };
+}
+
+/** Thêm prefix locale theo quy tắc as-needed (vi không có prefix). Chỉ dùng trong proxy. */
 export function localizePath(path: string, locale: string): string {
   if (locale === defaultLocale) return path;
   return path === "/" ? `/${locale}` : `/${locale}${path}`;

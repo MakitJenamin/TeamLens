@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isProtectedPath, localizePath, safeNextPath, splitLocale } from "./auth-paths";
+import { isProtectedPath, localizePath, resolveNextPath, safeNextPath, splitLocale } from "./auth-paths";
 
 describe("splitLocale", () => {
   it("tách prefix en", () => {
@@ -46,5 +46,15 @@ describe("localizePath", () => {
     expect(localizePath("/login", "vi")).toBe("/login");
     expect(localizePath("/login", "en")).toBe("/en/login");
     expect(localizePath("/", "en")).toBe("/en");
+  });
+});
+
+describe("resolveNextPath", () => {
+  it("tách locale khỏi ?next= để dùng với router của next-intl", () => {
+    expect(resolveNextPath("/en/device?code=WDJB-MJHT")).toEqual({ href: "/device?code=WDJB-MJHT", locale: "en" });
+    expect(resolveNextPath("/me")).toEqual({ href: "/me", locale: "vi" });
+  });
+  it("đường dẫn ngoài bị thay bằng trang chủ", () => {
+    expect(resolveNextPath("//evil.com")).toEqual({ href: "/", locale: "vi" });
   });
 });

@@ -1,8 +1,7 @@
 "use client";
 
 import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -15,10 +14,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { useRouter as useLocaleRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useLogout } from "@/lib/api/hooks";
 import type { User } from "@/lib/api/types";
-import { localizePath } from "@/lib/auth-paths";
 
 export function initials(name: string, email: string): string {
   const source = name.trim() || email;
@@ -30,9 +28,7 @@ export function initials(name: string, email: string): string {
 
 export function UserMenu({ user }: { user: User }) {
   const t = useTranslations("nav");
-  const locale = useLocale();
   const router = useRouter();
-  const localeRouter = useLocaleRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const logout = useLogout();
 
@@ -43,7 +39,7 @@ export function UserMenu({ user }: { user: User }) {
       toast.error(t("logoutFailed"));
       return;
     }
-    router.replace(localizePath("/login", locale));
+    router.replace("/login");
     router.refresh();
   }
 
@@ -78,7 +74,7 @@ export function UserMenu({ user }: { user: User }) {
             <DropdownMenuItem
               onClick={() => {
                 setOpenMobile(false);
-                localeRouter.push("/me");
+                router.push("/me");
               }}
             >
               <UserIcon />
