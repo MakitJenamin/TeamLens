@@ -15,4 +15,4 @@ fixtures/
 - Thay đường dẫn cá nhân (`C:\Users\<tên>`), tên máy, email thật bằng giá trị giả.
 - Không đưa log thật chưa che vào repo, kể cả tạm thời.
 
-Fixtures Claude Code thuộc task A2/A3, Codex thuộc task A9.
+Fixtures Claude Code thuộc task M1-X3, Codex thuộc task M2-Y4.

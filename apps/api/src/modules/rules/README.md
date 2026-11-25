@@ -1,1 +1,1 @@
-Module rỗng, sẽ làm ở task B6 (rule engine) và B7 (worker `session.ingested` + rule seed + findings).
+Module rỗng, sẽ làm ở task M1-Y3 (rule engine) và M1-Y4 (worker `session.ingested` + findings); mở rộng ở M2-X2 (`user_week`, 16 rule) và M4-Y1 (quản lý rule).

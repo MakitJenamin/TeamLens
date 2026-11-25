@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Vùng sở hữu: B · Con người và điểm số (task B8, B9, B10).
+# KHUNG — chưa có endpoint. Task: M2-X3, M4-X1–M4-X3.
 #
 # Thống kê và điểm, spec mục 7.4 và 10:
 # - GET /api/v1/projects/{projectId}/overview

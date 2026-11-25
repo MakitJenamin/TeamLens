@@ -13,5 +13,5 @@ export default async function ProjectSessionsPage({ params }: PageProps<"/[local
   setRequestLocale(locale);
   const t = await getTranslations("sessions");
 
-  return <PagePlaceholder title={t("list.title")} description={t("list.description")} task="A8" />;
+  return <PagePlaceholder title={t("list.title")} description={t("list.description")} task="M1-Y5" />;
 }

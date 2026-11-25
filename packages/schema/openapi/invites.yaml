@@ -1,4 +1,4 @@
-# KHUNG — chưa có endpoint. Vùng sở hữu: B · Con người và điểm số (task B2).
+# KHUNG — chưa có endpoint. Task: M3-X2.
 #
 # Invite theo project, spec mục 7.1:
 # - GET/POST /api/v1/projects/{projectId}/invites, DELETE .../invites/{inviteId}

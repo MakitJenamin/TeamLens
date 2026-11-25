@@ -32,10 +32,10 @@ import { QueueModule } from './queue/queue.module.js';
     AuthModule,
     DeviceModule,
     ProjectsModule,
-    // A · Đường dữ liệu
+    // Luồng dữ liệu: ingest, xem session
     AgentModule,
     SessionsModule,
-    // B · Con người và điểm số
+    // Onboarding, rule, điểm, quản trị
     InvitesModule,
     ConsentModule,
     RulesModule,
