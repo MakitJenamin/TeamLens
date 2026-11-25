@@ -8,4 +8,4 @@ Công cụ open-source, tự host, giúp leader xem thành viên trong team làm
 
 Trạng thái: đang ở giai đoạn đặc tả. Xem [docs/SPEC.md](docs/SPEC.md).
 
-License: AGPL-3.0 (dự kiến).
+License: [AGPL-3.0](LICENSE).

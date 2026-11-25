@@ -36,8 +36,8 @@ MVP chạy trên Windows với Claude Code và Codex; Copilot, chấm bằng LLM
 | --- | --- | --- |
 | Phase 0 · Nền móng (khoảng 1 tuần) | OpenAPI contract, schema session v1, monorepo + CI, log mẫu để test | Contract đã chốt |
 | **Phase 1 · MVP** (Windows, 2 agent) | Adapter Claude Code, adapter Codex, đồng ý + che secret, hàng đợi + heartbeat, ingest/auth/rule, 5 màn hình dashboard | Đạt tiêu chí mục 12.3 |
-| Phase 2 · Mở rộng | Adapter Copilot, chấm bằng LLM, Antigravity (beta), bản macOS/Linux | Chạy ổn với team thật |
-| Phase 3 · Trưởng thành | SSO, gắn với PR và issue, winget/scoop, có thể làm SaaS | — |
+| Phase 2 · Mở rộng | Adapter Copilot, chấm bằng LLM, Antigravity (beta), đọc log agent chạy trong WSL, bản macOS/Linux | Chạy ổn với team thật |
+| Phase 3 · Trưởng thành | SSO, gắn với PR và issue, winget/scoop, Remote-SSH/Dev Container, có thể làm SaaS | — |
 
 ## 3. Kiến trúc tổng thể
 
@@ -128,6 +128,10 @@ Mỗi agent có một adapter riêng chuyển log gốc thành một schema chun
 
 Thứ tự làm: Claude Code → Codex → Copilot (Copilot khó nhất vì phải replay patch log).
 
+**Subagent của Claude Code** được gửi thành session con: mỗi transcript subagent là một session riêng, `parent_source_id` trỏ về session cha. Dashboard hiển thị session con lồng trong session cha.
+
+**WSL, Remote-SSH, Dev Container:** MVP chỉ đọc log nằm trên Windows. Agent chạy trong WSL ghi log vào ổ WSL nên MVP không thấy; `tl status` cảnh báo khi phát hiện có distro WSL. Phase 2 đọc log WSL qua `\\wsl.localhost\<distro>\home\...` (CLI vẫn chạy trên Windows). Remote-SSH và Dev Container để phase 3.
+
 ### 5.2 Interface adapter (Rust)
 
 ```rust
@@ -178,6 +182,7 @@ Quy tắc: gặp bản ghi không nhận ra thì bỏ qua và đếm vào `parse
 ```
 
 - `source_id` = agent + id gốc của session, dùng để upsert và chống trùng khi gửi tăng dần.
+- `parent_source_id` khác `null` khi session là subagent (session con).
 - `repo_remote` được chuẩn hóa: bỏ `https://`, `git@`, `.git`, chữ thường. `cwd` tuyệt đối không gửi lên, chỉ gửi đường dẫn tương đối trong repo.
 - Ảnh không gửi lên trong MVP, chỉ đếm số lượng.
 
@@ -247,7 +252,7 @@ Server NestJS có hai nhóm API: `/agent/v1/*` cho CLI (xác thực bằng devic
 - Mỗi batch có `batch_id` (UUID do CLI sinh); server lưu lại để gửi lại không bị trùng (idempotent).
 - Session upsert theo `(user_id, source_id)`; turn upsert theo `(session_id, seq)`, nên gửi tăng dần và gửi lại đều an toàn.
 - Server kiểm tra lại `repo_remote` thuộc project mà user là thành viên; không thuộc thì từ chối session đó.
-- Trả về `202 Accepted`; việc chạy rule được đẩy vào hàng đợi job (BullMQ + Redis hoặc `pg-boss` để khỏi cần Redis).
+- Trả về `202 Accepted`; việc chạy rule được đẩy vào hàng đợi job `pg-boss` (chạy trên chính Postgres, không cần Redis). Job được enqueue cùng transaction với ingest.
 - `schema_version` không hỗ trợ thì trả `426` kèm phiên bản CLI tối thiểu; CLI tự cập nhật.
 - Giới hạn tốc độ: 60 request/phút mỗi thiết bị.
 
@@ -279,7 +284,7 @@ Postgres 16 là nơi lưu duy nhất; nội dung prompt dùng full-text search s
 | `audit_log` | id, actor_id, action, target_type, target_id, at | |
 | `settings` | key, value (jsonb) | LLM key (mã hóa), retention, pattern redaction |
 
-LLM API key được mã hóa bằng AES-GCM với khóa lấy từ biến môi trường `TEAMLENS_SECRET_KEY`. ORM đề xuất: Prisma hoặc Drizzle; cần raw SQL cho partition và full-text search.
+LLM API key được mã hóa bằng AES-GCM với khóa lấy từ biến môi trường `TEAMLENS_SECRET_KEY`. ORM: Drizzle; migration là file SQL, phần partition và full-text search viết SQL tay.
 
 ## 9. Rule engine và chấm bằng LLM
 
@@ -296,6 +301,8 @@ Rule chạy tự động trên server sau mỗi lần ingest và cho ra điểm 
 | Kiểm chứng kết quả | Agent sửa code nhưng session không chạy test hay build; chấp nhận diff lớn (trên 500 dòng) mà không có lượt review nào |
 
 Điểm nhóm = 100 trừ tổng trọng số các finding theo mức độ (low 5, medium 10, high 20), tối thiểu 0. Điểm theo tuần của một người là trung bình có trọng số theo số turn của các session trong tuần.
+
+Prompt trong session con (subagent) do agent chính viết, không phải người viết. Vì vậy rule nhóm "Chất lượng prompt" chỉ chạy trên session gốc; session con chỉ dùng cho thống kê token, chi phí và tool call. Điểm tuần và leaderboard chỉ tính session gốc.
 
 ### 9.2 Định nghĩa rule
 
@@ -373,7 +380,7 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 
 ### 11.3 Triển khai self-host
 
-- `docker compose up -d` với 4 container: `api` (NestJS), `web` (Next.js), `postgres`, `caddy` (reverse proxy, tự cấp HTTPS Let's Encrypt). Thêm `redis` nếu dùng BullMQ.
+- `docker compose up -d` với 4 container: `api` (NestJS, kèm worker pg-boss), `web` (Next.js), `postgres`, `caddy` (reverse proxy, tự cấp HTTPS Let's Encrypt).
 - Cấu hình qua `.env`: `TEAMLENS_PUBLIC_URL`, `DATABASE_URL`, `TEAMLENS_SECRET_KEY`, SMTP (tùy chọn, để gửi invite qua email).
 - Lần chạy đầu: trang `/setup` tạo tài khoản admin đầu tiên.
 - Cấu hình tối thiểu ước tính cho team 20 người: VPS 2 vCPU, 4 GB RAM, 40 GB SSD (cần đo lại khi có dữ liệu thật).
@@ -385,7 +392,7 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 - Monorepo: `cli/` (Rust, Cargo workspace), `apps/api` (NestJS), `apps/web` (Next.js), `packages/schema` (OpenAPI + JSON Schema của session chuẩn hóa, là nguồn chân lý duy nhất), `deploy/` (compose, Caddyfile).
 - Phân công đề xuất: một người làm CLI và web; dev Java làm API (NestJS gần với Spring về module, DI, decorator).
 - CI trên GitHub Actions: test adapter bằng log mẫu, build `tl.exe` trên `windows-latest`, kiểm tra API khớp OpenAPI, build image Docker.
-- License AGPL-3.0.
+- License AGPL-3.0 (file `LICENSE`). Người đóng góp ký CLA từ PR đầu tiên, để sau này vẫn có thể bán license thương mại hoặc làm SaaS.
 
 ## 12. Rủi ro, câu hỏi mở và tiêu chí hoàn thành
 
@@ -403,15 +410,21 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 | Session rất lớn (hàng trăm MB) | Daemon tốn RAM, request quá lớn | Đọc dạng stream, chia batch 10 MB, cắt dòng vượt 10 MB |
 | Windows Defender/SmartScreen chặn `tl.exe` | Thành viên không cài được | Ký code khi có ngân sách; trước đó cài qua script và hướng dẫn rõ |
 
-### 12.2 Câu hỏi mở
+### 12.2 Quyết định đã chốt và câu hỏi còn mở
 
-- [ ] Giữ tên TeamLens: đăng ký GitHub org, crate teamlens và tên miền; kiểm tra nhãn hiệu.
-- [ ] Copilot giữ ở phase 2 hay đưa lại vào MVP.
-- [ ] Dùng BullMQ + Redis hay `pg-boss` cho hàng đợi job.
-- [ ] Prisma hay Drizzle.
-- [ ] Có gửi session của subagent (Claude Code) như session con hay gộp vào session cha.
-- [ ] Copilot chạy qua Remote-SSH/WSL/Dev Container có hỗ trợ không (log nằm trên máy remote).
-- [ ] Trọng số điểm và bộ 15 rule đầu tiên cần chạy thử trên log thật của team trước khi chốt.
+Đã chốt ngày 2026-11-26:
+
+- [x] License AGPL-3.0 cho cả repo, có CLA cho người đóng góp.
+- [x] Copilot ở phase 2, không đưa vào MVP.
+- [x] Hàng đợi job: `pg-boss` (không dùng BullMQ + Redis).
+- [x] ORM: Drizzle.
+- [x] Subagent Claude Code gửi thành session con; rule chất lượng prompt và leaderboard chỉ tính session gốc.
+- [x] WSL ở phase 2, Remote-SSH và Dev Container ở phase 3; MVP cảnh báo trong `tl status`.
+
+Còn mở:
+
+- [ ] Tên TeamLens: kiểm tra nhãn hiệu, tạo GitHub org, giữ crate `teamlens` khi publish bản đầu. Code gom tên sản phẩm vào ít chỗ (tên crate, tiền tố `TEAMLENS_`, thư mục `%LOCALAPPDATA%\teamlens`) để dễ đổi.
+- [ ] Trọng số điểm và bộ 15 rule đầu tiên: dùng giá trị trong mục 9.1 làm điểm khởi đầu, chỉnh sau khi chạy thử trên log thật của team ở cuối Phase 1.
 
 ### 12.3 Tiêu chí hoàn thành MVP
 
