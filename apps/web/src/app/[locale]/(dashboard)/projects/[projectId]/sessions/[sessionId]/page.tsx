@@ -16,7 +16,7 @@ export default async function SessionDetailPage({ params }: Props) {
   const t = await getTranslations("sessions");
 
   return (
-    <PagePlaceholder title={t("detail.title")} description={t("detail.description")} task="A8">
+    <PagePlaceholder title={t("detail.title")} description={t("detail.description")} task="M1-Y5">
       <p className="text-muted-foreground font-mono text-xs">{t("detail.sessionId", { id: sessionId })}</p>
     </PagePlaceholder>
   );

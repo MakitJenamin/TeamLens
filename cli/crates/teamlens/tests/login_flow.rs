@@ -281,7 +281,7 @@ async fn status_shows_account_and_projects() {
     assert!(text.contains("MAY-TEST"));
     assert!(text.contains("TeamLens (teamlens) · member"));
     assert!(text.contains("github.com/acme/*"));
-    assert!(text.contains("chưa có (task A11)"));
+    assert!(text.contains("chưa có (task M3-Y3)"));
 
     let mut out = Vec::new();
     status::run(&ctx, status::StatusArgs { json: true }, &mut out)
@@ -295,7 +295,7 @@ async fn status_shows_account_and_projects() {
         v["account"]["projects"][1]["repoPatterns"][0],
         "github.com/acme/*"
     );
-    assert_eq!(v["daemon"], "chưa có (task A11)");
+    assert_eq!(v["daemon"], "chưa có (task M3-Y3)");
 }
 
 #[tokio::test]

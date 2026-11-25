@@ -13,5 +13,5 @@ export default async function AdminPage({ params }: PageProps<"/[locale]/admin">
   setRequestLocale(locale);
   const t = await getTranslations("admin");
 
-  return <PagePlaceholder title={t("title")} description={t("description")} task="B1/B5" />;
+  return <PagePlaceholder title={t("title")} description={t("description")} task="M3-X1/M4-Y3" />;
 }

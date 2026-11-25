@@ -1,6 +1,6 @@
 //! `tl join` — lưu server từ link mời, device login, màn hình đồng ý, đăng ký daemon.
 //!
-//! Chưa làm, thuộc task B3.
+//! Chưa làm, thuộc task M3-X3.
 
 use clap::Args;
 
@@ -15,6 +15,6 @@ pub struct JoinArgs {
 pub fn run(_args: JoinArgs) -> Result<(), AppError> {
     Err(AppError::NotImplemented {
         command: "join",
-        task: "B3",
+        task: "M3-X3",
     })
 }

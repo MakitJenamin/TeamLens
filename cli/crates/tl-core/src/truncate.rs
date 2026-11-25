@@ -1,1 +1,1 @@
-//! Cắt output dài theo ngưỡng (spec mục 6.3) — task A5.
+//! Cắt output dài theo ngưỡng (spec mục 6.3) — task M1-X5.
