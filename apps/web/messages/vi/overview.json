@@ -1,0 +1,4 @@
+{
+  "title": "Tổng quan project",
+  "description": "Số session, token và chi phí ước tính theo tuần; phân bố agent và model; điểm trung bình 5 nhóm kỹ năng theo tuần; top anti-pattern; bảng trạng thái thành viên (online, offline N ngày, tạm dừng, đã rút đồng ý)."
+}

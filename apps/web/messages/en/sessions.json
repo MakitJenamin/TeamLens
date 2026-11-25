@@ -1,0 +1,11 @@
+{
+  "list": {
+    "title": "Sessions",
+    "description": "Project sessions filtered by member, agent and date range; leaders see the whole team, members only their own."
+  },
+  "detail": {
+    "title": "Session review",
+    "description": "Conversation timeline: prompts, responses, collapsed tool calls, highlighted diffs, turns flagged by findings; \"Review with LLM\" button; leader notes per turn; in-session search.",
+    "sessionId": "Session ID: {id}"
+  }
+}
