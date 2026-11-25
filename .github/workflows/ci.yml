@@ -39,9 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Phiên bản pnpm lấy từ trường `packageManager` trong package.json gốc.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
