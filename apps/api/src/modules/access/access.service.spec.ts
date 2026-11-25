@@ -21,6 +21,8 @@ const MEMBERSHIPS: Record<string, ProjectRole> = {
   [`${leader.id}:${PROJECT}`]: 'leader',
   [`${member1.id}:${PROJECT}`]: 'member',
   [`${member2.id}:${PROJECT}`]: 'member',
+  // Chỉ thuộc project B.
+  [`${outsider.id}:${OTHER_PROJECT}`]: 'member',
 };
 
 describe('AccessService', () => {
@@ -89,6 +91,12 @@ describe('AccessService', () => {
     it('leader xem được dữ liệu thành viên trong project của mình', async () => {
       expect(await service.canViewUserData(leader, member1.id, PROJECT)).toBe(
         true,
+      );
+    });
+
+    it('leader project A không xem được user chỉ thuộc project B', async () => {
+      expect(await service.canViewUserData(leader, outsider.id, PROJECT)).toBe(
+        false,
       );
     });
 

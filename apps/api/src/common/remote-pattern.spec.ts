@@ -21,6 +21,10 @@ describe('normalizeRemotePattern', () => {
     ['github.com/acme/*/', 'github.com/acme/*'],
     ['https://user@bitbucket.org/acme/web.git/', 'bitbucket.org/acme/web'],
     ['github.com/org/my.repo_name-2', 'github.com/org/my.repo_name-2'],
+    // Dạng scp: org toàn số không phải cổng.
+    ['git@github.com:12345/app.git', 'github.com/12345/app'],
+    ['github.com:12345/app', 'github.com/12345/app'],
+    ['https://github.com:443/org/repo.git', 'github.com/org/repo'],
   ])('chuẩn hóa %s → %s', (input, expected) => {
     expect(normalizeRemotePattern(input)).toBe(expected);
   });
