@@ -1,0 +1,30 @@
+{
+  "appName": "TeamLens",
+  "tagline": "See how your team works with AI coding agents",
+  "loading": "Loading...",
+  "retry": "Try again",
+  "backHome": "Back to home",
+  "taskLabel": "Task: {code}",
+  "comingSoon": "This screen is under construction.",
+  "language": "Language",
+  "switchLanguage": "Change language",
+  "languages": {
+    "vi": "Tiếng Việt",
+    "en": "English"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Could not reach the server.",
+    "dashboardTitle": "Could not load data",
+    "dashboardDescription": "The API server did not respond or returned an error. Make sure the API is running and try again."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has moved."
+  },
+  "home": {
+    "noProjectsTitle": "No projects yet",
+    "noProjectsDescription": "You are not a member of any project. Ask a leader or an admin to add you.",
+    "noProjectsAdmin": "Go to Administration to create the first project."
+  }
+}

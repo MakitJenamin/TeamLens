@@ -1,0 +1,15 @@
+{
+  "title": "Kết nối thiết bị",
+  "description": "Bạn đang cho phép máy chạy CLI `tl` gửi dữ liệu lên TeamLens dưới tài khoản của bạn. Chỉ xác nhận nếu bạn vừa chạy lệnh đăng nhập trên máy của mình.",
+  "codeLabel": "Mã thiết bị",
+  "codeHint": "Mã 8 ký tự hiển thị trên terminal, dạng XXXX-XXXX.",
+  "codeInvalidFormat": "Mã phải có dạng XXXX-XXXX.",
+  "submit": "Cho phép thiết bị",
+  "submitting": "Đang xác nhận...",
+  "successTitle": "Đã kết nối thiết bị",
+  "successDescription": "Máy \"{name}\" đã được phép gửi dữ liệu lên TeamLens. Bạn có thể quay lại terminal.",
+  "expired": "Mã đã hết hạn. Hãy chạy lại lệnh đăng nhập trên máy để lấy mã mới.",
+  "invalid": "Mã không đúng. Kiểm tra lại mã trên terminal.",
+  "approveAnother": "Nhập mã khác",
+  "goToDashboard": "Về dashboard"
+}

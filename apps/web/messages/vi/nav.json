@@ -1,0 +1,22 @@
+{
+  "project": "Project",
+  "selectProject": "Chọn project",
+  "noProjects": "Chưa có project",
+  "notMember": "Không là thành viên",
+  "roles": {
+    "leader": "Leader",
+    "member": "Thành viên",
+    "admin": "Admin"
+  },
+  "overview": "Tổng quan",
+  "members": "Thành viên",
+  "sessions": "Session",
+  "leaderboard": "Leaderboard",
+  "rules": "Rule",
+  "general": "Chung",
+  "me": "Của tôi",
+  "admin": "Quản trị",
+  "logout": "Đăng xuất",
+  "logoutFailed": "Đăng xuất không thành công.",
+  "toggleSidebar": "Ẩn/hiện thanh bên"
+}
