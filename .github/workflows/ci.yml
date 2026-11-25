@@ -15,9 +15,11 @@ jobs:
   # Xem PR đổi những vùng nào để bỏ qua job không liên quan.
   # Job bị skip vì `if:` vẫn được tính là đạt cho required check, nên không kẹt branch protection.
   # Push lên main luôn chạy đủ (lưới an toàn nếu bộ lọc thiếu, và làm mới cache Rust).
+  # Nếu chính job `changes` lỗi thì chạy đủ, không skip (tránh skip được tính là đạt).
   changes:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       js: ${{ steps.filter.outputs.js }}
@@ -47,7 +49,7 @@ jobs:
 
   validate:
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.js == 'true'
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.result != 'success' || needs.changes.outputs.js == 'true') }}
     runs-on: ubuntu-latest
     env:
       TURBO_TELEMETRY_DISABLED: '1'
@@ -86,7 +88,7 @@ jobs:
   # Chạy song song với `validate` (khi cả hai cùng cần chạy). Dùng Windows vì tl.exe có code riêng cho Windows (Credential Manager, mutex).
   rust-windows:
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
     runs-on: windows-latest
     defaults:
       run:
