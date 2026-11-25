@@ -1,8 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,16 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api/client";
 import { useSetup } from "@/lib/api/hooks";
 import { PASSWORD_MIN_LENGTH as PASSWORD_MIN } from "@/lib/api/types";
-import { localizePath } from "@/lib/auth-paths";
 
 export function SetupForm() {
   const t = useTranslations("auth");
   const tc = useTranslations("common");
-  const locale = useLocale();
   const router = useRouter();
   const setup = useSetup();
   const [formError, setFormError] = useState<string | null>(null);
@@ -48,7 +45,7 @@ export function SetupForm() {
     setFormError(null);
     try {
       await setup.mutateAsync({ name, email, password });
-      router.replace(localizePath("/", locale));
+      router.replace("/");
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === "already_setup") {

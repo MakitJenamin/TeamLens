@@ -1,8 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,14 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api/client";
 import { useLogin } from "@/lib/api/hooks";
-import { localizePath, safeNextPath } from "@/lib/auth-paths";
+import { resolveNextPath } from "@/lib/auth-paths";
 
 export function LoginForm({ next }: { next?: string }) {
   const t = useTranslations("auth");
   const tc = useTranslations("common");
-  const locale = useLocale();
   const router = useRouter();
   const login = useLogin();
   const [formError, setFormError] = useState<string | null>(null);
@@ -38,9 +37,13 @@ export function LoginForm({ next }: { next?: string }) {
     setFormError(null);
     try {
       await login.mutateAsync(values);
-      // ?next= đã chứa prefix locale (do proxy tạo); mặc định về trang chủ theo locale hiện tại.
-      const target = next ? safeNextPath(next) : localizePath("/", locale);
-      router.replace(target);
+      if (next) {
+        // ?next= đã chứa prefix locale (do proxy tạo): tách ra rồi điều hướng đúng locale đó.
+        const { href, locale } = resolveNextPath(next);
+        router.replace(href, { locale });
+      } else {
+        router.replace("/");
+      }
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === "invalid_credentials") {
