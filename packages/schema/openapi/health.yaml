@@ -1,0 +1,21 @@
+# Nhóm `health`: kiểm tra sống, dùng cho docker healthcheck và Caddy.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Kiểm tra server còn sống
+      security: []
+      responses:
+        '200':
+          description: Server hoạt động.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    const: ok

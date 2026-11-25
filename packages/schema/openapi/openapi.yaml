@@ -1,0 +1,154 @@
+# File gốc của contract OpenAPI. Mỗi nhóm endpoint nằm ở một file riêng trong thư mục này;
+# file gốc chỉ khai báo info, server, security scheme, tag và tham chiếu từng path.
+#
+# Thêm path mới: viết path item trong file nhóm, rồi thêm một dòng `$ref` dưới `paths:`
+# (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
+#
+# File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
+#   agent.yaml (ingest, heartbeat, config) · sessions.yaml · invites.yaml · consent.yaml
+#   rules.yaml · stats.yaml · admin.yaml
+openapi: 3.1.0
+info:
+  title: TeamLens API
+  version: 0.1.0
+  summary: API của TeamLens cho dashboard (`/api/v1`) và CLI `tl` (`/agent/v1`).
+  description: |
+    - Dashboard: prefix `/api/v1`, xác thực bằng cookie `tl_session`.
+    - CLI: prefix `/agent/v1`, header `Authorization: Bearer tld_...`.
+    - JSON của REST API dùng camelCase; riêng payload ingest session theo `session.v1.schema.json` (snake_case).
+    - Lỗi luôn có dạng `{ "error": "<mã>", "message": "<mô tả tiếng Việt>" }`.
+      Mã chung: `unauthenticated` (401), `forbidden` (403), `not_found` (404), `validation_error` (400),
+      `invalid_token` (401, CLI).
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+
+servers:
+  - url: http://localhost:3001
+    description: API khi phát triển (web :3000 proxy `/api/*` và `/agent/*` sang đây).
+
+tags:
+  - name: health
+    description: Kiểm tra sống.
+  - name: setup
+    description: Tạo admin đầu tiên.
+  - name: auth
+    description: Đăng nhập dashboard.
+  - name: projects
+    description: Project, thành viên, repo pattern.
+  - name: users
+    description: Quản lý tài khoản (admin).
+  - name: devices
+    description: Duyệt device login và quản lý thiết bị (dashboard).
+  - name: agent-auth
+    description: Device login, whoami và logout của CLI.
+
+paths:
+  # health.yaml
+  /health:
+    $ref: './health.yaml#/paths/~1health'
+
+  # setup.yaml
+  /api/v1/setup/status:
+    $ref: './setup.yaml#/paths/~1api~1v1~1setup~1status'
+  /api/v1/setup:
+    $ref: './setup.yaml#/paths/~1api~1v1~1setup'
+
+  # auth.yaml
+  /api/v1/auth/login:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1login'
+  /api/v1/auth/logout:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1logout'
+  /api/v1/auth/me:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1me'
+
+  # projects.yaml
+  /api/v1/projects:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects'
+  /api/v1/projects/{projectId}:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects~1{projectId}'
+  /api/v1/projects/{projectId}/members:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects~1{projectId}~1members'
+  /api/v1/projects/{projectId}/members/{userId}:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects~1{projectId}~1members~1{userId}'
+  /api/v1/projects/{projectId}/repos:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects~1{projectId}~1repos'
+  /api/v1/projects/{projectId}/repos/{repoId}:
+    $ref: './projects.yaml#/paths/~1api~1v1~1projects~1{projectId}~1repos~1{repoId}'
+
+  # users.yaml
+  /api/v1/users:
+    $ref: './users.yaml#/paths/~1api~1v1~1users'
+
+  # devices.yaml
+  /api/v1/device/approve:
+    $ref: './devices.yaml#/paths/~1api~1v1~1device~1approve'
+  /api/v1/devices:
+    $ref: './devices.yaml#/paths/~1api~1v1~1devices'
+  /api/v1/devices/{deviceId}/revoke:
+    $ref: './devices.yaml#/paths/~1api~1v1~1devices~1{deviceId}~1revoke'
+
+  # agent-auth.yaml
+  /agent/v1/device/code:
+    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1device~1code'
+  /agent/v1/device/token:
+    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1device~1token'
+  /agent/v1/whoami:
+    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1whoami'
+  /agent/v1/logout:
+    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1logout'
+
+  # agent.yaml, sessions.yaml, invites.yaml, consent.yaml, rules.yaml, stats.yaml, admin.yaml:
+  # thêm `$ref` ở đây khi các file đó có path.
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: tl_session
+      description: Cookie phiên đăng nhập dashboard (đặt bởi `/api/v1/auth/login` hoặc `/api/v1/setup`).
+    deviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: tld_<token>
+      description: Device token của CLI, lấy qua device login (`/agent/v1/device/*`).
+
+  # Đăng ký lại schema dùng chung để type sinh ra có tên ổn định (components["schemas"]["User"]...).
+  schemas:
+    Error:
+      $ref: './common.yaml#/components/schemas/Error'
+    Id:
+      $ref: './common.yaml#/components/schemas/Id'
+    Role:
+      $ref: './common.yaml#/components/schemas/Role'
+    User:
+      $ref: './common.yaml#/components/schemas/User'
+    UserRef:
+      $ref: './common.yaml#/components/schemas/UserRef'
+    Membership:
+      $ref: './common.yaml#/components/schemas/Membership'
+    ProjectSlug:
+      $ref: './common.yaml#/components/schemas/ProjectSlug'
+    ProjectSettings:
+      $ref: './common.yaml#/components/schemas/ProjectSettings'
+    ProjectListItem:
+      $ref: './common.yaml#/components/schemas/ProjectListItem'
+    Project:
+      $ref: './common.yaml#/components/schemas/Project'
+    ProjectDetail:
+      $ref: './common.yaml#/components/schemas/ProjectDetail'
+    RemotePattern:
+      $ref: './common.yaml#/components/schemas/RemotePattern'
+    Repo:
+      $ref: './common.yaml#/components/schemas/Repo'
+    Member:
+      $ref: './common.yaml#/components/schemas/Member'
+    DeviceStatus:
+      $ref: './common.yaml#/components/schemas/DeviceStatus'
+    DeviceRef:
+      $ref: './common.yaml#/components/schemas/DeviceRef'
+    Device:
+      $ref: './common.yaml#/components/schemas/Device'
+    UserCode:
+      $ref: './common.yaml#/components/schemas/UserCode'

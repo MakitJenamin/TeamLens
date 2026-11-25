@@ -1,0 +1,180 @@
+# Nhóm `agent-auth`: device login của CLI (giống `gh auth login`), whoami và logout.
+# Token thiết bị có tiền tố `tld_`, gửi qua header `Authorization: Bearer tld_...`.
+# Mọi request hợp lệ bằng device token cập nhật `devices.last_seen_at`.
+paths:
+  /agent/v1/device/code:
+    post:
+      operationId: agentDeviceCode
+      tags: [agent-auth]
+      summary: Bắt đầu device login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceName, os, cliVersion]
+              additionalProperties: false
+              properties:
+                deviceName:
+                  type: string
+                  minLength: 1
+                  examples: [LAPTOP-01]
+                os:
+                  type: string
+                  minLength: 1
+                  examples: [windows]
+                cliVersion:
+                  type: string
+                  minLength: 1
+                  examples: [0.1.0]
+      responses:
+        '200':
+          description: Mã thiết bị và mã ngắn cho người dùng.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deviceCode, userCode, verificationUri, verificationUriComplete, expiresIn, interval]
+                additionalProperties: false
+                properties:
+                  deviceCode:
+                    type: string
+                    description: Mã bí mật CLI dùng để poll `/agent/v1/device/token`.
+                  userCode:
+                    $ref: './common.yaml#/components/schemas/UserCode'
+                  verificationUri:
+                    type: string
+                    format: uri
+                    description: '`${TEAMLENS_PUBLIC_URL}/device`'
+                    examples: [http://localhost:3000/device]
+                  verificationUriComplete:
+                    type: string
+                    format: uri
+                    description: '`${TEAMLENS_PUBLIC_URL}/device?code=XXXX-XXXX`'
+                    examples: [http://localhost:3000/device?code=WDJB-MJHT]
+                  expiresIn:
+                    type: integer
+                    description: Số giây mã còn hiệu lực.
+                    examples: [900]
+                  interval:
+                    type: integer
+                    description: Số giây tối thiểu giữa hai lần poll.
+                    examples: [5]
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+
+  /agent/v1/device/token:
+    post:
+      operationId: agentDeviceToken
+      tags: [agent-auth]
+      summary: Poll lấy device token
+      description: |
+        CLI poll mỗi `interval` giây. Khi người dùng đã duyệt mã, server trả token đúng một lần.
+        Các trạng thái chưa xong trả 400 với `error`:
+        - `authorization_pending`: người dùng chưa duyệt;
+        - `slow_down`: poll nhanh hơn `interval`;
+        - `expired_token`: mã thiết bị hết hạn hoặc token đã được lấy;
+        - `access_denied`: người dùng từ chối.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceCode]
+              additionalProperties: false
+              properties:
+                deviceCode:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Token thiết bị (chỉ trả một lần).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accessToken, deviceId]
+                additionalProperties: false
+                properties:
+                  accessToken:
+                    type: string
+                    pattern: '^tld_'
+                    description: Device token, CLI lưu vào Windows Credential Manager.
+                  deviceId:
+                    $ref: './common.yaml#/components/schemas/Id'
+        '400':
+          description: Chưa lấy được token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, message]
+                properties:
+                  error:
+                    type: string
+                    enum: [authorization_pending, slow_down, expired_token, access_denied, validation_error]
+                  message:
+                    type: string
+              example:
+                error: authorization_pending
+                message: Đang chờ người dùng duyệt mã.
+
+  /agent/v1/whoami:
+    get:
+      operationId: agentWhoami
+      tags: [agent-auth]
+      summary: User, thiết bị và project của token hiện tại
+      security:
+        - deviceToken: []
+      responses:
+        '200':
+          description: Thông tin của token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, device, projects]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/UserRef'
+                  device:
+                    $ref: './common.yaml#/components/schemas/DeviceRef'
+                  projects:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, slug, role, repoPatterns]
+                      additionalProperties: false
+                      properties:
+                        id:
+                          $ref: './common.yaml#/components/schemas/Id'
+                        name:
+                          type: string
+                        slug:
+                          $ref: './common.yaml#/components/schemas/ProjectSlug'
+                        role:
+                          $ref: './common.yaml#/components/schemas/Role'
+                        repoPatterns:
+                          type: array
+                          items:
+                            $ref: './common.yaml#/components/schemas/RemotePattern'
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+
+  /agent/v1/logout:
+    post:
+      operationId: agentLogout
+      tags: [agent-auth]
+      summary: Thu hồi token của chính thiết bị này
+      security:
+        - deviceToken: []
+      responses:
+        '204':
+          description: Đã thu hồi token.
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'

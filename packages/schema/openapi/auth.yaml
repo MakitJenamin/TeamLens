@@ -1,0 +1,92 @@
+# Nhóm `auth`: đăng nhập dashboard bằng email + mật khẩu, phiên lưu trong cookie `tl_session`.
+paths:
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Đăng nhập bằng email và mật khẩu
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Đăng nhập thành công; cookie `tl_session` được đặt.
+          headers:
+            Set-Cookie:
+              $ref: './common.yaml#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/User'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          description: 'Sai email hoặc mật khẩu (`error`: `invalid_credentials`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: invalid_credentials
+                message: Email hoặc mật khẩu không đúng.
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Đăng xuất
+      description: Xóa cookie và bản ghi phiên đăng nhập trên server.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã đăng xuất.
+          headers:
+            Set-Cookie:
+              $ref: './common.yaml#/components/headers/ClearSessionCookie'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Thông tin user hiện tại và các project tham gia
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: User hiện tại.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, memberships]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/User'
+                  memberships:
+                    type: array
+                    items:
+                      $ref: './common.yaml#/components/schemas/Membership'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'

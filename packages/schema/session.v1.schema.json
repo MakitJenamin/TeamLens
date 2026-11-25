@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://teamlens.dev/schema/session.v1.schema.json",
+  "title": "TeamLens IngestBatch v1",
+  "description": "Một batch ingest gửi tới POST /agent/v1/ingest: gồm nhiều session đã chuẩn hóa, đã lọc phạm vi và đã che secret trên máy thành viên (spec mục 5.3, 6, 7.3). Trường dùng snake_case.",
+  "$ref": "#/$defs/IngestBatch",
+  "$defs": {
+    "IngestBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "batch_id", "sessions"],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Phiên bản schema. Server trả 426 nếu không hỗ trợ."
+        },
+        "batch_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "UUID do CLI sinh; server dùng để chống trùng khi gửi lại (idempotent)."
+        },
+        "sessions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/SessionEnvelope" }
+        }
+      }
+    },
+
+    "SessionEnvelope": {
+      "type": "object",
+      "description": "Một session cùng các turn mới (gửi tăng dần: chỉ cần các turn chưa gửi, upsert theo seq).",
+      "additionalProperties": false,
+      "required": ["session", "turns"],
+      "properties": {
+        "session": { "$ref": "#/$defs/Session" },
+        "turns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Turn" }
+        }
+      }
+    },
+
+    "AgentKind": {
+      "type": "string",
+      "enum": ["claude_code", "codex", "copilot_vscode", "antigravity"],
+      "description": "Agent sinh ra session."
+    },
+
+    "Session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "agent",
+        "agent_version",
+        "repo_remote",
+        "branch",
+        "cwd_relative",
+        "started_at",
+        "ended_at",
+        "parent_source_id"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/SourceId",
+          "description": "`<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id)."
+        },
+        "agent": { "$ref": "#/$defs/AgentKind" },
+        "agent_version": {
+          "type": ["string", "null"],
+          "maxLength": 64,
+          "description": "Phiên bản agent đọc được từ log; null nếu log không ghi."
+        },
+        "repo_remote": {
+          "type": "string",
+          "description": "Remote git đã chuẩn hóa: chữ thường, không scheme, không `git@`, không `.git`, dạng host/org/repo.",
+          "pattern": "^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._~-]+){2,}$"
+        },
+        "branch": {
+          "type": ["string", "null"],
+          "description": "Nhánh git lúc bắt đầu session; null khi detached HEAD hoặc không đọc được."
+        },
+        "cwd_relative": {
+          "type": ["string", "null"],
+          "description": "Thư mục làm việc tương đối với gốc repo, dùng `/`; chuỗi rỗng là gốc repo. Không bao giờ là đường dẫn tuyệt đối.",
+          "not": { "pattern": "^(/|\\\\|[A-Za-z]:|~)" }
+        },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "null khi session còn đang chạy."
+        },
+        "parent_source_id": {
+          "oneOf": [{ "$ref": "#/$defs/SourceId" }, { "type": "null" }],
+          "description": "source_id của session cha khi đây là session con (subagent); null với session gốc."
+        }
+      }
+    },
+
+    "SourceId": {
+      "type": "string",
+      "pattern": "^[a-z_]+:.+$",
+      "maxLength": 512
+    },
+
+    "Turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "role", "kind", "ts"],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Số thứ tự trong session, bắt đầu từ 0; upsert theo (session_id, seq)."
+        },
+        "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+        "kind": {
+          "type": "string",
+          "enum": ["prompt", "reply", "tool_call", "tool_result", "compaction"]
+        },
+        "ts": { "type": "string", "format": "date-time" },
+        "model": {
+          "type": ["string", "null"],
+          "description": "Model sinh ra turn (với turn của assistant)."
+        },
+        "text": {
+          "type": "string",
+          "description": "Nội dung prompt, câu trả lời hoặc tóm tắt compaction (đã che secret)."
+        },
+        "tool": { "$ref": "#/$defs/Tool" },
+        "output": { "$ref": "#/$defs/Output" },
+        "diff": { "$ref": "#/$defs/Diff" },
+        "usage": { "$ref": "#/$defs/Usage" },
+        "attachments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Attachment" }
+        },
+        "redactions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Redaction" }
+        }
+      }
+    },
+
+    "Tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "examples": ["Edit", "Bash", "apply_patch"] },
+        "input": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Input gốc của tool (tùy agent, không kiểm tra cấu trúc); cắt khi quá 4 KB."
+        },
+        "status": { "type": "string", "enum": ["ok", "error"] }
+      }
+    },
+
+    "Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "truncated"],
+      "properties": {
+        "text": { "type": "string" },
+        "truncated": {
+          "type": "boolean",
+          "description": "true khi chỉ giữ 2 KB đầu và 1 KB cuối."
+        },
+        "original_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Kích thước output gốc (byte) trước khi cắt."
+        }
+      }
+    },
+
+    "Diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "patch", "added", "removed"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Đường dẫn file tương đối với gốc repo.",
+          "not": { "pattern": "^(/|\\\\|[A-Za-z]:|~)" }
+        },
+        "patch": { "type": "string", "description": "Unified diff, tối đa 256 KB." },
+        "added": { "type": "integer", "minimum": 0 },
+        "removed": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "Usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "output"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "cache_read": { "type": "integer", "minimum": 0 },
+        "cache_write": { "type": "integer", "minimum": 0 },
+        "estimated": {
+          "type": "boolean",
+          "description": "true khi số token là ước tính (vd. Copilot)."
+        }
+      }
+    },
+
+    "Attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "count"],
+      "properties": {
+        "type": { "type": "string", "enum": ["image"] },
+        "count": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "Redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "count"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "description": "Loại secret đã che, vd. `aws_access_key`, `github_token`, `env_file`.",
+          "examples": ["aws_access_key"]
+        },
+        "count": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

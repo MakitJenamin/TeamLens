@@ -1,0 +1,71 @@
+# Nhóm `users`: admin quản lý tài khoản (giai đoạn nền chỉ có danh sách và tạo mới).
+paths:
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: Danh sách user (chỉ admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Mọi user chưa bị xóa.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './common.yaml#/components/schemas/User'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Tạo user (chỉ admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                name:
+                  type: string
+                  minLength: 1
+                password:
+                  type: string
+                  minLength: 8
+                isAdmin:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: User vừa tạo.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/User'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          description: 'Email đã được dùng (`error`: `email_taken`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: email_taken
+                message: Email này đã có tài khoản.

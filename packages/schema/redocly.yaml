@@ -1,0 +1,9 @@
+# Cấu hình lint cho contract OpenAPI (redocly CLI v2).
+extends:
+  - recommended
+
+rules:
+  # Server khai báo trong spec là API local khi phát triển; triển khai thật đổi qua TEAMLENS_PUBLIC_URL.
+  no-server-example.com: off
+  # `GET /health` và `GET /api/v1/setup/status` công khai, không có lỗi 4xx nào có nghĩa.
+  operation-4xx-response: off

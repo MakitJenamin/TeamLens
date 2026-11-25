@@ -1,0 +1,15 @@
+# Mặc định: file text lưu LF trong repo và khi checkout (kể cả trên Windows).
+* text=auto eol=lf
+
+# Script PowerShell giữ CRLF để chạy ổn trên Windows PowerShell 5.1.
+*.ps1 text eol=crlf
+
+# File nhị phân: không chuyển đổi dòng, không diff text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.bmp binary
+*.avif binary

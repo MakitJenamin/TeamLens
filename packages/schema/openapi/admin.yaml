@@ -1,0 +1,15 @@
+# KHUNG — chưa có endpoint. Vùng sở hữu: B · Con người và điểm số (task B5, B11).
+#
+# Quản trị toàn server (chỉ admin), spec mục 7.4 và 11:
+# - GET/PATCH /api/v1/admin/settings (LLM provider, retention, pattern redaction)
+# - GET /api/v1/audit
+#
+# Cách thêm endpoint:
+# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
+#    tham chiếu `./common.yaml#/components/...`.
+# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
+#      /agent/v1/ingest:
+#        $ref: './admin.yaml#/paths/~1agent~1v1~1ingest'
+#    (`/` trong path viết thành `~1` theo JSON Pointer).
+# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
+paths: {}
