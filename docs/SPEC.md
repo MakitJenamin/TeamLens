@@ -390,7 +390,7 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 ### 11.4 Repo và cách làm việc
 
 - Monorepo: `cli/` (Rust, Cargo workspace), `apps/api` (NestJS), `apps/web` (Next.js), `packages/schema` (OpenAPI + JSON Schema của session chuẩn hóa, là nguồn chân lý duy nhất), `deploy/` (compose, Caddyfile).
-- Phân công đề xuất: một người làm CLI và web; dev Java làm API (NestJS gần với Spring về module, DI, decorator).
+- Phân công: hai người ngang nhau, chia theo vùng sở hữu xuyên cả CLI, API và web (xem `AGENTS.md` và `docs/TASKS.md`).
 - CI trên GitHub Actions: test adapter bằng log mẫu, build `tl.exe` trên `windows-latest`, kiểm tra API khớp OpenAPI, build image Docker.
 - License AGPL-3.0 (file `LICENSE`). Người đóng góp ký CLA từ PR đầu tiên, để sau này vẫn có thể bán license thương mại hoặc làm SaaS.
 
