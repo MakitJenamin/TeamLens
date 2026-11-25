@@ -51,6 +51,8 @@ export interface MemberDto {
   role: ProjectRole;
 }
 
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
 const memberNotFound = () =>
   notFound('Không tìm thấy thành viên trong project');
 
@@ -100,17 +102,20 @@ export class ProjectsService {
     input: { name: string; slug: string },
   ): Promise<ProjectDto> {
     try {
-      const [project] = await this.db
-        .insert(projects)
-        .values({ name: input.name, slug: input.slug })
-        .returning();
-      await this.audit.record(
-        actor.id,
-        'project.create',
-        'project',
-        project.id,
-      );
-      return this.toBase(project);
+      return await this.db.transaction(async (tx) => {
+        const [project] = await tx
+          .insert(projects)
+          .values({ name: input.name, slug: input.slug })
+          .returning();
+        await this.audit.record(
+          actor.id,
+          'project.create',
+          'project',
+          project.id,
+          tx,
+        );
+        return this.toBase(project);
+      });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ApiError(
@@ -226,6 +231,8 @@ export class ProjectsService {
   ): Promise<MemberDto> {
     if (!isUuid(userId)) throw memberNotFound();
     return this.db.transaction(async (tx) => {
+      if (role !== 'leader')
+        await this.assertNotLastLeader(tx, projectId, userId);
       const [updated] = await tx
         .update(projectMembers)
         .set({ role })
@@ -256,6 +263,7 @@ export class ProjectsService {
   ): Promise<void> {
     if (!isUuid(userId)) throw memberNotFound();
     await this.db.transaction(async (tx) => {
+      await this.assertNotLastLeader(tx, projectId, userId);
       const deleted = await tx
         .delete(projectMembers)
         .where(
@@ -357,6 +365,34 @@ export class ProjectsService {
   }
 
   // ---- Nội bộ ----
+
+  /**
+   * Ném 409 `last_leader` nếu `userId` là leader duy nhất của project.
+   * Khóa các dòng leader (FOR UPDATE) để hai thao tác đồng thời không cùng lọt qua.
+   */
+  private async assertNotLastLeader(
+    tx: Transaction,
+    projectId: string,
+    userId: string,
+  ): Promise<void> {
+    const leaders = await tx
+      .select({ userId: projectMembers.userId })
+      .from(projectMembers)
+      .where(
+        and(
+          eq(projectMembers.projectId, projectId),
+          eq(projectMembers.role, 'leader'),
+        ),
+      )
+      .for('update');
+    if (leaders.length === 1 && leaders[0].userId === userId) {
+      throw new ApiError(
+        409,
+        'last_leader',
+        'Không thể hạ vai trò hoặc xóa leader cuối cùng của project',
+      );
+    }
+  }
 
   private async findProject(projectId: string) {
     if (!isUuid(projectId)) throw notFound('Không tìm thấy project');

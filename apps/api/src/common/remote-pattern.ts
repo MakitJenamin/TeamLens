@@ -19,13 +19,18 @@ export function normalizeRemotePattern(input: string): string | null {
   if (!value) return null;
 
   // Bỏ scheme (https://, http://, ssh://, git://, git+ssh://).
-  value = value.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+  const schemeRe = /^[a-z][a-z0-9+.-]*:\/\//;
+  const hasScheme = schemeRe.test(value);
+  value = value.replace(schemeRe, '');
   // Bỏ phần user (git@, user@).
   value = value.replace(/^[^@/]+@/, '');
-  // Bỏ cổng sau host: host:22/org/repo → host/org/repo.
-  value = value.replace(/^([^/:]+):\d+\//, '$1/');
-  // Dạng scp: host:org/repo → host/org/repo.
-  value = value.replace(/^([^/:]+):/, '$1/');
+  if (hasScheme) {
+    // URL có scheme: `host:22/org/repo` là cổng → bỏ cổng.
+    value = value.replace(/^([^/:]+):\d+\//, '$1/');
+  } else {
+    // Dạng scp: `host:org/repo` → `host/org/repo` (org toàn số vẫn là org, không phải cổng).
+    value = value.replace(/^([^/:]+):/, '$1/');
+  }
   // Bỏ `/` và `.git` ở cuối.
   value = value
     .replace(/\/+$/, '')

@@ -48,17 +48,19 @@ export class UsersController {
     if (!actor.isAdmin) throw forbidden();
     const passwordHash = await hashPassword(body.password);
     try {
-      const [user] = await this.db
-        .insert(users)
-        .values({
-          email: normalizeEmail(body.email),
-          name: body.name,
-          passwordHash,
-          isAdmin: body.isAdmin ?? false,
-        })
-        .returning();
-      await this.audit.record(actor.id, 'user.create', 'user', user.id);
-      return toAuthUser(user);
+      return await this.db.transaction(async (tx) => {
+        const [user] = await tx
+          .insert(users)
+          .values({
+            email: normalizeEmail(body.email),
+            name: body.name,
+            passwordHash,
+            isAdmin: body.isAdmin ?? false,
+          })
+          .returning();
+        await this.audit.record(actor.id, 'user.create', 'user', user.id, tx);
+        return toAuthUser(user);
+      });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ApiError(

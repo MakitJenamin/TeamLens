@@ -71,6 +71,8 @@ export class AccessService {
   ): Promise<boolean> {
     if (viewer.isAdmin) return true;
     if (viewer.id === ownerUserId) return true;
-    return (await this.getRole(viewer.id, projectId)) === 'leader';
+    if ((await this.getRole(viewer.id, projectId)) !== 'leader') return false;
+    // Leader chỉ xem được người đang là thành viên của chính project đó.
+    return (await this.getRole(ownerUserId, projectId)) !== null;
   }
 }

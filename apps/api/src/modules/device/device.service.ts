@@ -30,6 +30,13 @@ export const DEVICE_CODE_TTL_SECONDS = 900;
 /** Khoảng cách tối thiểu giữa hai lần poll /device/token. */
 export const POLL_INTERVAL_SECONDS = 5;
 export const DEVICE_TOKEN_PREFIX = 'tld_';
+/**
+ * Code đã được duyệt vẫn đổi được token trong khoảng này sau `expiresAt`
+ * (user duyệt sát giờ hết hạn, CLI chưa kịp poll).
+ */
+export const APPROVED_GRACE_SECONDS = 5 * 60;
+/** Chỉ ghi `last_seen_at` khi giá trị cũ đã quá mức này, tránh ghi DB mỗi request. */
+export const LAST_SEEN_TOUCH_SECONDS = 5 * 60;
 
 const tokenError = (error: string, message: string) =>
   new ApiError(400, error, message);
@@ -131,12 +138,40 @@ export class DeviceService {
         'Yêu cầu đăng nhập thiết bị đã bị từ chối',
       );
     }
-    if (row.expiresAt <= now) throw expiredToken();
     if (row.status === 'pending') {
+      if (row.expiresAt <= now) throw expiredToken();
       throw tokenError(
         'authorization_pending',
         'Đang chờ xác nhận mã trên trình duyệt',
       );
+    }
+
+    // status === 'approved'. Quá thời gian grace: thu hồi thiết bị đã tạo lúc duyệt
+    // (chưa từng có token) để không để lại thiết bị mồ côi, rồi báo hết hạn.
+    const graceEnd = row.expiresAt.getTime() + APPROVED_GRACE_SECONDS * 1000;
+    if (now.getTime() > graceEnd) {
+      await this.db.transaction(async (tx) => {
+        const [expired] = await tx
+          .update(deviceCodes)
+          .set({ status: 'consumed' })
+          .where(
+            and(eq(deviceCodes.id, row.id), eq(deviceCodes.status, 'approved')),
+          )
+          .returning();
+        if (expired?.deviceId) {
+          await tx
+            .update(devices)
+            .set({ revokedAt: now })
+            .where(
+              and(
+                eq(devices.id, expired.deviceId),
+                isNull(devices.tokenHash),
+                isNull(devices.revokedAt),
+              ),
+            );
+        }
+      });
+      throw expiredToken();
     }
 
     // status === 'approved': đổi sang consumed rồi mới sinh token (chống trả token hai lần).
@@ -261,10 +296,13 @@ export class DeviceService {
       )
       .limit(1);
     if (!row) return null;
-    await this.db
-      .update(devices)
-      .set({ lastSeenAt: new Date() })
-      .where(eq(devices.id, row.device.id));
+    const lastSeen = row.device.lastSeenAt?.getTime() ?? 0;
+    if (Date.now() - lastSeen > LAST_SEEN_TOUCH_SECONDS * 1000) {
+      await this.db
+        .update(devices)
+        .set({ lastSeenAt: new Date() })
+        .where(eq(devices.id, row.device.id));
+    }
     return {
       user: toAuthUser(row.user),
       device: {
