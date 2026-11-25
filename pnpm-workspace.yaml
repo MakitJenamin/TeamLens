@@ -1,3 +1,7 @@
 packages:
   - apps/*
   - packages/*
+
+# Cho phép script cài đặt của các gói cần binary gốc.
+onlyBuiltDependencies:
+  - esbuild

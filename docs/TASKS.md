@@ -6,15 +6,15 @@ Quy ước: mỗi task là một nhánh `feat/<mã>-<tên-ngắn>` và một PR.
 
 | # | Việc | Trạng thái |
 | --- | --- | --- |
-| F1 | Monorepo gốc: pnpm workspace, turbo, `.gitignore`, `AGENTS.md`, Postgres dev | Đang làm |
-| F2 | `packages/schema`: OpenAPI tách file, JSON Schema session v1, JSON mẫu, sinh type TS | Đang làm |
-| F3 | `apps/api`: NestJS, Drizzle + migration đủ bảng (partition `turns`), pg-boss, seed, đăng ký sẵn mọi module | Đang làm |
-| F4 | Auth dashboard (email + mật khẩu, cookie), `/setup` tạo admin đầu tiên | Đang làm |
-| F5 | Project, thành viên, vai trò, repo pattern (API) + `AccessService` + `AuditService` | Đang làm |
-| F6 | Device login (API + trang nhập mã) + guard device token cho `/agent/v1/*` + `GET /agent/v1/whoami` | Đang làm |
-| F7 | `apps/web`: Next.js, i18n vi/en, layout + sidebar đủ link, login/setup/device, placeholder mọi màn hình | Đang làm |
-| F8 | `cli/`: workspace 4 crate, đủ 11 lệnh (stub), `tl login`/`logout` thật + Credential Manager, `tl status` gọi `whoami` | Đang làm |
-| F9 | CI GitHub Actions: Rust trên `windows-latest`, pnpm lint/typecheck/test, kiểm tra JSON mẫu khớp schema | Đang làm |
+| F1 | Monorepo gốc: pnpm workspace, turbo, `.gitignore`, `AGENTS.md`, Postgres dev | Xong |
+| F2 | `packages/schema`: OpenAPI tách file, JSON Schema session v1, JSON mẫu, sinh type TS | Xong |
+| F3 | `apps/api`: NestJS, Drizzle + migration đủ bảng (partition `turns`), pg-boss, seed, đăng ký sẵn mọi module | Xong |
+| F4 | Auth dashboard (email + mật khẩu, cookie), `/setup` tạo admin đầu tiên | Xong |
+| F5 | Project, thành viên, vai trò, repo pattern (API) + `AccessService` + `AuditService` | Xong |
+| F6 | Device login (API + trang nhập mã) + guard device token cho `/agent/v1/*` + `GET /agent/v1/whoami` | Xong |
+| F7 | `apps/web`: Next.js, i18n vi/en, layout + sidebar đủ link, login/setup/device, placeholder mọi màn hình | Xong |
+| F8 | `cli/`: workspace 4 crate, đủ 11 lệnh (stub), `tl login`/`logout` thật + Credential Manager, `tl status` gọi `whoami` | Xong |
+| F9 | CI GitHub Actions: Rust trên `windows-latest`, pnpm lint/typecheck/test, kiểm tra JSON mẫu khớp schema | Xong |
 
 **Điểm tách:** chạy `tl login` vào server local thành công và `tl status` hiển thị đúng user, project qua `GET /agent/v1/whoami`.
 

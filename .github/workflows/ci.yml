@@ -70,6 +70,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Migration + seed + e2e API
+        run: |
+          pnpm --filter @teamlens/api db:migrate
+          pnpm --filter @teamlens/api db:seed
+          pnpm --filter @teamlens/api test:e2e
+
   # `hashFiles` không dùng được trong `if` cấp job, nên kiểm tra có `cli/Cargo.toml` ở một job nhỏ.
   detect:
     name: Phát hiện thành phần
