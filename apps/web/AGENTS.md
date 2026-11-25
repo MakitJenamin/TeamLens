@@ -37,7 +37,7 @@ src/app/[locale]/(dashboard)/        # layout có sidebar + các màn hình
 - **Dịch:** mỗi khu vực một namespace, một file trong `messages/vi/` và `messages/en/`. Thêm namespace mới chỉ cần thêm file JSON (loader tự gộp theo tên file). Test `src/i18n/messages.test.ts` bắt buộc vi và en có cùng bộ khóa.
 - **Gọi API phía client:** `api.get/post/...` trong `src/lib/api/client.ts` (cùng origin `/api/v1/...`, `credentials: "include"`); lỗi `{ error, message }` thành `ApiError` (`status`, `code`, `message`). Dùng TanStack Query (`src/lib/api/hooks.ts`).
 - **Gọi API phía server:** `serverApi`/`serverApiOrNull` trong `src/lib/api/server.ts` (qua `API_INTERNAL_URL`, chuyển tiếp cookie `tl_session`).
-- **Type API:** đang viết tay ở `src/lib/api/types.ts`; sẽ chuyển sang type sinh từ `@teamlens/schema` (F2).
+- **Type API:** `src/lib/api/types.ts` chỉ là alias của type sinh từ `@teamlens/schema` (`Schemas`, `RequestBody<op>`, `ResponseBody<op, status>`). Cần kiểu mới thì sửa contract ở `packages/schema` (PR riêng) rồi thêm alias.
 - **Điều hướng:** dùng `Link`, `redirect`, `useRouter`, `usePathname` từ `@/i18n/navigation` để giữ locale. Riêng `?next=` (đã chứa prefix locale) dùng router/redirect gốc của Next.
 - **Màn hình chưa làm:** dùng `PagePlaceholder` (tiêu đề + mô tả + mã task). Người làm task thay nội dung `page.tsx` tương ứng; sidebar đã có đủ link, không cần sửa.
 - Dark mode theo hệ thống (`next-themes`, class `.dark`); giao diện phải dùng được ở màn hình hẹp.

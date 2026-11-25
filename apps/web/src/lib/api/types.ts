@@ -1,8 +1,9 @@
-// TODO(F2): chuyển sang type sinh từ @teamlens/schema khi gộp
-// Kiểu viết tay theo contract giai đoạn nền (REST dashboard, camelCase).
-// Mọi id là UUID (string). Mật khẩu tối thiểu 8 ký tự.
+// Kiểu dữ liệu API của dashboard, lấy từ contract OpenAPI (@teamlens/schema).
+// Không viết tay kiểu mới ở đây: sửa contract trong packages/schema rồi sinh lại type.
+// Các alias giữ tên cũ để code web không phụ thuộc trực tiếp vào cấu trúc file sinh ra.
+import type { RequestBody, ResponseBody, Schemas } from "@teamlens/schema";
 
-/** Mã lỗi máy đọc được trong body { error, message }. */
+/** Mã lỗi máy đọc được trong body { error, message } (theo các response của contract). */
 export type ApiErrorCode =
   | "validation_error"
   | "unauthenticated"
@@ -18,137 +19,39 @@ export type ApiErrorCode =
   | "invalid_code"
   | "expired_code";
 
+/** Độ dài mật khẩu tối thiểu (minLength trong setup.yaml, users.yaml). */
 export const PASSWORD_MIN_LENGTH = 8;
 
-export type Role = "leader" | "member";
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  isAdmin: boolean;
-}
-
-export interface ApiErrorBody {
-  error: string;
-  message: string;
-}
-
-// --- Setup & auth ---
-export interface SetupStatus {
-  needsSetup: boolean;
-}
-
-export interface SetupRequest {
-  email: string;
-  name: string;
-  password: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface UserResponse {
-  user: User;
-}
-
-export interface Membership {
-  projectId: string;
-  projectName: string;
-  projectSlug: string;
-  role: Role;
-}
-
-export interface MeResponse {
-  user: User;
-  memberships: Membership[];
-}
-
-// --- Projects ---
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  slug: string;
-  /** null khi admin không phải thành viên của project */
-  role: Role | null;
-}
-
-export interface Repo {
-  id: string;
-  remotePattern: string;
-}
-
+// --- Schema có tên ---
+export type ApiErrorBody = Schemas["Error"];
+export type Role = Schemas["Role"];
+export type User = Schemas["User"];
+export type Membership = Schemas["Membership"];
+export type ProjectSettings = Schemas["ProjectSettings"];
+/** Một dòng của `GET /projects` (`role` = null khi admin không là thành viên). */
+export type ProjectSummary = Schemas["ProjectListItem"];
 /** Trả về từ POST/PATCH project (không kèm repos). */
-export interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  settings: Record<string, unknown>;
-}
-
+export type Project = Schemas["Project"];
 /** Trả về từ GET /projects/:projectId (kèm repos). */
-export interface ProjectDetail extends Project {
-  repos: Repo[];
-}
+export type ProjectDetail = Schemas["ProjectDetail"];
+export type Repo = Schemas["Repo"];
+export type Member = Schemas["Member"];
+export type DeviceStatus = Schemas["DeviceStatus"];
+export type Device = Schemas["Device"];
 
-export interface CreateProjectRequest {
-  name: string;
-  slug: string;
-}
+// --- Body request / response theo operationId ---
+export type SetupStatus = ResponseBody<"getSetupStatus", 200>;
+export type SetupRequest = RequestBody<"setup">;
+export type LoginRequest = RequestBody<"login">;
+export type UserResponse = ResponseBody<"login", 200>;
+export type MeResponse = ResponseBody<"getMe", 200>;
 
-export interface UpdateProjectRequest {
-  name?: string;
-  settings?: Record<string, unknown>;
-}
+export type CreateProjectRequest = RequestBody<"createProject">;
+export type UpdateProjectRequest = RequestBody<"updateProject">;
+export type AddMemberRequest = RequestBody<"addProjectMember">;
+export type UpdateMemberRequest = RequestBody<"updateProjectMember">;
+export type CreateRepoRequest = RequestBody<"addProjectRepo">;
+export type CreateUserRequest = RequestBody<"createUser">;
 
-export interface Member {
-  userId: string;
-  email: string;
-  name: string;
-  role: Role;
-}
-
-export interface AddMemberRequest {
-  email: string;
-  role: Role;
-}
-
-export interface UpdateMemberRequest {
-  role: Role;
-}
-
-export interface CreateRepoRequest {
-  remotePattern: string;
-}
-
-// --- Users (admin) ---
-export interface CreateUserRequest {
-  email: string;
-  name: string;
-  password: string;
-  isAdmin?: boolean;
-}
-
-// --- Devices ---
-export interface DeviceApproveRequest {
-  userCode: string;
-}
-
-export interface DeviceApproveResponse {
-  device: { id: string; name: string };
-}
-
-export type DeviceStatus = "online" | "offline" | "paused" | "consent_revoked";
-
-export interface Device {
-  id: string;
-  name: string;
-  os: string;
-  cliVersion: string;
-  status: DeviceStatus;
-  lastSeenAt: string | null;
-  createdAt: string;
-  revokedAt: string | null;
-}
+export type DeviceApproveRequest = RequestBody<"approveDevice">;
+export type DeviceApproveResponse = ResponseBody<"approveDevice", 200>;
