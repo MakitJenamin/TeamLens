@@ -75,7 +75,7 @@ impl Env {
                 home_dir: Some(self.dir.path().join("home").to_string_lossy().into()),
                 user_name: Some("dev".into()),
                 host_name: Some("MAY-TEST".into()),
-                limits: Default::default(),
+                ..Default::default()
             },
         }
     }
@@ -140,6 +140,21 @@ async fn server() -> MockServer {
                 { "id": "proj-acme", "name": "Acme", "slug": "acme",
                   "repoPatterns": ["github.com/acme/*"] }
             ]
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/agent/v1/config"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "repo_patterns": [{ "project_id": "proj-acme", "pattern": "github.com/acme/*" }],
+            "redaction_patterns": [],
+            "truncation": {
+                "tool_input_bytes": 4096, "output_head_bytes": 2048, "output_tail_bytes": 1024,
+                "diff_bytes": 262144, "thinking_bytes": 8192
+            },
+            "consent_text_version": "2026-11-26",
+            "min_cli_version": "0.1.0"
         })))
         .mount(&server)
         .await;
