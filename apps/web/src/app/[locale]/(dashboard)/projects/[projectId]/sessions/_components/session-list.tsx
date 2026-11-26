@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { AlertCircleIcon, InboxIcon } from "lucide-react";
+import { AlertCircleIcon, BotIcon, InboxIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -157,6 +157,12 @@ function SessionTable({ projectId, sessions }: { projectId: string; sessions: Se
                   {format.dateTime(new Date(s.startedAt), { dateStyle: "short", timeStyle: "short" })}
                 </Link>
                 <p className="text-muted-foreground line-clamp-2 text-xs break-words">{s.title ?? t("list.untitled")}</p>
+                {s.childCount > 0 && (
+                  <Badge variant="outline" className="mt-1">
+                    <BotIcon />
+                    {t("list.children", { count: s.childCount })}
+                  </Badge>
+                )}
               </TableCell>
               <TableCell className="align-top">{s.user.name}</TableCell>
               <TableCell className="hidden align-top sm:table-cell">

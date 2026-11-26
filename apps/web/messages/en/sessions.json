@@ -25,7 +25,8 @@
     "emptyTitle": "No sessions yet",
     "emptyDescription": "Sessions appear here once the CLI uploads them (tl sync). If filters are on, try clearing them.",
     "errorTitle": "Could not load sessions",
-    "tokensDetail": "Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}"
+    "tokensDetail": "Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}",
+    "children": "{count, plural, one {# subagent session} other {# subagent sessions}}"
   },
   "agents": {
     "claude_code": "Claude Code",
@@ -101,7 +102,17 @@
     "errorTitle": "Could not open session",
     "forbidden": "You do not have permission to view this session.",
     "notFound": "Session not found. It may have been deleted or the link is wrong.",
-    "sessionId": "Session ID: {id}"
+    "sessionId": "Session ID: {id}",
+    "showDiff": "Show diff",
+    "hideDiff": "Hide diff",
+    "diffLines": "{count, plural, one {# line} other {# lines}}, click to view",
+    "childLabel": "Subagent",
+    "childTurns": "{count, plural, one {# turn} other {# turns}}",
+    "openChildPage": "Open own page",
+    "childLoading": "Loading subagent session...",
+    "childError": "Could not load the subagent session.",
+    "childrenSection": "Subagent sessions",
+    "childrenUnplaced": "Subagent sessions that could not be matched to a tool call in this session."
   },
   "findings": {
     "title": "Findings",
@@ -115,5 +126,22 @@
       "critical": "Critical"
     },
     "flagged": "Has findings"
+  },
+  "notes": {
+    "sessionTitle": "General notes",
+    "listLabel": "Leader notes",
+    "add": "Add note",
+    "addTurn": "Add a note for turn {seq}",
+    "addSession": "Add a general note for this session",
+    "turnLabel": "Note for turn {seq}",
+    "sessionLabel": "General note for this session",
+    "placeholder": "Feedback or tips for the member (leaders write, the session owner can read)",
+    "save": "Save note",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete note",
+    "deletedAuthor": "(deleted account)",
+    "createFailed": "Could not save the note",
+    "deleteFailed": "Could not delete the note"
   }
 }

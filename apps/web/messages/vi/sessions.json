@@ -25,7 +25,8 @@
     "emptyTitle": "Chưa có session nào",
     "emptyDescription": "Session sẽ hiện ở đây sau khi CLI gửi lên (tl sync). Nếu đang lọc, thử bỏ bộ lọc.",
     "errorTitle": "Không tải được danh sách session",
-    "tokensDetail": "Input {input} · output {output} · cache đọc {cacheRead} · cache ghi {cacheWrite}"
+    "tokensDetail": "Input {input} · output {output} · cache đọc {cacheRead} · cache ghi {cacheWrite}",
+    "children": "{count} session con"
   },
   "agents": {
     "claude_code": "Claude Code",
@@ -101,7 +102,17 @@
     "errorTitle": "Không mở được session",
     "forbidden": "Bạn không có quyền xem session này.",
     "notFound": "Không tìm thấy session. Có thể session đã bị xóa hoặc đường dẫn sai.",
-    "sessionId": "Mã session: {id}"
+    "sessionId": "Mã session: {id}",
+    "showDiff": "Hiện diff",
+    "hideDiff": "Ẩn diff",
+    "diffLines": "{count} dòng, bấm để xem",
+    "childLabel": "Session con",
+    "childTurns": "{count} turn",
+    "openChildPage": "Mở trang riêng",
+    "childLoading": "Đang tải session con...",
+    "childError": "Không tải được session con.",
+    "childrenSection": "Session con",
+    "childrenUnplaced": "Các session con không ghép được vào turn gọi tool nào của session này."
   },
   "findings": {
     "title": "Finding",
@@ -115,5 +126,22 @@
       "critical": "Nghiêm trọng"
     },
     "flagged": "Có finding"
+  },
+  "notes": {
+    "sessionTitle": "Ghi chú chung",
+    "listLabel": "Ghi chú của leader",
+    "add": "Thêm ghi chú",
+    "addTurn": "Thêm ghi chú cho turn {seq}",
+    "addSession": "Thêm ghi chú chung cho session",
+    "turnLabel": "Ghi chú cho turn {seq}",
+    "sessionLabel": "Ghi chú chung cho session",
+    "placeholder": "Nhận xét, gợi ý cho người làm (chỉ leader viết, chủ session đọc được)",
+    "save": "Lưu ghi chú",
+    "saving": "Đang lưu...",
+    "cancel": "Hủy",
+    "delete": "Xóa ghi chú",
+    "deletedAuthor": "(tài khoản đã xóa)",
+    "createFailed": "Không lưu được ghi chú",
+    "deleteFailed": "Không xóa được ghi chú"
   }
 }

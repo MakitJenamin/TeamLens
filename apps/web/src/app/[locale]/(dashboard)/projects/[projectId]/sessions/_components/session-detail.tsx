@@ -1,7 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, ChevronDownIcon, ChevronRightIcon, FlagIcon, ScissorsIcon, ZapOffIcon } from "lucide-react";
+import type { SessionChild, SessionNote } from "@teamlens/schema";
+import {
+  ArrowLeftIcon,
+  BotIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ExternalLinkIcon,
+  FlagIcon,
+  ScissorsIcon,
+  ZapOffIcon,
+} from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +20,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { api } from "@/lib/api/client";
 import type { SessionDetail, SessionTurn } from "@/lib/api/types";
-import { classifyDiffLine, parseFindings, sessionDuration, summarizeToolInput, type SessionFinding } from "./format";
+import { placeChildSessions } from "./child-sessions";
+import { DiffView } from "./diff-view";
+import { parseFindings, sessionDuration, summarizeToolInput, type SessionFinding } from "./format";
+import { groupNotes, type NoteViewer, TurnNotes, useSessionNotes } from "./session-notes";
 
 /**
  * Finding của session (API của Người 2, contract M1.9). Lỗi, 404 hay dạng lạ đều trả null để ẩn khu vực,
@@ -31,7 +44,25 @@ function useSessionFindings(sessionId: string) {
   });
 }
 
-export function SessionDetailView({ session }: { session: SessionDetail }) {
+/** Chi tiết session con khi mở khối lồng trong session cha. */
+function useChildSession(sessionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["sessions", sessionId],
+    queryFn: () => api.get<SessionDetail>(`/sessions/${sessionId}`),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/** Thông tin để gắn ghi chú vào turn; null với session con lồng trong trang cha (ghi chú xem ở trang riêng). */
+interface NotesContext {
+  sessionId: string;
+  viewer: NoteViewer | null;
+  byTurn: Map<number | null, SessionNote[]>;
+}
+
+export function SessionDetailView({ session, viewer = null }: { session: SessionDetail; viewer?: NoteViewer | null }) {
   const t = useTranslations("sessions");
   const findings = useSessionFindings(session.id).data ?? null;
   const findingsByTurn = new Map<number, SessionFinding[]>();
@@ -39,6 +70,14 @@ export function SessionDetailView({ session }: { session: SessionDetail }) {
     if (f.turnSeq === null) continue;
     findingsByTurn.set(f.turnSeq, [...(findingsByTurn.get(f.turnSeq) ?? []), f]);
   }
+  const notesQuery = useSessionNotes(session.id);
+  const notes: NotesContext = {
+    sessionId: session.id,
+    viewer,
+    byTurn: groupNotes(notesQuery.data?.items ?? []),
+  };
+  const placement = placeChildSessions(session.turns, session.children);
+  const sessionNotes = notes.byTurn.get(null) ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,6 +101,17 @@ export function SessionDetailView({ session }: { session: SessionDetail }) {
 
       {findings && <FindingsPanel findings={findings} />}
 
+      {(sessionNotes.length > 0 || viewer?.isLeader) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("notes.sessionTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TurnNotes sessionId={session.id} turnSeq={null} notes={sessionNotes} viewer={viewer} />
+          </CardContent>
+        </Card>
+      )}
+
       <section className="flex flex-col gap-3" aria-labelledby="timeline-heading">
         <h2 id="timeline-heading" className="text-lg font-semibold">
           {t("detail.timeline")}
@@ -69,15 +119,27 @@ export function SessionDetailView({ session }: { session: SessionDetail }) {
         {session.turns.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("detail.noTurns")}</p>
         ) : (
-          <ol className="flex flex-col gap-3">
-            {session.turns.map((turn) => (
-              <li key={turn.seq}>
-                <TurnItem turn={turn} findings={findingsByTurn.get(turn.seq) ?? []} />
-              </li>
-            ))}
-          </ol>
+          <TurnTimeline
+            projectId={session.projectId}
+            turns={session.turns}
+            findingsByTurn={findingsByTurn}
+            childrenByTurn={placement.byTurn}
+            notes={notes}
+          />
         )}
       </section>
+
+      {placement.unplaced.length > 0 && (
+        <section id="child-sessions" className="flex scroll-mt-16 flex-col gap-3" aria-labelledby="children-heading">
+          <h2 id="children-heading" className="text-lg font-semibold">
+            {t("detail.childrenSection")}
+          </h2>
+          <p className="text-muted-foreground text-sm">{t("detail.childrenUnplaced")}</p>
+          {placement.unplaced.map((child) => (
+            <ChildSessionBlock key={child.id} child={child} projectId={session.projectId} />
+          ))}
+        </section>
+      )}
     </div>
   );
 }
@@ -169,10 +231,10 @@ function SessionMeta({ session }: { session: SessionDetail }) {
               </Link>
             </MetaRow>
           )}
-          {session.childSessionIds.length > 0 && (
+          {session.children.length > 0 && (
             <MetaRow label={t("detail.meta.children")}>
               <ul className="flex flex-col gap-0.5">
-                {session.childSessionIds.map((id, index) => (
+                {session.children.map(({ id }, index) => (
                   <li key={id}>
                     <Link
                       href={`/projects/${session.projectId}/sessions/${id}`}
@@ -232,38 +294,6 @@ function FindingsPanel({ findings }: { findings: SessionFinding[] }) {
 /** Văn bản thô giữ xuống dòng (không render HTML từ nội dung session). */
 function PlainText({ text }: { text: string }) {
   return <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{text}</div>;
-}
-
-function DiffView({ diff }: { diff: NonNullable<SessionTurn["diff"]> }) {
-  const t = useTranslations("sessions.detail");
-  const lineClass = {
-    add: "bg-green-500/10 text-green-800 dark:text-green-300",
-    remove: "bg-red-500/10 text-red-800 dark:text-red-300",
-    hunk: "text-sky-700 dark:text-sky-300",
-    context: "",
-  } as const;
-  return (
-    <div className="overflow-hidden rounded-md border">
-      <div className="bg-muted flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 font-mono text-xs">
-        <span className="break-all">{diff.path}</span>
-        <span>
-          <span className="text-green-700 dark:text-green-400">+{diff.added}</span>{" "}
-          <span className="text-red-700 dark:text-red-400">−{diff.removed}</span>
-          <span className="sr-only">{t("diffStats", { added: diff.added, removed: diff.removed })}</span>
-        </span>
-      </div>
-      <pre className="max-h-96 overflow-auto py-1 font-mono text-xs leading-5" data-testid="diff">
-        {diff.patch.split("\n").map((line, i) => {
-          const kind = classifyDiffLine(line);
-          return (
-            <div key={i} data-kind={kind} className={`px-3 whitespace-pre ${lineClass[kind]}`}>
-              {line || " "}
-            </div>
-          );
-        })}
-      </pre>
-    </div>
-  );
 }
 
 function OutputBlock({ output }: { output: NonNullable<SessionTurn["output"]> }) {
@@ -341,7 +371,107 @@ function ToolTurnBody({ turn }: { turn: SessionTurn }) {
   );
 }
 
-export function TurnItem({ turn, findings = [] }: { turn: SessionTurn; findings?: SessionFinding[] }) {
+/** Danh sách turn; session con ghép được thì lồng ngay dưới turn tool đã sinh ra nó. */
+function TurnTimeline({
+  projectId,
+  turns,
+  findingsByTurn,
+  childrenByTurn,
+  notes,
+}: {
+  projectId: string;
+  turns: SessionTurn[];
+  findingsByTurn?: Map<number, SessionFinding[]>;
+  childrenByTurn: Map<number, SessionChild[]>;
+  notes: NotesContext | null;
+}) {
+  return (
+    <ol className="flex flex-col gap-3">
+      {turns.map((turn) => (
+        <li key={turn.seq}>
+          <TurnItem
+            turn={turn}
+            findings={findingsByTurn?.get(turn.seq) ?? []}
+            footer={
+              <>
+                {(childrenByTurn.get(turn.seq) ?? []).map((child) => (
+                  <ChildSessionBlock key={child.id} child={child} projectId={projectId} />
+                ))}
+                {notes && (
+                  <TurnNotes
+                    sessionId={notes.sessionId}
+                    turnSeq={turn.seq}
+                    notes={notes.byTurn.get(turn.seq) ?? []}
+                    viewer={notes.viewer}
+                  />
+                )}
+              </>
+            }
+          />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Session con (subagent) lồng trong session cha: thu gọn mặc định, mở thì tải turn của session con. */
+export function ChildSessionBlock({ child, projectId }: { child: SessionChild; projectId: string }) {
+  const t = useTranslations("sessions.detail");
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+  const detail = useChildSession(child.id, open);
+  const placement = detail.data ? placeChildSessions(detail.data.turns, detail.data.children) : null;
+
+  return (
+    <div className="mt-2 rounded-lg border border-violet-500/30 bg-violet-500/5" data-testid="child-session">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          className="hover:bg-background/60 -ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left"
+          aria-expanded={open}
+          aria-controls={contentId}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <ChevronDownIcon className="size-4 shrink-0" /> : <ChevronRightIcon className="size-4 shrink-0" />}
+          <BotIcon className="size-4 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
+          <span className="shrink-0 text-xs font-medium">{t("childLabel")}</span>
+          <span className="min-w-0 truncate text-sm">{child.title ?? t("untitled")}</span>
+        </button>
+        <span className="text-muted-foreground text-xs">{t("childTurns", { count: child.turnCount })}</span>
+        <Link
+          href={`/projects/${projectId}/sessions/${child.id}`}
+          className="text-primary flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+        >
+          {t("openChildPage")}
+          <ExternalLinkIcon className="size-3" aria-hidden />
+        </Link>
+      </div>
+      {open && (
+        <div id={contentId} className="border-t border-violet-500/20 p-2 sm:p-3">
+          {detail.isPending ? (
+            <p className="text-muted-foreground text-sm">{t("childLoading")}</p>
+          ) : detail.isError || !detail.data || !placement ? (
+            <p className="text-destructive text-sm">{t("childError")}</p>
+          ) : detail.data.turns.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t("noTurns")}</p>
+          ) : (
+            <TurnTimeline projectId={projectId} turns={detail.data.turns} childrenByTurn={placement.byTurn} notes={null} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TurnItem({
+  turn,
+  findings = [],
+  footer,
+}: {
+  turn: SessionTurn;
+  findings?: SessionFinding[];
+  footer?: React.ReactNode;
+}) {
   const t = useTranslations("sessions");
   const format = useFormatter();
   const isTool = turn.kind === "tool_call" || turn.kind === "tool_result";
@@ -402,6 +532,7 @@ export function TurnItem({ turn, findings = [] }: { turn: SessionTurn; findings?
           ))}
         </ul>
       )}
+      {footer}
     </article>
   );
 }
