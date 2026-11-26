@@ -1,15 +1,76 @@
-# KHUNG — chưa có endpoint. Task: M1.9 (findings), M4.4 (quản lý rule).
-#
-# Quản lý rule theo project, spec mục 9:
-# - GET/PATCH /api/v1/projects/{projectId}/rules (bật/tắt, ngưỡng, mức độ)
-# - POST .../rules/{ruleId}/try (thử trên 50 session gần nhất), POST .../rules/rerun (chạy lại)
-#
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './rules.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# M1.9: đọc findings của session. Quản lý rule theo project thuộc M4.4.
+paths:
+  /api/v1/sessions/{sessionId}/findings:
+    parameters:
+      - $ref: './sessions.yaml#/components/parameters/SessionId'
+    get:
+      operationId: listSessionFindings
+      tags: [rules]
+      summary: Danh sách nhận xét của một session
+      description: |
+        Member xem session của mình, leader xem session thuộc project mình dẫn dắt,
+        admin xem mọi session. Ghi audit khi xem dữ liệu của người khác.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Các nhận xét đã ghi nhận. Danh sách rỗng khi chưa có nhận xét.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionFindings'
+              examples:
+                withFinding:
+                  value:
+                    items:
+                      - id: 2356eb16-0734-42a0-9c8a-892a394bcaf2
+                        ruleKey: repeated-correction
+                        severity: high
+                        message: Ba prompt liên tiếp cho biết lỗi vẫn còn.
+                        turnSeq: 12
+                        evidenceExcerpt: Vẫn lỗi khi chạy lại.
+                empty:
+                  value:
+                    items: []
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  schemas:
+    SessionFindings:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionFinding'
+    SessionFinding:
+      type: object
+      required: [id, ruleKey, severity, message, turnSeq, evidenceExcerpt]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        ruleKey:
+          type: string
+          minLength: 1
+          description: Khóa của rule đã tạo nhận xét.
+        severity:
+          type: string
+          enum: [low, medium, high]
+        message:
+          type: string
+          minLength: 1
+          description: Nhận xét hiển thị cho người xem session.
+        turnSeq:
+          type: [integer, 'null']
+          minimum: 0
+          description: Số thứ tự turn làm bằng chứng, hoặc null nếu nhận xét áp dụng cho cả session.
+        evidenceExcerpt:
+          type: [string, 'null']
+          minLength: 1
+          description: Đoạn trích ngắn đã che secret nếu có bằng chứng văn bản còn được lưu.
