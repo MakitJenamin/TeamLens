@@ -31,7 +31,12 @@ export const heartbeatSchema = z.strictObject({
   agents: z
     .array(
       z.strictObject({
-        agent: z.enum(['claude_code', 'codex']),
+        agent: z.enum([
+          'claude_code',
+          'codex',
+          'copilot_vscode',
+          'antigravity',
+        ]),
         version: z.string().max(64).nullable(),
         files: count,
       }),
