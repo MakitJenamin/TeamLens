@@ -9,7 +9,9 @@
 //! | [`scope`] | M1.4 |
 //! | [`redact`] | M1.5, M2.1 |
 //! | [`truncate`] | M1.5 |
+//! | [`paths`] | M1.5 |
 
+pub mod paths;
 pub mod redact;
 pub mod scope;
 pub mod session;
