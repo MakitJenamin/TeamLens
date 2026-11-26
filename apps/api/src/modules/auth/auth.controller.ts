@@ -17,13 +17,30 @@ import {
   Public,
 } from '../../common/auth-context.js';
 import type { Env } from '../../config/env.js';
-import { AuthService, SESSION_COOKIE, SESSION_TTL_MS } from './auth.service.js';
+import { createProjectSchema } from '../projects/projects.controller.js';
+import {
+  AuthService,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  type SetupResult,
+} from './auth.service.js';
 
 const setupSchema = z.object({
   email: z.email('Email không hợp lệ').max(254),
   name: z.string().trim().min(1, 'Tên không được để trống').max(100),
   password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự').max(200),
+  /** Wizard setup: tạo luôn project đầu tiên + link mời mặc định. */
+  project: createProjectSchema
+    .extend({
+      repoPatterns: z
+        .array(z.string().min(1).max(300))
+        .min(1, 'Cần ít nhất một repo pattern')
+        .max(20),
+    })
+    .optional(),
 });
+
+const ticketSchema = z.object({ ticket: z.string().min(10).max(200) });
 
 const loginSchema = z.object({
   email: z.string().min(1).max(254),
@@ -71,8 +88,21 @@ export class AuthController {
   async setup(
     @Body({ schema: setupSchema }) body: z.infer<typeof setupSchema>,
     @Res({ passthrough: true }) res: Response,
+  ): Promise<SetupResult> {
+    const result = await this.auth.setup(body);
+    await this.startSession(res, result.user);
+    return result;
+  }
+
+  /** Trang `/auth/cli` của web đổi ticket `tl open` lấy cookie phiên. */
+  @Public()
+  @Post('api/v1/auth/ticket')
+  @HttpCode(200)
+  async exchangeTicket(
+    @Body({ schema: ticketSchema }) body: z.infer<typeof ticketSchema>,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<{ user: AuthUser }> {
-    const user = await this.auth.setup(body);
+    const user = await this.auth.consumeLoginTicket(body.ticket);
     await this.startSession(res, user);
     return { user };
   }

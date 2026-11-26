@@ -1,9 +1,15 @@
 // Script `pnpm db:seed`: dữ liệu mẫu cho dev. Chạy lại nhiều lần an toàn (idempotent).
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { readEnv } from '../config/env.js';
+import { randomToken, sha256 } from '../common/crypto.js';
 import { hashPassword } from '../common/passwords.js';
+import { CONSENT_TEXT_VERSION } from '../modules/consent/consent-text.js';
+import { DEVICE_TOKEN_PREFIX } from '../modules/device/device.service.js';
 import { createDatabase, type Database } from './client.js';
 import {
+  consents,
+  devices,
+  invites,
   projectMembers,
   projectRepos,
   projects,
@@ -460,6 +466,94 @@ async function upsertSessions(
   return SEED_SESSIONS.length;
 }
 
+/** Mã mời biết trước của project `teamlens`, để test `tl join` bằng tay (chỉ dữ liệu dev). */
+const SEED_INVITE_CODE = 'seed-invite-teamlens';
+const SEED_DEVICE_NAME = 'SEED-PC';
+
+/**
+ * Mỗi member có một thiết bị mẫu kèm bản đồng ý còn hiệu lực (ingest yêu cầu, J.9).
+ * Token sinh lại mỗi lần seed (DB chỉ lưu SHA-256) và được in ra console.
+ */
+async function upsertDevices(
+  db: Database,
+  userIds: Record<UserKey, string>,
+): Promise<Record<string, string>> {
+  const tokens: Record<string, string> = {};
+  for (const key of ['member1', 'member2'] as const) {
+    const userId = userIds[key];
+    const token = DEVICE_TOKEN_PREFIX + randomToken();
+    const [existing] = await db
+      .select({ id: devices.id })
+      .from(devices)
+      .where(
+        and(eq(devices.userId, userId), eq(devices.name, SEED_DEVICE_NAME)),
+      )
+      .limit(1);
+    let deviceId: string;
+    if (existing) {
+      deviceId = existing.id;
+      await db
+        .update(devices)
+        .set({ tokenHash: sha256(token), revokedAt: null })
+        .where(eq(devices.id, deviceId));
+    } else {
+      const [row] = await db
+        .insert(devices)
+        .values({
+          userId,
+          name: SEED_DEVICE_NAME,
+          os: 'windows',
+          cliVersion: '0.1.0',
+          tokenHash: sha256(token),
+          lastSeenAt: new Date(),
+        })
+        .returning({ id: devices.id });
+      deviceId = row.id;
+    }
+    const [consent] = await db
+      .select({ id: consents.id })
+      .from(consents)
+      .where(
+        and(
+          eq(consents.deviceId, deviceId),
+          eq(consents.textVersion, CONSENT_TEXT_VERSION),
+          isNull(consents.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (!consent) {
+      await db.insert(consents).values({
+        userId,
+        deviceId,
+        textVersion: CONSENT_TEXT_VERSION,
+        backfill: true,
+      });
+    }
+    tokens[key] = token;
+  }
+  return tokens;
+}
+
+/** Link mời mẫu còn hạn 30 ngày, không giới hạn lượt; chạy lại seed thì gia hạn. */
+async function upsertInvite(
+  db: Database,
+  projectId: string,
+  createdBy: string,
+): Promise<void> {
+  const values = {
+    projectId,
+    codeHash: sha256(SEED_INVITE_CODE),
+    expiresAt: new Date(Date.now() + 30 * 86_400_000),
+    maxUses: null,
+    revokedAt: null,
+    createdBy,
+  };
+  await db
+    .insert(invites)
+    .values(values)
+    .onConflictDoUpdate({ target: invites.codeHash, set: values });
+}
+
 async function main(): Promise<void> {
   const env = readEnv();
   const { sql: client, db } = createDatabase(env.DATABASE_URL, { max: 1 });
@@ -480,8 +574,21 @@ async function main(): Promise<void> {
         .from(turns)
         .innerJoin(sessions, eq(sessions.id, turns.sessionId))
         .where(and(eq(sessions.projectId, projectIds.teamlens)));
+      const tokens = await upsertDevices(tx as unknown as Database, userIds);
+      await upsertInvite(
+        tx as unknown as Database,
+        projectIds.teamlens,
+        userIds.leader,
+      );
       console.log(
         `Seed xong: ${SEED_USERS.length} user, ${SEED_PROJECTS.length} project, ${count} session, ${n} turn (mật khẩu: ${SEED_PASSWORD}).`,
+      );
+      // Chỉ dữ liệu dev: in token thiết bị mẫu và link mời để test tay.
+      for (const [key, token] of Object.entries(tokens)) {
+        console.log(`Device token của ${key} (${SEED_DEVICE_NAME}): ${token}`);
+      }
+      console.log(
+        `Link mời project teamlens: ${env.TEAMLENS_PUBLIC_URL}/i/${SEED_INVITE_CODE} (mã: ${SEED_INVITE_CODE})`,
       );
     });
   } finally {

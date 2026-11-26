@@ -7,6 +7,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import {
   createTestApp,
+  grantConsent,
   insertUser,
   querySql,
   resetDatabase,
@@ -92,6 +93,8 @@ describe('POST /agent/v1/ingest (e2e)', () => {
     }
     token = await deviceToken('member@teamlens.local');
     otherToken = await deviceToken('other@teamlens.local');
+    await grantConsent(token);
+    await grantConsent(otherToken);
   });
 
   afterAll(async () => {
@@ -163,6 +166,41 @@ describe('POST /agent/v1/ingest (e2e)', () => {
       'tld_gia',
     ).expect(401);
     expect(res.body.error).toBe('invalid_token');
+  });
+
+  it('thiết bị chưa đồng ý / đồng ý bản cũ / đã rút → 403 consent_required, không ghi gì', async () => {
+    const noConsent = await deviceToken('member@teamlens.local');
+    const before = await count('sessions');
+    const check = async () => {
+      const res = await ingest(
+        example('claude-code-simple.json'),
+        noConsent,
+      ).expect(403);
+      expect(res.body).toEqual({
+        error: 'consent_required',
+        message: expect.any(String),
+      });
+    };
+    await check();
+    const { sha256 } = await import('../src/common/crypto.js');
+    const [device] = await querySql<{ id: string; user_id: string }>(
+      'SELECT id, user_id FROM devices WHERE token_hash = $1',
+      [sha256(noConsent)],
+    );
+    // Đồng ý phiên bản văn bản cũ → vẫn 403.
+    await querySql(
+      "INSERT INTO consents (user_id, device_id, text_version) VALUES ($1, $2, 'cu-2000-01-01')",
+      [device.user_id, device.id],
+    );
+    await check();
+    // Đồng ý bản hiện tại nhưng đã rút → vẫn 403.
+    await grantConsent(noConsent);
+    await querySql(
+      'UPDATE consents SET revoked_at = now() WHERE device_id = $1',
+      [device.id],
+    );
+    await check();
+    expect(await count('sessions')).toBe(before);
   });
 
   it('gửi các file mẫu → 202, gửi lại cùng batch_id → duplicate, không trùng dữ liệu', async () => {
