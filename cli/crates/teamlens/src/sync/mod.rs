@@ -7,7 +7,9 @@
 
 pub mod agent_config;
 pub mod consent_gate;
+pub mod incremental;
 
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use tl_adapters::claude_code::ClaudeCodeAdapter;
@@ -110,19 +112,22 @@ pub struct SendReport {
     pub duplicate_batches: usize,
     pub accepted: Vec<IngestAccepted>,
     pub rejected: Vec<IngestRejected>,
+    /// Số turn server đã nhận (batch 202, session không bị từ chối) theo `source_id`.
+    pub delivered_turns: HashMap<String, usize>,
 }
 
 /// Gửi toàn bộ envelope: chia batch (< `max_batch_bytes` JSON), gzip, POST.
 ///
 /// - `413`: chia đôi batch (theo session, rồi theo turn) và gửi lại.
 /// - `429`: chờ `Retry-After` (đơn vị `wait_unit`) rồi thử lại **một** lần.
-/// - `401`, `403`, `426`, lỗi mạng và lỗi khác: dừng, trả lỗi (kèm số đã gửi được).
+/// - `401`, `403`, `426`, lỗi mạng và lỗi khác: dừng, trả lỗi kèm báo cáo phần đã gửi được
+///   (`delivered_turns` cho biết turn nào đã tới server để ghi offset).
 pub async fn send_all(
     client: &ApiClient,
     envelopes: Vec<SessionEnvelope>,
     max_batch_bytes: usize,
     wait_unit: Duration,
-) -> Result<SendReport, (SendReport, AppError)> {
+) -> (SendReport, Option<AppError>) {
     let mut report = SendReport::default();
     // Ngăn xếp các nhóm cần gửi; nhóm bị 413 được chia đôi rồi đẩy lại.
     let mut pending: Vec<Vec<SessionEnvelope>> = group_envelopes(envelopes, max_batch_bytes);
@@ -133,6 +138,20 @@ pub async fn send_all(
                 report.batches += 1;
                 if result.duplicate {
                     report.duplicate_batches += 1;
+                }
+                let rejected: HashSet<&str> = result
+                    .rejected
+                    .iter()
+                    .map(|r| r.source_id.as_str())
+                    .collect();
+                for env in group
+                    .iter()
+                    .filter(|e| !rejected.contains(e.session.source_id.as_str()))
+                {
+                    *report
+                        .delivered_turns
+                        .entry(env.session.source_id.clone())
+                        .or_default() += env.turns.len();
                 }
                 report.accepted.extend(result.accepted);
                 report.rejected.extend(result.rejected);
@@ -147,13 +166,13 @@ pub async fn send_all(
                         "Một turn đơn lẻ vẫn vượt giới hạn kích thước của server.",
                         "Báo admin kiểm tra giới hạn body của server/proxy (mặc định 10 MB).",
                     );
-                    return Err((report, err));
+                    return (report, Some(err));
                 }
             },
-            Err(e) => return Err((report, ingest_app_error(e))),
+            Err(e) => return (report, Some(ingest_app_error(e))),
         }
     }
-    Ok(report)
+    (report, None)
 }
 
 /// Gửi một nhóm thành một batch; `429` thì chờ rồi thử lại một lần (cùng `batch_id`).

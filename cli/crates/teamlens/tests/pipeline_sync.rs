@@ -444,10 +444,21 @@ async fn preview_file_ngoai_pham_vi_khong_in_noi_dung() {
     assert!(r.is_err());
 }
 
+/// Test cũ (M1.7) ghi fixture ngay trước khi chạy nên luôn kèm `--include-active`.
 async fn run_sync(
     env: &Env,
     ctx: &AppContext,
     dry_run: bool,
+    max: usize,
+) -> (Result<(), AppError>, String) {
+    run_sync_with(env, ctx, dry_run, true, max).await
+}
+
+async fn run_sync_with(
+    env: &Env,
+    ctx: &AppContext,
+    dry_run: bool,
+    include_active: bool,
     max: usize,
 ) -> (Result<(), AppError>, String) {
     let mut out = Vec::new();
@@ -456,6 +467,7 @@ async fn run_sync(
         SyncArgs {
             once: true,
             dry_run,
+            include_active,
         },
         &env.sources(),
         max,
@@ -758,6 +770,202 @@ async fn sync_ap_nguong_cat_tu_config() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// M2.3: đọc tăng dần theo `state.db`, chờ file ổn định 2 phút.
+// ---------------------------------------------------------------------------
+
+fn in_file(env: &Env) -> PathBuf {
+    env.dir
+        .path()
+        .join(format!("claude/projects/shop/{IN_SESSION}.jsonl"))
+}
+
+/// Đặt mtime mọi file log về 10 phút trước (giả lập file đã ổn định).
+fn age_logs(env: &Env) {
+    let old = std::time::SystemTime::now() - Duration::from_secs(600);
+    for dir in ["shop", "private", "nogit"] {
+        let d = env.dir.path().join("claude/projects").join(dir);
+        for e in fs::read_dir(d).unwrap().flatten() {
+            fs::File::options()
+                .write(true)
+                .open(e.path())
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+        }
+    }
+}
+
+/// Seq các turn của session trong phạm vi trong các body từ vị trí `from`.
+fn sent_turns(ingest: &Ingest, from: usize) -> Vec<Value> {
+    ingest.bodies.lock().unwrap()[from..]
+        .iter()
+        .flat_map(|b| {
+            b["sessions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|s| s["turns"].as_array().unwrap().clone())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn seqs(turns: &[Value]) -> Vec<u64> {
+    let mut v: Vec<u64> = turns.iter().map(|t| t["seq"].as_u64().unwrap()).collect();
+    v.sort_unstable();
+    v
+}
+
+#[tokio::test]
+async fn tang_dan_chi_gui_phan_moi_va_khong_gui_lai_khi_khong_doi() {
+    let env = Env::new();
+    let full = fs::read_to_string(in_file(&env)).unwrap();
+    let lines: Vec<&str> = full.lines().collect();
+    let half = lines.len() / 2;
+    fs::write(in_file(&env), format!("{}\n", lines[..half].join("\n"))).unwrap();
+    age_logs(&env);
+
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+
+    // Lần 1: gửi đủ nửa đầu.
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let first = sent_turns(&ingest, 0);
+    let n1 = first.len() as u64;
+    assert!(n1 > 2, "{out}");
+    assert_eq!(seqs(&first), (0..n1).collect::<Vec<_>>());
+    let bodies1 = ingest.bodies.lock().unwrap().len();
+    // File ổn định → `ended_at` đã chốt.
+    assert!(!ingest.bodies.lock().unwrap()[0]["sessions"][0]["session"]["ended_at"].is_null());
+
+    // Lần 2: không đổi → không gọi ingest.
+    let calls = ingest.calls.load(Ordering::SeqCst);
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), calls, "{out}");
+    assert!(out.contains("Bỏ qua 3 file log không đổi"), "{out}");
+
+    // Lần 3: thêm nửa sau → chỉ gửi turn mới (cộng vài turn cuối có thể còn đổi).
+    fs::write(in_file(&env), format!("{}\n", lines.join("\n"))).unwrap();
+    age_logs(&env);
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let second = sent_turns(&ingest, bodies1);
+    let s2 = seqs(&second);
+    assert!(
+        s2[0] > 0 && s2[0] < n1,
+        "gửi lại ít nhất turn cuối, không từ đầu: {s2:?}"
+    );
+    let total = *s2.last().unwrap() + 1;
+    assert!(total > n1, "{out}");
+    assert_eq!(s2, (s2[0]..total).collect::<Vec<_>>());
+
+    // Ghép như server (upsert theo seq) phải ra đúng bản gửi cả file từ đầu.
+    let mut merged: std::collections::BTreeMap<u64, Value> = Default::default();
+    for t in first.into_iter().chain(second) {
+        merged.insert(t["seq"].as_u64().unwrap(), t);
+    }
+    let ingest_b = Ingest::new(vec![]);
+    let server_b = server_with(ingest_b.clone()).await;
+    let ctx_b = env.ctx(&server_b.uri()); // server khác → quên offset, gửi từ đầu.
+    let (r, _) = run_sync_with(&env, &ctx_b, false, false, 8 << 20).await;
+    r.unwrap();
+    let whole = sent_turns(&ingest_b, 0);
+    assert_eq!(whole.len() as u64, total);
+    for t in whole {
+        assert_eq!(
+            merged[&t["seq"].as_u64().unwrap()],
+            t,
+            "turn khác bản đọc cả file"
+        );
+    }
+}
+
+#[tokio::test]
+async fn tang_dan_file_ngan_lai_gui_lai_tu_dau() {
+    let env = Env::new();
+    age_logs(&env);
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let before = ingest.bodies.lock().unwrap().len();
+
+    let full = fs::read_to_string(in_file(&env)).unwrap();
+    let lines: Vec<&str> = full.lines().collect();
+    fs::write(
+        in_file(&env),
+        format!("{}\n", lines[..lines.len() / 3].join("\n")),
+    )
+    .unwrap();
+    age_logs(&env);
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let again = seqs(&sent_turns(&ingest, before));
+    assert_eq!(again.first(), Some(&0), "{out}");
+    assert_eq!(again, (0..again.len() as u64).collect::<Vec<_>>());
+}
+
+#[tokio::test]
+async fn tang_dan_gui_loi_khong_tien_offset() {
+    let env = Env::new();
+    age_logs(&env);
+    let ingest =
+        Ingest::new(vec![ResponseTemplate::new(500)
+            .set_body_json(json!({ "error": "internal", "message": "lỗi" }))]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    assert!(r.is_err());
+    assert_eq!(ingest.bodies.lock().unwrap().len(), 0);
+
+    // Lần sau gửi lại đủ từ đầu, rồi lần sau nữa không gửi gì.
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let turns = seqs(&sent_turns(&ingest, 0));
+    assert_eq!(turns.first(), Some(&0), "{out}");
+    assert_eq!(turns, (0..turns.len() as u64).collect::<Vec<_>>());
+    let calls = ingest.calls.load(Ordering::SeqCst);
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), calls);
+}
+
+#[tokio::test]
+async fn tang_dan_file_moi_sua_chua_gui_tru_khi_include_active() {
+    let env = Env::new(); // file vừa ghi: chưa ổn định
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0, "{out}");
+    assert!(out.contains("3 file log đang được ghi"), "{out}");
+    assert!(out.contains("--include-active"), "{out}");
+
+    let (r, out) = run_sync_with(&env, &ctx, false, true, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1, "{out}");
+    // Đang ghi → `ended_at` còn trống.
+    assert!(ingest.bodies.lock().unwrap()[0]["sessions"][0]["session"]["ended_at"].is_null());
+
+    // Khi file ổn định (ở đây: mtime cũ đi) thì gửi lại để chốt `ended_at`.
+    age_logs(&env);
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    let bodies = ingest.bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(!bodies[1]["sessions"][0]["session"]["ended_at"].is_null());
+    assert!(
+        bodies[1]["sessions"][0]["turns"].as_array().unwrap().len()
+            < bodies[0]["sessions"][0]["turns"].as_array().unwrap().len()
+    );
+}
+
 #[tokio::test]
 async fn mat_mang_dung_config_cache() {
     let env = Env::new();
@@ -824,4 +1032,14 @@ async fn mat_mang_dung_config_cache() {
     std::fs::remove_file(&cache).unwrap();
     let (r, _) = run_preview(&env, &ctx, None).await;
     assert!(r.unwrap_err().to_string().contains("Không kết nối được"));
+}
+
+#[tokio::test]
+async fn status_dem_file_cho_on_dinh() {
+    use teamlens::commands::status::waiting_files;
+    let env = Env::new();
+    let ctx = env.ctx("http://127.0.0.1:9");
+    assert_eq!(waiting_files(&ctx, &env.sources()), Some(3));
+    age_logs(&env);
+    assert_eq!(waiting_files(&ctx, &env.sources()), Some(0));
 }

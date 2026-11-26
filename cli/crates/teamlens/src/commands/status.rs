@@ -1,8 +1,10 @@
 //! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`).
 //!
-//! Phần daemon, agent phát hiện được, hàng đợi thuộc task M3.2, M3.3.
+//! Phần daemon, agent phát hiện được, hàng đợi thuộc task M3.2, M3.3. Số file đang chờ
+//! ổn định (M2.3) chỉ đọc metadata file log và `state.db`.
 
 use std::io::Write;
+use std::time::SystemTime;
 
 use clap::Args;
 use serde::Serialize;
@@ -11,6 +13,9 @@ use crate::api_client::{ApiClient, ApiErrorCode, WhoamiResponse};
 use crate::consent::{self, ConsentState};
 use crate::context::AppContext;
 use crate::error::AppError;
+use crate::state::{state_path, StateDb};
+use crate::sync::incremental::{classify, FileStatus};
+use crate::sync::Sources;
 
 const PENDING_DAEMON: &str = "chưa có (task M3.3)";
 
@@ -40,10 +45,13 @@ pub struct StatusReport {
     pub daemon: &'static str,
     pub agents: &'static str,
     pub queue: &'static str,
+    /// Số file log đã đổi nhưng chưa ổn định (sửa chưa tới 2 phút) nên `tl sync` chưa gửi.
+    pub waiting_files: Option<usize>,
 }
 
 pub async fn run(ctx: &AppContext, args: StatusArgs, out: &mut dyn Write) -> Result<(), AppError> {
-    let report = collect(ctx).await?;
+    let mut report = collect(ctx).await?;
+    report.waiting_files = waiting_files(ctx, &Sources::from_env());
     if args.json {
         let text = serde_json::to_string_pretty(&report).expect("StatusReport luôn serialize được");
         let _ = writeln!(out, "{text}");
@@ -51,6 +59,31 @@ pub async fn run(ctx: &AppContext, args: StatusArgs, out: &mut dyn Write) -> Res
         print_text(out, &report);
     }
     Ok(())
+}
+
+/// Đếm file log đã đổi so với `state.db` nhưng chưa ổn định (chỉ đọc metadata file).
+/// `None` khi không mở được `state.db`.
+pub fn waiting_files(ctx: &AppContext, sources: &Sources) -> Option<usize> {
+    let path = state_path(&ctx.config_path);
+    let db = if path.exists() {
+        Some(StateDb::open(&path).ok()?)
+    } else {
+        None
+    };
+    let now = SystemTime::now();
+    let mut n = 0;
+    for adapter in sources.adapter_refs() {
+        for file in adapter.discover() {
+            let prev = match &db {
+                Some(db) => db.file(&file.path).ok()?,
+                None => None,
+            };
+            if classify(&file, prev.as_ref(), now, false) == FileStatus::Waiting {
+                n += 1;
+            }
+        }
+    }
+    Some(n)
 }
 
 /// Thu thập trạng thái. Lỗi mạng/token không làm lệnh thất bại, chỉ ghi vào `account_error`.
@@ -66,6 +99,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         daemon: PENDING_DAEMON,
         agents: PENDING_DAEMON,
         queue: PENDING_DAEMON,
+        waiting_files: None,
     };
 
     let Some(server_url) = config.server_url else {
@@ -172,4 +206,10 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     w("Daemon:", r.daemon);
     w("Agent:", r.agents);
     w("Hàng đợi:", r.queue);
+    if let Some(n) = r.waiting_files.filter(|n| *n > 0) {
+        w(
+            "Chờ gửi:",
+            &format!("{n} file log đang được ghi, `tl sync` gửi khi không đổi đủ 2 phút"),
+        );
+    }
 }

@@ -1,8 +1,9 @@
-//! `tl sync` — quét log, lọc phạm vi, che secret, cắt rồi gửi ngay lên server.
+//! `tl sync` — quét log, lọc phạm vi, che secret, cắt rồi gửi lên server.
 //!
-//! Mốc 1 (M1.7): chạy đúng một lần rồi thoát, cả khi không có `--once`. Chế độ chạy
-//! lặp/nền là daemon (task M3.2). Chưa có hàng đợi: mỗi lần gửi lại toàn bộ session
-//! trong phạm vi; server idempotent nên an toàn (M2.3/M3.1 sẽ chỉ gửi phần mới).
+//! Chạy đúng một lần rồi thoát, cả khi không có `--once` (chạy nền là `tl daemon`, M3.2).
+//! M2.3: chỉ gửi phần mới của mỗi file log theo `state.db` ([`crate::sync::incremental`]),
+//! và chỉ gửi file đã ổn định (không đổi ≥ 2 phút) trừ khi có `--include-active`.
+//! Chưa có hàng đợi (M3.1): gửi lỗi thì lần sau đọc và gửi lại phần chưa gửi.
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -17,7 +18,11 @@ use crate::error::AppError;
 use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
 use crate::pipeline::scope::ScopeFilter;
+use crate::state::{state_path, StateDb};
 use crate::sync::agent_config::{self, ConfigSource};
+use crate::sync::incremental::{
+    classify, is_active, scope_fingerprint, FilePlan, FileStatus, PlannedSession, SCOPE_META_KEY,
+};
 use crate::sync::{connect, consent_gate, dashboard_link, send_all, SendReport, Sources};
 
 /// Số link dashboard in tối đa sau khi gửi.
@@ -25,16 +30,39 @@ const MAX_LINKS: usize = 5;
 
 #[derive(Debug, Args)]
 pub struct SyncArgs {
-    /// Quét và gửi một lần rồi thoát (mốc 1 luôn chạy một lần; chạy nền là `tl daemon`, task M3.2)
+    /// Quét và gửi một lần rồi thoát (lệnh này luôn chạy một lần; chạy nền là `tl daemon`, task M3.2)
     #[arg(long)]
     pub once: bool,
     /// Chỉ in thống kê sẽ gửi, không gửi gì
     #[arg(long)]
     pub dry_run: bool,
+    /// Gửi cả session còn đang được ghi (file sửa chưa tới 2 phút), dùng khi thử tay
+    #[arg(long)]
+    pub include_active: bool,
 }
 
 pub async fn run(ctx: &AppContext, args: SyncArgs, out: &mut dyn Write) -> Result<(), AppError> {
     run_with(ctx, args, &Sources::from_env(), MAX_BATCH_JSON_BYTES, out).await
+}
+
+/// Số file bỏ qua ở lần quét này.
+#[derive(Debug, Default)]
+struct SkipStats {
+    unchanged: usize,
+    waiting: usize,
+}
+
+fn state_err(ctx: &AppContext) -> impl Fn(rusqlite::Error) -> AppError + '_ {
+    move |e| {
+        tracing::debug!(error = %e, "lỗi state.db");
+        AppError::user(
+            format!(
+                "Không đọc/ghi được file trạng thái {}.",
+                state_path(&ctx.config_path).display()
+            ),
+            "Kiểm tra quyền ghi thư mục dữ liệu TeamLens; nếu file hỏng có thể xóa state.db (lần sau gửi lại từ đầu, server không ghi trùng).",
+        )
+    }
 }
 
 /// Như [`run`] nhưng nhận nguồn log và ngưỡng batch (để test).
@@ -45,7 +73,7 @@ pub async fn run_with(
     max_batch_bytes: usize,
     out: &mut dyn Write,
 ) -> Result<(), AppError> {
-    let _ = args.once; // Mốc 1: luôn một lần.
+    let _ = args.once; // Luôn một lần.
     if !args.dry_run && !consent_gate::may_send(ctx) {
         return Err(AppError::user(
             "Máy này chưa đồng ý chia sẻ dữ liệu với server hiện tại nên không gửi gì.",
@@ -67,25 +95,92 @@ pub async fn run_with(
 
     let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
     let mut filter = ScopeFilter::new(agent_config::repo_patterns(server_config));
+    let consent = consent::current(&local).cloned();
+
+    let mut db = StateDb::open(&state_path(&ctx.config_path))?;
+    // Phạm vi gửi đổi (server, repo pattern, đồng ý) → xét lại mọi file từ đầu.
+    let fingerprint = scope_fingerprint(&conn.server_url, server_config, consent.as_ref());
+    let scope_changed =
+        db.meta(SCOPE_META_KEY).map_err(state_err(ctx))?.as_deref() != Some(fingerprint.as_str());
+    if scope_changed && !args.dry_run {
+        db.reset_files().map_err(state_err(ctx))?;
+        db.set_meta(SCOPE_META_KEY, &fingerprint)
+            .map_err(state_err(ctx))?;
+    }
+    let now = SystemTime::now();
     let mut pipeline = Pipeline {
         filter: &mut filter,
         // M2.1: dựng Redactor từ `prepare.server_redaction_patterns` thay cho bộ có sẵn.
         redactor: Redactor::shared(),
         options: &prepare,
-        now: SystemTime::now(),
+        now,
     };
-    let (mut prepared, stats) = pipeline.collect(&sources.adapter_refs());
-
-    // Chỉ gửi session của project đã đồng ý; không backfill thì bỏ session cũ.
-    let consent = consent::current(&local).cloned();
-    let before = prepared.len();
-    if let Some(state) = &consent {
-        prepared.retain(|p| state.allows_session(&p.project_id, p.last_activity));
+    let mut stats = CollectStats::default();
+    let mut skip = SkipStats::default();
+    let mut skipped_by_consent = 0usize;
+    let mut plans: Vec<FilePlan> = Vec::new();
+    for adapter in sources.adapter_refs() {
+        for file in adapter.discover() {
+            let prev = if scope_changed {
+                None // dry-run khi phạm vi đổi: xem như gửi lại từ đầu.
+            } else {
+                db.file(&file.path).map_err(state_err(ctx))?
+            };
+            let reset = match classify(&file, prev.as_ref(), now, args.include_active) {
+                FileStatus::Unchanged => {
+                    skip.unchanged += 1;
+                    continue;
+                }
+                FileStatus::Waiting => {
+                    skip.waiting += 1;
+                    continue;
+                }
+                FileStatus::Ready { reset } => reset,
+            };
+            let (sessions, s) = pipeline.process_file(adapter, &file);
+            stats.merge(&s);
+            if !args.dry_run {
+                db.record_parse_errors(
+                    &file.path,
+                    file.agent.as_str(),
+                    s.parse_warnings,
+                    s.read_errors > 0,
+                )
+                .map_err(state_err(ctx))?;
+            }
+            if s.read_errors > 0 {
+                continue; // Không ghi offset: lần sau đọc lại.
+            }
+            let prev_sessions = if reset { None } else { prev.as_ref() };
+            let mut planned = Vec::new();
+            for p in sessions {
+                // Chỉ gửi session của project đã đồng ý; không backfill thì bỏ session cũ.
+                if let Some(state) = &consent {
+                    if !state.allows_session(&p.project_id, p.last_activity) {
+                        skipped_by_consent += 1;
+                        continue;
+                    }
+                }
+                let progress = prev_sessions.and_then(|f| f.session(&p.envelope.session.source_id));
+                planned.push(PlannedSession::new(p, progress));
+            }
+            plans.push(FilePlan {
+                active: is_active(&file, now),
+                file,
+                reset,
+                prev,
+                sessions: planned,
+            });
+        }
     }
-    let skipped_by_consent = before - prepared.len();
 
-    let turns: usize = prepared.iter().map(|p| p.envelope.turns.len()).sum();
+    let turns: usize = plans
+        .iter()
+        .flat_map(|p| &p.sessions)
+        .map(PlannedSession::turn_count)
+        .sum();
     print_stats(out, &stats, turns);
+    print_skips(out, &skip);
     if skipped_by_consent > 0 {
         let _ = writeln!(
             out,
@@ -103,23 +198,33 @@ pub async fn run_with(
         let _ = writeln!(out, "Chạy thử (--dry-run): không gửi gì.");
         return Ok(());
     }
-    if prepared.is_empty() {
-        let _ = writeln!(out, "Không có session nào trong phạm vi để gửi.");
+
+    let mut expected: HashMap<String, usize> = HashMap::new();
+    let mut project_of: HashMap<String, String> = HashMap::new();
+    let mut envelopes = Vec::new();
+    for s in plans.iter().flat_map(|p| &p.sessions) {
+        let id = s.progress.source_id.clone();
+        *expected.entry(id.clone()).or_default() += s.turn_count();
+        project_of.insert(id, s.prepared.project_id.clone());
+        envelopes.push(s.prepared.envelope.clone());
+    }
+
+    if envelopes.is_empty() {
+        // Vẫn ghi offset cho file không có gì để gửi (ngoài phạm vi...) để lần sau khỏi đọc.
+        commit(&mut db, &plans, &HashMap::new(), &expected, ctx)?;
+        let _ = writeln!(out, "Không có session nào mới trong phạm vi để gửi.");
         return Ok(());
     }
 
-    let project_of: HashMap<String, String> = prepared
-        .iter()
-        .map(|p| (p.envelope.session.source_id.clone(), p.project_id.clone()))
-        .collect();
-    let envelopes = prepared.into_iter().map(|p| p.envelope).collect();
-
-    match send_all(&conn.client, envelopes, max_batch_bytes, ctx.poll_unit).await {
-        Ok(report) => {
+    let (report, err) = send_all(&conn.client, envelopes, max_batch_bytes, ctx.poll_unit).await;
+    // Chỉ ghi offset của file mà server đã nhận đủ (202) mọi turn đã gửi.
+    commit(&mut db, &plans, &report.delivered_turns, &expected, ctx)?;
+    match err {
+        None => {
             print_report(out, &conn.server_url, &project_of, &report);
             Ok(())
         }
-        Err((report, err)) => {
+        Some(err) => {
             if report.batches > 0 {
                 print_report(out, &conn.server_url, &project_of, &report);
             }
@@ -139,6 +244,23 @@ pub(crate) fn print_config_source(out: &mut dyn Write, source: &ConfigSource) {
     }
 }
 
+/// Ghi trạng thái các file đã gửi xong.
+fn commit(
+    db: &mut StateDb,
+    plans: &[FilePlan],
+    delivered: &HashMap<String, usize>,
+    expected: &HashMap<String, usize>,
+    ctx: &AppContext,
+) -> Result<(), AppError> {
+    for plan in plans {
+        if let Some(state) = plan.committed_state(delivered, expected) {
+            db.save_file(&plan.file.path, &state)
+                .map_err(state_err(ctx))?;
+        }
+    }
+    Ok(())
+}
+
 fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
     let _ = writeln!(
         out,
@@ -150,6 +272,23 @@ fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
             out,
             "Cảnh báo: {} file không đọc được, {} bản ghi không nhận ra đã bỏ qua.",
             s.read_errors, s.parse_warnings
+        );
+    }
+}
+
+fn print_skips(out: &mut dyn Write, s: &SkipStats) {
+    if s.unchanged > 0 {
+        let _ = writeln!(
+            out,
+            "Bỏ qua {} file log không đổi từ lần gửi trước.",
+            s.unchanged
+        );
+    }
+    if s.waiting > 0 {
+        let _ = writeln!(
+            out,
+            "{} file log đang được ghi (sửa chưa tới 2 phút): chờ lần sau, hoặc thêm `--include-active` để gửi luôn.",
+            s.waiting
         );
     }
 }

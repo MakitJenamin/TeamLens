@@ -14,6 +14,7 @@ pub mod error;
 pub mod daemon;
 pub mod pipeline;
 pub mod queue;
+pub mod state;
 pub mod sync;
 
 /// Phiên bản CLI, gửi lên server (`cliVersion`, user-agent).
