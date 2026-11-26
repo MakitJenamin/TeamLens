@@ -34,13 +34,42 @@ use crate::redact::RedactionCount;
 /// Server trả 426 nếu không hỗ trợ.
 pub const SCHEMA_VERSION: u32 = 1;
 
-/// Session đã chuẩn hóa, đầu ra của `Adapter::normalize`.
+/// Session đã chuẩn hóa, đầu ra của `Adapter::normalize` (chốt ở task M1.3).
 ///
-/// Placeholder cho tới khi task M1.3 chốt adapter trả về gì (có thể là
-/// [`SessionEnvelope`] hoặc một kiểu trung gian chưa có `repo_remote`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct NormalizedSession {}
+/// Đây là dữ liệu **thô trong RAM**: adapter chỉ đổi định dạng log gốc sang kiểu của
+/// schema v1, KHÔNG lọc phạm vi, KHÔNG che secret, KHÔNG cắt, KHÔNG đổi đường dẫn.
+/// Kiểu này không bao giờ được ghi ra đĩa hay gửi đi nguyên trạng.
+///
+/// Hợp đồng cho pipeline (task M1.7), theo thứ tự spec mục 6:
+///
+/// 1. **Lọc phạm vi** bằng [`Self::cwd`] (spec 6.1): `None` hoặc không thuộc repo đã
+///    đăng ký → bỏ cả session. Khớp thì điền `session.repo_remote` (adapter để chuỗi
+///    rỗng) và `session.cwd_relative` (adapter để `None`).
+/// 2. **Che secret** ([`crate::redact`]) trên `text`, `tool.input`, `output.text`,
+///    `diff.patch` của từng turn, ghi `redactions`.
+/// 3. **Đổi đường dẫn** ([`crate::paths`]): `diff.path` đang là đường dẫn **tuyệt đối**
+///    lấy nguyên từ log, phải đổi thành tương đối với gốc repo; text, input, output
+///    cũng còn đường dẫn tuyệt đối.
+/// 4. **Cắt** ([`crate::truncate`]): `output` đang là nguyên văn (`truncated = false`,
+///    `original_bytes = None`), `tool.input` chưa cắt 4 KB, `diff.patch` chưa cắt 256 KB.
+///
+/// `session.ended_at` là timestamp của dòng hội thoại cuối cùng đã đọc; nếu file còn
+/// đang được ghi (chưa "ổn định", task M2.3) thì pipeline nên đặt lại `None`.
+///
+/// `Serialize` chỉ để test snapshot và debug; payload gửi đi là [`SessionEnvelope`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NormalizedSession {
+    /// Thư mục làm việc **tuyệt đối, chưa che** lúc bắt đầu session (spec 6.1 điểm 4:
+    /// session đổi `cwd` giữa chừng vẫn xét theo `cwd` đầu tiên). `None` khi log không
+    /// ghi `cwd`; pipeline phải bỏ session đó.
+    pub cwd: Option<std::path::PathBuf>,
+    /// Metadata; `repo_remote` rỗng và `cwd_relative = None` cho tới khi pipeline điền.
+    pub session: Session,
+    /// Các turn theo thứ tự trong log, `seq` liên tục từ 0.
+    pub turns: Vec<Turn>,
+    /// Số bản ghi hỏng hoặc không nhận ra đã bỏ qua (spec 5.2).
+    pub parse_warnings: u32,
+}
 
 /// Một batch gửi tới `POST /agent/v1/ingest`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

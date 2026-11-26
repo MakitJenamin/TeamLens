@@ -1,0 +1,72 @@
+---
+source: crates/tl-adapters/tests/claude_code.rs
+expression: s
+---
+{
+  "cwd": "C:\\Users\\dev\\Documents\\demo-app",
+  "session": {
+    "source_id": "claude_code:69d67677-a42c-49fd-85ed-29807f489ff8",
+    "agent": "claude_code",
+    "agent_version": "2.1.326",
+    "repo_remote": "",
+    "branch": "main",
+    "cwd_relative": null,
+    "started_at": "2026-11-18T16:37:44.365Z",
+    "ended_at": "2026-11-18T16:43:00.912Z",
+    "parent_source_id": null,
+    "permission_mode": "unknown"
+  },
+  "turns": [
+    {
+      "seq": 0,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-18T16:37:44.365Z",
+      "text": "<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>"
+    },
+    {
+      "seq": 1,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-18T16:42:56.226Z",
+      "text": "(văn bản đã thay khi làm fixture #1)"
+    },
+    {
+      "seq": 2,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-18T16:43:00.325Z",
+      "model": "claude-opus-5-5",
+      "tool": {
+        "name": "mcp__codegraph__codegraph_explore",
+        "input": {
+          "query": "(input đã thay khi làm fixture #2)"
+        },
+        "status": "error"
+      },
+      "usage": {
+        "input": 2,
+        "output": 118,
+        "cache_read": 35044,
+        "cache_write": 23157
+      },
+      "interrupted": true,
+      "reasoning_effort": null
+    },
+    {
+      "seq": 3,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-18T16:43:00.901Z",
+      "tool": {
+        "name": "mcp__codegraph__codegraph_explore",
+        "status": "error"
+      },
+      "output": {
+        "text": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+        "truncated": false
+      }
+    }
+  ],
+  "parse_warnings": 0
+}

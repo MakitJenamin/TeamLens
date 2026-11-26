@@ -1,6 +1,122 @@
 //! Adapter Claude Code.
 //!
-//! - Task M1.3 (đọc cả file), M2.3 (đọc tăng dần): tìm `%USERPROFILE%\.claude\projects\<cwd-mã-hóa>\<uuid>.jsonl`
-//!   (đổi root qua `CLAUDE_CONFIG_DIR`), đọc JSONL tăng dần theo offset.
-//! - Task M1.3, M2.4: chuẩn hóa turns, usage đếm một lần theo `message.id`,
-//!   transcript subagent thành session con (`parent_source_id`).
+//! - Task M1.3 (bản này): tìm `<root>\projects\<cwd-mã-hóa>\<uuid>.jsonl`, đọc cả file,
+//!   chuẩn hóa prompt/reply/tool_call/tool_result/diff, `usage` đếm một lần theo
+//!   `message.id`, `permission_mode`, `interrupted` (chi tiết ở [`normalize`]).
+//!   `root` mặc định là `%USERPROFILE%\.claude`, đổi qua biến môi trường
+//!   `CLAUDE_CONFIG_DIR`.
+//! - Task M2.3: đọc tăng dần theo offset lưu trong `state.db` (chữ ký
+//!   [`Adapter::read_incremental`] đã hỗ trợ sẵn `from`).
+//! - Task M2.4: transcript subagent (`<uuid>\subagents\agent-*.jsonl`, và dòng
+//!   `isSidechain` của bản cũ) thành session con có `parent_source_id`. Bản M1.3 **cố ý
+//!   bỏ qua**: [`ClaudeCodeAdapter::discover`] chỉ quét đúng một cấp thư mục dưới
+//!   `projects\`, còn `normalize` bỏ các dòng `isSidechain = true`.
+
+mod diff;
+mod normalize;
+
+use std::path::{Path, PathBuf};
+
+use crate::{
+    read_jsonl, Adapter, AgentKind, NormalizedSession, Offset, ParseError, RawEvent, SourceFile,
+};
+
+/// Biến môi trường đổi thư mục cấu hình của Claude Code.
+pub const CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
+
+/// Adapter đọc transcript của Claude Code.
+#[derive(Debug, Clone)]
+pub struct ClaudeCodeAdapter {
+    /// Thư mục cấu hình (chứa `projects\`).
+    root: PathBuf,
+}
+
+impl ClaudeCodeAdapter {
+    /// Adapter đọc từ thư mục cấu hình `root` (thư mục chứa `projects\`); dùng cho test.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    /// Adapter với thư mục mặc định trên máy: `CLAUDE_CONFIG_DIR` nếu có, không thì
+    /// `%USERPROFILE%\.claude` (hoặc `$HOME/.claude`). `None` khi không xác định được
+    /// thư mục home.
+    pub fn from_env() -> Option<Self> {
+        let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty());
+        let root = match var(CONFIG_DIR_ENV) {
+            Some(dir) => PathBuf::from(dir),
+            None => PathBuf::from(var("USERPROFILE").or_else(|| var("HOME"))?).join(".claude"),
+        };
+        Some(Self::new(root))
+    }
+
+    /// Thư mục cấu hình đang dùng.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Thư mục chứa transcript: `<root>\projects`.
+    pub fn projects_dir(&self) -> PathBuf {
+        self.root.join("projects")
+    }
+}
+
+impl Adapter for ClaudeCodeAdapter {
+    fn id(&self) -> AgentKind {
+        AgentKind::ClaudeCode
+    }
+
+    /// Liệt kê `<root>\projects\*\*.jsonl`, sắp theo đường dẫn. Thư mục không tồn tại
+    /// hoặc không đọc được thì trả về rỗng (máy chưa dùng Claude Code).
+    fn discover(&self) -> Vec<SourceFile> {
+        let mut files = Vec::new();
+        let Ok(projects) = std::fs::read_dir(self.projects_dir()) else {
+            return files;
+        };
+        for project in projects.flatten() {
+            if !project.file_type().is_ok_and(|t| t.is_dir()) {
+                continue;
+            }
+            let Ok(entries) = std::fs::read_dir(project.path()) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_none_or(|e| e != "jsonl") {
+                    continue;
+                }
+                let Ok(meta) = entry.metadata() else { continue };
+                if !meta.is_file() {
+                    continue;
+                }
+                files.push(SourceFile {
+                    agent: AgentKind::ClaudeCode,
+                    path,
+                    size: meta.len(),
+                    modified: meta.modified().ok(),
+                });
+            }
+        }
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+        files
+    }
+
+    /// Đọc JSONL từ `from` (M1.3 luôn gọi với `Offset(0)` để đọc cả file).
+    fn read_incremental(
+        &self,
+        f: &SourceFile,
+        from: Offset,
+    ) -> Result<(Vec<RawEvent>, Offset), ParseError> {
+        read_jsonl(&f.path, from)
+    }
+
+    /// Chuẩn hóa các bản ghi; mỗi `sessionId` một [`NormalizedSession`].
+    ///
+    /// Kết quả là dữ liệu thô trong RAM, chưa lọc phạm vi/che/cắt/đổi đường dẫn
+    /// (xem hợp đồng ở [`NormalizedSession`]).
+    fn normalize(&self, events: Vec<RawEvent>) -> Vec<NormalizedSession> {
+        normalize::normalize(events)
+    }
+}
+
+#[cfg(test)]
+mod tests;
