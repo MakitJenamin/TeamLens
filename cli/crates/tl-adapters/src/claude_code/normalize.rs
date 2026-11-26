@@ -77,6 +77,10 @@ pub(crate) const META_TYPES: &[&str] = &[
     "cost-state",
     // Trỏ sang file session tiếp nối (`continuedInSessionId`); chưa dùng ở M1.3.
     "continued-in",
+    // Session chuyển vào git worktree (`EnterWorktree`); `cwd` mới đã có trên dòng hội
+    // thoại sau đó nên không cần đọc (thấy trên log thật 2.1.33x ở M2.4).
+    "relocated",
+    "worktree-state",
 ];
 
 /// Tiền tố của tin nhắn Claude Code chèn khi người dùng ngắt lượt.
