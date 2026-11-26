@@ -92,3 +92,44 @@ pub struct ErrorBody {
     #[serde(default)]
     pub message: String,
 }
+
+/// Trả về `202` của `POST /agent/v1/ingest`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngestResult {
+    pub batch_id: String,
+    /// `true` khi batch đã được nhận trước đó (kết quả là của lần đầu).
+    pub duplicate: bool,
+    pub accepted: Vec<IngestAccepted>,
+    pub rejected: Vec<IngestRejected>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngestAccepted {
+    pub source_id: String,
+    /// Id session trên server (link dashboard).
+    pub session_id: String,
+    pub turns_upserted: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngestRejected {
+    pub source_id: String,
+    /// `repo_not_in_project` hoặc `invalid_session`.
+    pub error: String,
+    pub message: String,
+}
+
+/// Thân lỗi `426` của ingest.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnsupportedSchemaVersionBody {
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub min_cli_version: Option<String>,
+    #[serde(default)]
+    pub supported_schema_versions: Vec<u32>,
+}
