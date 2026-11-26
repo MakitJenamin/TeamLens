@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ApiError } from "@/lib/api/client";
-import { serverApi } from "@/lib/api/server";
-import type { SessionDetail } from "@/lib/api/types";
+import { serverApi, serverApiOrNull } from "@/lib/api/server";
+import type { MeResponse, SessionDetail } from "@/lib/api/types";
 import { SessionDetailView } from "../_components/session-detail";
+import type { NoteViewer } from "../_components/session-notes";
 
 type Props = PageProps<"/[locale]/projects/[projectId]/sessions/[sessionId]">;
 
@@ -37,5 +38,9 @@ export default async function SessionDetailPage({ params }: Props) {
     );
   }
 
-  return <SessionDetailView session={session} />;
+  // Người xem: quyết định có hiện nút thêm/xóa ghi chú (API vẫn kiểm tra quyền).
+  const me = await serverApiOrNull<MeResponse>("/auth/me");
+  const viewer: NoteViewer | null = me ? { id: me.user.id, isLeader: me.user.role === "leader" } : null;
+
+  return <SessionDetailView session={session} viewer={viewer} />;
 }

@@ -1,8 +1,18 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { type AuthUser, CurrentUser } from '../../common/auth-context.js';
 import { ProjectAccess } from '../access/access.guards.js';
 import { AGENT_KINDS } from './session-mappers.js';
+import { SessionNotesService } from './session-notes.service.js';
 import { SessionsService } from './sessions.service.js';
 
 const isoDateTime = z.iso
@@ -27,10 +37,22 @@ export const listSessionsQuerySchema = z.object({
   cursor: z.string().min(1).max(500).optional(),
 });
 
+export const createNoteSchema = z.object({
+  turnSeq: z.number().int('turnSeq phải là số nguyên').min(0).nullish(),
+  body: z
+    .string()
+    .trim()
+    .min(1, 'Ghi chú không được để trống')
+    .max(4000, 'Ghi chú tối đa 4000 ký tự'),
+});
+
 /** Xem session trên dashboard: danh sách theo project và chi tiết (contract `sessions.yaml`). */
 @Controller('api/v1')
 export class SessionsController {
-  constructor(private readonly sessions: SessionsService) {}
+  constructor(
+    private readonly sessions: SessionsService,
+    private readonly notes: SessionNotesService,
+  ) {}
 
   @Get('projects/:projectId/sessions')
   @ProjectAccess()
@@ -46,5 +68,32 @@ export class SessionsController {
   @Get('sessions/:sessionId')
   get(@CurrentUser() user: AuthUser, @Param('sessionId') sessionId: string) {
     return this.sessions.get(user, sessionId);
+  }
+
+  @Get('sessions/:sessionId/notes')
+  listNotes(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.notes.list(user, sessionId);
+  }
+
+  @Post('sessions/:sessionId/notes')
+  createNote(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Body({ schema: createNoteSchema }) body: z.infer<typeof createNoteSchema>,
+  ) {
+    return this.notes.create(user, sessionId, body);
+  }
+
+  @Delete('sessions/:sessionId/notes/:noteId')
+  @HttpCode(204)
+  async deleteNote(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Param('noteId') noteId: string,
+  ): Promise<void> {
+    await this.notes.remove(user, sessionId, noteId);
   }
 }

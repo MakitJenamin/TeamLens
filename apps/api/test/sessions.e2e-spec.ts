@@ -260,9 +260,7 @@ describe('Sessions (e2e)', () => {
         .expect(200);
       expect(res.body.items).toHaveLength(6);
       const outsider = await loginAs('outsider@teamlens.local');
-      await outsider
-        .get(`/api/v1/projects/${projectId}/sessions`)
-        .expect(403);
+      await outsider.get(`/api/v1/projects/${projectId}/sessions`).expect(403);
       // Leader không là thành viên project Q vẫn xem được (vai trò toàn server).
       const leader = await loginAs('leader@teamlens.local');
       await leader
@@ -390,6 +388,83 @@ describe('Sessions (e2e)', () => {
       const res = await admin.get(`/api/v1/sessions/${MISSING}`).expect(404);
       expect(res.body.error).toBe('not_found');
       await admin.get(`/api/v1/sessions/khong-phai-uuid`).expect(404);
+    });
+  });
+
+  describe('Ghi chú theo turn /api/v1/sessions/:sessionId/notes', () => {
+    it('leader thêm ghi chú theo turn và cả session, member chủ session đọc được', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      const url = `/api/v1/sessions/${member1Sessions[0]}/notes`;
+      const created = await leader
+        .post(url)
+        .send({ turnSeq: 2, body: '  Nên chạy test trước khi ls  ' })
+        .expect(201);
+      expect(created.body).toMatchObject({
+        sessionId: member1Sessions[0],
+        turnSeq: 2,
+        body: 'Nên chạy test trước khi ls',
+        author: { id: ids.leader, name: 'leader' },
+      });
+      await leader.post(url).send({ body: 'Chung cả session' }).expect(201);
+
+      const member1 = await loginAs('member1@teamlens.local');
+      const list = await member1.get(url).expect(200);
+      expect(
+        list.body.items.map((n: { turnSeq: number | null }) => n.turnSeq),
+      ).toEqual([2, null]);
+      const audits = await querySql<{ n: string }>(
+        `SELECT count(*)::text AS n FROM audit_log WHERE action = 'session.note.create' AND target_id = $1`,
+        [member1Sessions[0]],
+      );
+      expect(Number(audits[0].n)).toBe(2);
+    });
+
+    it('member không thêm, không xóa được; không đọc ghi chú session người khác', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const url = `/api/v1/sessions/${member1Sessions[0]}/notes`;
+      const res = await member1.post(url).send({ body: 'x' }).expect(403);
+      expect(res.body.error).toBe('forbidden');
+      const notes = (await member1.get(url).expect(200)).body.items;
+      await member1.delete(`${url}/${notes[0].id}`).expect(403);
+      await member1.get(`/api/v1/sessions/${member2Session}/notes`).expect(403);
+    });
+
+    it('turn không có trả 404 turn_not_found; body sai trả 400', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      const url = `/api/v1/sessions/${member1Sessions[0]}/notes`;
+      const res = await leader
+        .post(url)
+        .send({ turnSeq: 99, body: 'x' })
+        .expect(404);
+      expect(res.body.error).toBe('turn_not_found');
+      for (const body of [
+        { body: '   ' },
+        { body: 'x'.repeat(4001) },
+        { turnSeq: -1, body: 'x' },
+        {},
+      ]) {
+        const bad = await leader.post(url).send(body).expect(400);
+        expect(bad.body.error).toBe('validation_error');
+      }
+      await leader
+        .post(`/api/v1/sessions/${MISSING}/notes`)
+        .send({ body: 'x' })
+        .expect(404);
+    });
+
+    it('chỉ tác giả xóa được ghi chú của mình', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      const admin = await loginAs('admin@teamlens.local');
+      const url = `/api/v1/sessions/${member1Sessions[0]}/notes`;
+      const note = (
+        await leader.post(url).send({ turnSeq: 0, body: 'Sẽ xóa' }).expect(201)
+      ).body;
+      await admin.delete(`${url}/${note.id}`).expect(403);
+      await leader.delete(`${url}/${note.id}`).expect(204);
+      await leader.delete(`${url}/${note.id}`).expect(404);
+      await leader.delete(`${url}/khong-phai-uuid`).expect(404);
+      const items = (await leader.get(url).expect(200)).body.items;
+      expect(items.some((n: { id: string }) => n.id === note.id)).toBe(false);
     });
   });
 });

@@ -115,14 +115,38 @@ describe("SessionDetailView", () => {
     expect(screen.getByText("Lỗi")).toBeInTheDocument();
   });
 
-  it("diff tô màu theo dòng +/-", () => {
+  it("diff ngắn tô màu bằng react-diff-view, mở sẵn", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
     renderWithProviders(<SessionDetailView session={session} />);
 
     const diff = screen.getByTestId("diff");
-    expect(diff.querySelector('[data-kind="add"]')).toHaveTextContent("+mới");
-    expect(diff.querySelector('[data-kind="remove"]')).toHaveTextContent("-cũ");
-    expect(diff.querySelector('[data-kind="hunk"]')).toHaveTextContent("@@ -1 +1 @@");
+    expect(diff.querySelector(".diff-code-insert")).toHaveTextContent("mới");
+    expect(diff.querySelector(".diff-code-delete")).toHaveTextContent("cũ");
+    expect(diff).toHaveTextContent("@@ -1 +1 @@");
+    expect(screen.getByRole("button", { name: /src\/a\.ts/ })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("diff lớn thu gọn mặc định, bấm mới render", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+    const lines = Array.from({ length: 3000 }, (_, i) => `+dòng ${i}`);
+    const big: SessionDetail = {
+      ...session,
+      turns: [
+        turn(0, {
+          kind: "tool_call",
+          tool: { name: "Write", input: { file_path: "big.ts" }, status: "ok" },
+          diff: { path: "big.ts", patch: `@@ -0,0 +1,3000 @@\n${lines.join("\n")}`, added: 3000, removed: 0 },
+        }),
+      ],
+    };
+    renderWithProviders(<SessionDetailView session={big} />);
+
+    const diff = screen.getByTestId("diff");
+    expect(diff.querySelector(".diff-code-insert")).toBeNull();
+    expect(diff).toHaveTextContent("+3000");
+    expect(diff).toHaveTextContent("3001 dòng, bấm để xem");
+    await userEvent.click(screen.getByRole("button", { name: /big\.ts/ }));
+    expect(diff.querySelectorAll(".diff-code-insert")).toHaveLength(3000);
   });
 
   it("hiện finding và đánh dấu turn dính finding", async () => {
