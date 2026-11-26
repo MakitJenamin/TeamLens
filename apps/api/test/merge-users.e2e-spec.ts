@@ -10,6 +10,7 @@ import { QueueService } from '../src/queue/queue.service.js';
 import {
   createTestApp,
   insertUser,
+  grantConsent,
   querySql,
   resetDatabase,
 } from './helpers.js';
@@ -118,10 +119,9 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
 
     fromDevice = await insertDevice(fromId, 'PC-2');
     const intoDevice = await insertDevice(intoId, 'PC-1');
-    await querySql(
-      `INSERT INTO consents (user_id, device_id, text_version) VALUES ($1, $2, 'v1')`,
-      [fromId, fromDevice.id],
-    );
+    // Ingest đòi bản đồng ý còn hiệu lực của từng thiết bị.
+    await grantConsent(fromDevice.token);
+    await grantConsent(intoDevice.token);
 
     // User giữ lại: session simple (cùng batch_id với user cũ → ingest_batches trùng) + session cha.
     const subagent = example('claude-code-subagent.json');
@@ -244,6 +244,7 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
     );
     expect(devices.map((d) => d.user_id)).toEqual([intoId, intoId]);
     expect(await querySql('SELECT user_id FROM consents', [])).toEqual([
+      { user_id: intoId },
       { user_id: intoId },
     ]);
     const projects = await querySql<{ project_id: string }>(
