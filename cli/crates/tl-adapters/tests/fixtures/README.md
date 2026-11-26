@@ -91,3 +91,40 @@ Script làm các bước sau (chi tiết trong docstring):
 Sau khi sinh, đã grep lại toàn bộ `tests/` với tên người dùng Windows thật, email, tên máy,
 `sk-`, `ghp_`, `gho_`, `AKIA` và tên các dự án khác: không còn kết quả nào (ngoài chính
 danh sách mẫu trong `sanitize.py`).
+
+## Codex (task M2.5)
+
+| File | Nguồn | Tình huống |
+| --- | --- | --- |
+| `codex/0.142.0/fork-rollback-abort-compaction.jsonl` | Session thật (extension VS Code) ở dự án khác, chỉ giữ dòng 0–16, 226–262, 966–990, 1094–1110, **mọi nội dung tự do và tên file đã thay** | Session **fork**: `session_meta` của chính nó rồi lịch sử chép từ session cha (adapter bỏ), `thread_rolled_back`; lượt mới có `shell_command` chạy song song, `reasoning`, `token_count` (kể cả event lặp), `apply_patch` có diff thật từ `patch_apply_end`, `turn_aborted` khi lệnh shell đang chạy, `compacted` + `context_compacted`, `approval_policy: never` + `danger-full-access` (→ `bypass`) |
+| `codex/0.130.0-alpha.5/ide-add-file.jsonl` | Session thật (extension VS Code, bản cũ) ở dự án khác, cả file, **mọi nội dung tự do và tên file đã thay** | `session_meta` lặp lại mỗi lượt, prompt có khối `# Context from my IDE setup`, `token_count` lặp, `apply_patch` tạo file mới (`patch_apply_end` kiểu `add`), output dạng JSON cũ `{"output", "metadata": {"exit_code"}}`, `on-request` + `workspace-write` (→ `default`) |
+| `codex/0.142.0-alpha.1/exec-script-error.jsonl` | Session thật (Codex Desktop) ngoài repo nào, cả file, **mọi nội dung tự do đã thay** | Tool `exec` (`custom_tool_call`) có output dạng mảng `input_text`, ba lần `Script failed` (→ `status: error`), `mcp_tool_call_end` |
+
+Test ở `../codex.rs` (snapshot + JSON Schema); test tích hợp `tl preview` với fixture
+`ide-add-file` ở `cli/crates/teamlens/tests/codex_preview.rs`.
+
+### Cách đã che
+
+Sinh bằng [`codex/sanitize.py`](codex/sanitize.py) (Python 3.9+, không cần thư viện ngoài),
+chạy trên máy có log gốc:
+
+```bash
+S=~/.codex/sessions/2026
+cd cli/crates/tl-adapters/tests/fixtures/codex
+python sanitize.py $S/06/25/rollout-...-019efe2b-....jsonl 0.142.0/fork-rollback-abort-compaction.jsonl \
+  --select 0-16,226-262,966-990,1094-1110 --map <tên-dự-án>=demo-app --map <tên-sản-phẩm>=demo --map <tên-thư-mục-plan>=plan-a
+python sanitize.py $S/05/12/rollout-...-019e1b5f-....jsonl 0.130.0-alpha.5/ide-add-file.jsonl --map <tên-dự-án>=demo-app
+python sanitize.py $S/06/20/rollout-...-019ee3ce-....jsonl 0.142.0-alpha.1/exec-script-error.jsonl --map <tên-thư-mục>=demo-app
+```
+
+Khác với script của Claude Code, script Codex **luôn** thay mọi nội dung tự do (log nguồn
+đều là dự án cá nhân): prompt, câu trả lời, giá trị trong `arguments`, output tool (chỉ giữ
+dòng `Exit code`/`Wall time`/`Output:` và các tiền tố lỗi do Codex sinh như `Script
+failed`), dòng diff/patch (giữ dấu `+`/`-`/`@@`), tên file (`file<n>.<đuôi>`). `session_meta`
+và `turn_context` chỉ giữ khóa adapter dùng (bỏ `base_instructions`, `dynamic_tools`,
+`permission_profile`, commit, URL repo); `token_count` bỏ `rate_limits`; reasoning chỉ còn
+khung (`ENC_FIXTURE`); tin nhắn hệ thống Codex tự chèn chỉ giữ dòng đầu
+(`<environment_context>`, `# AGENTS.md instructions`...). Sau đó thay đường dẫn người
+dùng, tên máy, email, token và các cặp `--map` trên toàn dòng, rồi tự kiểm tra như script
+Claude Code. Đã grep lại thư mục `codex/` với tên người dùng Windows thật, tên các dự án
+nguồn và `@`: không còn kết quả nào.

@@ -1,0 +1,156 @@
+---
+source: crates/tl-adapters/tests/codex.rs
+expression: s
+---
+{
+  "cwd": "C:\\Users\\dev\\Documents\\demo-app",
+  "session": {
+    "source_id": "codex:019e1b5f-a9d8-79e0-8e3b-2f26844fb781",
+    "agent": "codex",
+    "agent_version": "0.130.0-alpha.5",
+    "repo_remote": "",
+    "branch": "main",
+    "cwd_relative": null,
+    "started_at": "2026-05-12T08:49:16.180Z",
+    "ended_at": "2026-05-12T08:52:09.213Z",
+    "parent_source_id": null,
+    "permission_mode": "default"
+  },
+  "turns": [
+    {
+      "seq": 0,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-05-12T08:49:16.185Z",
+      "text": "(… đã thay khi làm fixture #6)"
+    },
+    {
+      "seq": 1,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-05-12T08:49:23.737Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #8)",
+      "usage": {
+        "input": 13780,
+        "output": 61,
+        "cache_read": 7552
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 2,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-05-12T08:49:43.056Z",
+      "text": "(… đã thay khi làm fixture #11)"
+    },
+    {
+      "seq": 3,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-05-12T08:49:47.273Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #13)",
+      "usage": {
+        "input": 599,
+        "output": 40,
+        "cache_read": 20864
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 4,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-05-12T08:50:07.375Z",
+      "text": "(… đã thay khi làm fixture #16)"
+    },
+    {
+      "seq": 5,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-05-12T08:50:14.043Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #18)",
+      "usage": {
+        "input": 214,
+        "output": 98,
+        "cache_read": 21376
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 6,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-05-12T08:51:58.841Z",
+      "text": "(… đã thay khi làm fixture #21)"
+    },
+    {
+      "seq": 7,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-05-12T08:52:04.593Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #23)",
+      "usage": {
+        "input": 400,
+        "output": 86,
+        "cache_read": 21376
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 8,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-05-12T08:52:06.444Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "apply_patch",
+        "input": {
+          "patch": "*** Begin Patch\n*** Add File: file1.md\n+(… đã thay khi làm fixture #24)\n+(… đã thay khi làm fixture #25)\n+(… đã thay khi làm fixture #26)\n+(… đã thay khi làm fixture #27)\n+(… đã thay khi làm fixture #28)\n*** End Patch\n",
+          "path": "C:\\Users\\dev\\Documents\\demo-app\\file1.md"
+        },
+        "status": "ok"
+      },
+      "diff": {
+        "path": "C:\\Users\\dev\\Documents\\demo-app\\file1.md",
+        "patch": "@@ -0,0 +1,5 @@\n+(… đã thay khi làm fixture #29)\n+(… đã thay khi làm fixture #30)\n+(… đã thay khi làm fixture #31)\n+(… đã thay khi làm fixture #32)\n+(… đã thay khi làm fixture #33)\n",
+        "added": 5,
+        "removed": 0
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 9,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-05-12T08:52:06.577Z",
+      "tool": {
+        "name": "apply_patch",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #35)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 10,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-05-12T08:52:09.098Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #37)",
+      "usage": {
+        "input": 525,
+        "output": 33,
+        "cache_read": 21376
+      },
+      "reasoning_effort": "medium"
+    }
+  ],
+  "parse_warnings": 0
+}

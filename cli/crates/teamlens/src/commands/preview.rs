@@ -2,8 +2,9 @@
 //! đường dẫn, cắt), dạng `IngestBatch` pretty. Task M1.7.
 //!
 //! - Không tham số: session gần nhất **trong phạm vi**.
-//! - Tham số là đường dẫn file log `.jsonl`, hoặc `source_id` (`claude_code:<uuid>` hay
-//!   chỉ `<uuid>`).
+//! - Tham số là đường dẫn file log `.jsonl`, hoặc `source_id` (`claude_code:<uuid>`,
+//!   `codex:<uuid>` hay chỉ `<uuid>`). File Codex tên `rollout-<thời điểm>-<uuid>.jsonl`
+//!   nên khớp theo đuôi tên file.
 //! - Session ngoài phạm vi: chỉ báo "ngoài phạm vi, sẽ không gửi", không in nội dung.
 //!
 //! Chỉ gọi mạng `GET /agent/v1/config` (repo pattern, ngưỡng cắt; mất mạng thì dùng cache),
@@ -16,7 +17,8 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use clap::Args;
-use tl_adapters::{Adapter, SourceFile};
+use tl_adapters::codex::CodexAdapter;
+use tl_adapters::{Adapter, AgentKind, SourceFile};
 
 use crate::context::AppContext;
 use crate::error::AppError;
@@ -79,7 +81,7 @@ pub async fn run_with(
             let Some((adapter, file)) = find_file(&adapters, arg) else {
                 return Err(AppError::user(
                     format!("Không tìm thấy session hoặc file log \"{arg}\"."),
-                    "Truyền đường dẫn file .jsonl, hoặc source_id dạng claude_code:<uuid>; bỏ trống để xem session gần nhất.",
+                    "Truyền đường dẫn file .jsonl, hoặc source_id dạng claude_code:<uuid> / codex:<uuid>; bỏ trống để xem session gần nhất.",
                 ));
             };
             pipeline.process_file(adapter, &file)
@@ -146,20 +148,40 @@ fn latest_in_scope(
     (Vec::new(), stats)
 }
 
-/// Tham số là đường dẫn file (có thật) hoặc `source_id`/uuid (khớp tên file `<uuid>.jsonl`).
+/// Tham số là đường dẫn file (có thật) hoặc `source_id`/uuid: khớp tên file `<uuid>.jsonl`
+/// (Claude Code) hoặc `rollout-...-<uuid>.jsonl` (Codex).
 fn find_file<'a>(adapters: &[&'a dyn Adapter], arg: &str) -> Option<(&'a dyn Adapter, SourceFile)> {
     let path = Path::new(arg);
     if path.is_file() {
-        let adapter = *adapters.first()?;
+        // File rollout thì dùng adapter Codex, còn lại adapter đầu tiên (Claude Code).
+        let wanted = if CodexAdapter::is_rollout_file(path) {
+            AgentKind::Codex
+        } else {
+            AgentKind::ClaudeCode
+        };
+        let adapter = adapters
+            .iter()
+            .find(|a| a.id() == wanted)
+            .or_else(|| adapters.first())
+            .copied()?;
         return source_file(adapter, path).ok().map(|f| (adapter, f));
     }
     for adapter in adapters {
         let prefix = format!("{}:", adapter.id().as_str());
         let id = arg.strip_prefix(&prefix).unwrap_or(arg);
+        if id.is_empty() {
+            continue;
+        }
+        let rollout_suffix = format!("-{}", id.to_ascii_lowercase());
         if let Some(file) = adapter.discover().into_iter().find(|f| {
             f.path
                 .file_stem()
-                .is_some_and(|s| s.eq_ignore_ascii_case(id))
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| {
+                    s.eq_ignore_ascii_case(id)
+                        || (adapter.id() == AgentKind::Codex
+                            && s.to_ascii_lowercase().ends_with(&rollout_suffix))
+                })
         }) {
             return Some((*adapter, file));
         }

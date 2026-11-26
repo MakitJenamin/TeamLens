@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use tl_adapters::claude_code::ClaudeCodeAdapter;
+use tl_adapters::codex::CodexAdapter;
 use tl_adapters::Adapter;
 use tl_core::session::SessionEnvelope;
 
@@ -36,11 +37,14 @@ pub struct Sources {
 }
 
 impl Sources {
-    /// Adapter thật của máy (hiện chỉ Claude Code; Codex ở M2.5).
+    /// Adapter thật của máy: Claude Code và Codex.
     pub fn from_env() -> Self {
         let mut adapters: Vec<Box<dyn Adapter>> = Vec::new();
         if let Some(cc) = ClaudeCodeAdapter::from_env() {
             adapters.push(Box::new(cc));
+        }
+        if let Some(codex) = CodexAdapter::from_env() {
+            adapters.push(Box::new(codex));
         }
         Self {
             adapters,
