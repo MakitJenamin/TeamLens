@@ -1,11 +1,13 @@
 /**
- * Văn bản đồng ý hiển thị trên màn hình `tl join` / `tl consent` (SPEC 4.3).
+ * Văn bản đồng ý hiển thị trên màn hình `tl join` và trang `/i/<mã>` (SPEC 4.3).
+ * Chỉ nhắc lệnh CLI đã có thật; lệnh mới (`tl pause`, `tl consent revoke`, `tl uninstall`
+ * ở M3.3/M3.7) thì thêm vào văn bản và tăng phiên bản khi phát hành.
  * Nguồn duy nhất trong API; sau này có thể chuyển sang bảng `settings`.
  *
  * Đổi nội dung thì phải đổi `CONSENT_TEXT_VERSION`: thiết bị đồng ý bản cũ sẽ bị ingest
  * trả 403 `consent_required` cho tới khi đồng ý lại.
  */
-export const CONSENT_TEXT_VERSION = '2026-11-27';
+export const CONSENT_TEXT_VERSION = '2026-11-27.2';
 
 export const CONSENT_TEXT = `TeamLens sẽ thu thập lịch sử làm việc với AI coding agent (Claude Code, Codex) trên máy này và gửi lên server của nhóm.
 
@@ -23,5 +25,5 @@ Phạm vi:
 - Bạn chỉ xem được dữ liệu của chính mình; leader của nhóm xem được dữ liệu của mọi thành viên.
 
 Quyền của bạn:
-- Bạn có thể tạm dừng (\`tl pause\`) hoặc rút đồng ý bất cứ lúc nào (\`tl consent\`); khi rút, máy này dừng gửi ngay.
-- Bạn có thể gỡ TeamLens khỏi máy bằng \`tl uninstall\`.`;
+- Rút đồng ý bất cứ lúc nào: chạy \`tl logout\` để thu hồi máy này (máy dừng gửi ngay), hoặc nhờ leader xóa dữ liệu của bạn trên server.
+- Lệnh \`tl consent revoke\` (rút đồng ý và xóa hàng đợi trên máy) sẽ có ở bản sau.`;

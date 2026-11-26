@@ -12,6 +12,10 @@ pub use models::*;
 
 /// Timeout cho mỗi request.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Kết nối keep-alive rảnh quá lâu thì bỏ, không dùng lại. Phải ngắn hơn keep-alive của server
+/// (Node/Next mặc định 5 giây): `tl sync` quét log hàng chục giây trên cùng luồng tokio nên
+/// không phát hiện được server đã đóng kết nối, dùng lại sẽ lỗi "connection aborted" (os error 10053).
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Mã lỗi máy đọc được trong trường `error` của API.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,6 +147,7 @@ impl ApiClient {
         let http = reqwest::Client::builder()
             .user_agent(crate::user_agent())
             .timeout(REQUEST_TIMEOUT)
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .build()
             .map_err(ApiError::Build)?;
         Ok(Self {
@@ -320,6 +325,57 @@ pub fn ingest_error(status: StatusCode, retry_after: Option<u64>, text: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Server HTTP tối giản: trả 200 keep-alive rồi tự đóng kết nối sau 300 ms
+    /// (như Node đóng kết nối rảnh sau keepAliveTimeout). Trả địa chỉ và bộ đếm kết nối.
+    fn spawn_closing_server() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{Read, Write};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let count = std::sync::Arc::new(AtomicUsize::new(0));
+        let counter = count.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { break };
+                counter.fetch_add(1, Ordering::SeqCst);
+                std::thread::spawn(move || {
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 1024];
+                    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match stream.read(&mut chunk) {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+                        }
+                    }
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok",
+                    );
+                    std::thread::sleep(Duration::from_millis(300));
+                    let _ = stream.shutdown(std::net::Shutdown::Both);
+                });
+            }
+        });
+        (format!("http://{addr}"), count)
+    }
+
+    /// Hồi quy: `tl sync` quét log lâu (chặn luồng tokio) rồi mới gửi; không được dùng lại
+    /// kết nối keep-alive mà server đã đóng trong lúc đó.
+    #[tokio::test]
+    async fn does_not_reuse_idle_connection_closed_by_server() {
+        let (url, connections) = spawn_closing_server();
+        let client = ApiClient::new(&url, None).unwrap();
+        let first = client.http.get(format!("{url}/a")).send().await.unwrap();
+        assert_eq!(first.text().await.unwrap(), "ok");
+        // Chặn luồng runtime như lúc quét log: pool không kịp thấy server đóng kết nối.
+        std::thread::sleep(POOL_IDLE_TIMEOUT + Duration::from_millis(500));
+        let second = client.http.get(format!("{url}/b")).send().await;
+        assert!(
+            second.is_ok(),
+            "request sau khi rảnh lâu bị lỗi: {second:?}"
+        );
+        assert_eq!(connections.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
 
     #[test]
     fn parses_known_error_codes() {

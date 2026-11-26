@@ -482,6 +482,22 @@ describe('Link mời, tl join, tl open, wizard setup (e2e)', () => {
       // IP khác không bị ảnh hưởng.
       await preview(setupCode, '10.99.99.98').expect(200);
     });
+
+    it('qua server web (loopback + X-Forwarded-For): hai người xem khác IP không chung hạn mức', async () => {
+      // Server web chuyển IP thật của người xem; API tin header vì request tới từ loopback.
+      for (let i = 0; i < 10; i++)
+        await preview(setupCode, '203.0.113.7').expect(200);
+      await preview(setupCode, '203.0.113.7').expect(429);
+      await preview(setupCode, '198.51.100.2').expect(200);
+    });
+
+    it('phần đầu X-Forwarded-For do client tự ghi không giúp lách hạn mức', async () => {
+      // Proxy tin cậy ghi IP thật ở cuối chuỗi; phần trước (IP công cộng, không tin cậy) bị bỏ qua.
+      const real = '203.0.113.50';
+      for (let i = 0; i < 10; i++)
+        await preview(setupCode, `6.6.6.${i}, ${real}`).expect(200);
+      await preview(setupCode, `7.7.7.7, ${real}`).expect(429);
+    });
   });
 
   describe('tl open: web-login → auth/ticket', () => {

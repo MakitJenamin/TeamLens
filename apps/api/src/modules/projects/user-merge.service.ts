@@ -123,6 +123,10 @@ export class UserMergeService {
       await tx.execute(
         sql`UPDATE llm_reviews SET requested_by = ${intoId} WHERE requested_by = ${fromId}`,
       );
+      // Lịch sử audit ("ai đã xem session của ai") phải còn người thực hiện sau khi xóa user cũ.
+      await tx.execute(
+        sql`UPDATE audit_log SET actor_id = ${intoId} WHERE actor_id = ${fromId}`,
+      );
 
       // ingest_batches khóa (user_id, batch_id): batch trùng giữ bản của user giữ lại.
       await tx.execute(sql`
@@ -158,8 +162,8 @@ export class UserMergeService {
       );
 
       // Xóa hẳn user cũ. Phần còn lại cascade: auth_sessions, web_login_tickets,
-      // project_members/ingest_batches trùng, user_weekly_stats. audit_log.actor_id giữ lịch sử
-      // nhưng FK đặt null; dòng `member.merge` ở trên ghi lại id cũ.
+      // project_members/ingest_batches trùng, user_weekly_stats. audit_log.actor_id đã chuyển
+      // sang user giữ lại ở trên; dòng `member.merge` ghi lại id cũ.
       await tx.execute(sql`DELETE FROM users WHERE id = ${fromId}`);
 
       const boss = fromDrizzle(tx, sql);

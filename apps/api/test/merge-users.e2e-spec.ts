@@ -213,6 +213,12 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
     const childId = before.find((s) => s.source_id === CHILD_SRC)!.id;
     expect(before.find((s) => s.id === childId)!.parent_session_id).toBeNull();
     const mergeStartedAt = new Date(Date.now() - 1000);
+    // Lịch sử user cũ đã xem session (audit) phải giữ được người thực hiện sau khi gộp.
+    await querySql(
+      `INSERT INTO audit_log (actor_id, action, target_type, target_id)
+       VALUES ($1, 'session.view', 'session', $2)`,
+      [fromId, childId],
+    );
 
     const res = await leader
       .post(`/api/v1/users/${fromId}/merge`)
@@ -269,6 +275,11 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
     expect(audit).toEqual([
       { actor_id: leaderId, target_id: `${fromId}:${intoId}` },
     ]);
+    const views = await querySql<{ actor_id: string | null }>(
+      `SELECT actor_id FROM audit_log WHERE action = 'session.view' AND target_id = $1`,
+      [childId],
+    );
+    expect(views).toEqual([{ actor_id: intoId }]);
 
     // Token thiết bị của user cũ vẫn dùng được và giờ thuộc user giữ lại.
     const whoami = await request(server)
