@@ -1,0 +1,256 @@
+---
+source: crates/tl-adapters/tests/claude_code.rs
+expression: parent
+---
+{
+  "cwd": "C:\\Users\\dev\\Documents\\demo-app",
+  "session": {
+    "source_id": "claude_code:24d35887-bc08-4a6e-9e7d-70dceaa07905",
+    "agent": "claude_code",
+    "agent_version": "2.1.322",
+    "repo_remote": "",
+    "branch": "main",
+    "cwd_relative": null,
+    "started_at": "2026-11-15T00:54:33.494Z",
+    "ended_at": "2026-11-15T08:05:53.893Z",
+    "parent_source_id": null,
+    "permission_mode": "bypass"
+  },
+  "turns": [
+    {
+      "seq": 0,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-15T00:54:33.494Z",
+      "text": "<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>"
+    },
+    {
+      "seq": 1,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-15T00:55:54.950Z",
+      "text": "(văn bản đã thay khi làm fixture #1)"
+    },
+    {
+      "seq": 2,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-15T02:45:52.514Z",
+      "text": "(văn bản đã thay khi làm fixture #2)"
+    },
+    {
+      "seq": 3,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-15T02:45:57.951Z",
+      "model": "claude-opus-5-5",
+      "tool": {
+        "name": "mcp__codegraph__codegraph_explore",
+        "input": {
+          "maxFiles": 6,
+          "query": "(input đã thay khi làm fixture #3)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 2,
+        "output": 315,
+        "cache_read": 280415,
+        "cache_write": 4112
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 4,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-15T02:45:58.561Z",
+      "tool": {
+        "name": "mcp__codegraph__codegraph_explore",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(văn bản đã thay khi làm fixture #4)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 5,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-15T02:46:12.395Z",
+      "model": "claude-opus-5-5",
+      "tool": {
+        "name": "Agent",
+        "input": {
+          "description": "(input đã thay khi làm fixture #5)",
+          "prompt": "(input đã thay khi làm fixture #7)",
+          "subagent_type": "(input đã thay khi làm fixture #6)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 2,
+        "output": 1292,
+        "cache_read": 284527,
+        "cache_write": 6935
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 6,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-15T02:46:12.643Z",
+      "tool": {
+        "name": "Agent",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(văn bản đã thay khi làm fixture #8)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 7,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-11-15T02:46:14.648Z",
+      "model": "claude-opus-5-5",
+      "text": "(văn bản đã thay khi làm fixture #9)",
+      "usage": {
+        "input": 2,
+        "output": 77,
+        "cache_read": 291462,
+        "cache_write": 1677
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 8,
+      "role": "system",
+      "kind": "prompt",
+      "ts": "2026-11-15T02:50:02.205Z",
+      "text": "(văn bản đã thay khi làm fixture #10)"
+    },
+    {
+      "seq": 9,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-11-15T02:50:06.295Z",
+      "model": "claude-opus-5-5",
+      "text": "(văn bản đã thay khi làm fixture #11)",
+      "usage": {
+        "input": 4,
+        "output": 422,
+        "cache_read": 293216,
+        "cache_write": 5891
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 10,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-15T02:50:07.868Z",
+      "model": "claude-opus-5-5",
+      "tool": {
+        "name": "Bash",
+        "input": {
+          "command": "(input đã thay khi làm fixture #12)",
+          "description": "(input đã thay khi làm fixture #13)"
+        },
+        "status": "ok"
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 11,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-15T02:50:08.403Z",
+      "tool": {
+        "name": "Bash",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(output đã thay khi làm fixture #14)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 12,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-15T05:40:38.104Z",
+      "text": "(văn bản đã thay khi làm fixture #15)"
+    },
+    {
+      "seq": 13,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-11-15T05:40:43.569Z",
+      "model": "claude-opus-5-5",
+      "text": "(văn bản đã thay khi làm fixture #16)",
+      "usage": {
+        "input": 4,
+        "output": 8,
+        "cache_read": 477006,
+        "cache_write": 24
+      },
+      "interrupted": true,
+      "reasoning_effort": null
+    },
+    {
+      "seq": 14,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-15T05:40:57.093Z",
+      "text": "(văn bản đã thay khi làm fixture #17)"
+    },
+    {
+      "seq": 15,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-15T05:41:01.011Z",
+      "model": "claude-opus-5-5",
+      "tool": {
+        "name": "Bash",
+        "input": {
+          "command": "(input đã thay khi làm fixture #18)",
+          "description": "(input đã thay khi làm fixture #19)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 4,
+        "output": 282,
+        "cache_read": 477030,
+        "cache_write": 340
+      },
+      "reasoning_effort": null
+    },
+    {
+      "seq": 16,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-15T05:41:01.760Z",
+      "tool": {
+        "name": "Bash",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(output đã thay khi làm fixture #20)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 17,
+      "role": "system",
+      "kind": "compaction",
+      "ts": "2026-11-15T08:05:53.893Z",
+      "text": "(văn bản đã thay khi làm fixture #21)"
+    }
+  ],
+  "parse_warnings": 0
+}

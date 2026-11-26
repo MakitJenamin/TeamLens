@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rút gọn và che một transcript Claude Code thật thành fixture cho test (task M1.3).
+"""Rút gọn và che một transcript Claude Code thật thành fixture cho test (task M1.3, M2.4).
 
 Cách dùng (chạy từ bất kỳ đâu, Python 3.9+, không cần thư viện ngoài):
 
@@ -37,9 +37,11 @@ import sys
 KEEP_KEYS = [
     "parentUuid",
     "isSidechain",
+    "agentId",
     "type",
     "message",
     "isMeta",
+    "isCompactSummary",
     "uuid",
     "timestamp",
     "permissionMode",

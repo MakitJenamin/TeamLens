@@ -7,10 +7,10 @@
 //!   `CLAUDE_CONFIG_DIR`.
 //! - Task M2.3: đọc tăng dần theo offset lưu trong `state.db` (chữ ký
 //!   [`Adapter::read_incremental`] đã hỗ trợ sẵn `from`).
-//! - Task M2.4: transcript subagent (`<uuid>\subagents\agent-*.jsonl`, và dòng
-//!   `isSidechain` của bản cũ) thành session con có `parent_source_id`. Bản M1.3 **cố ý
-//!   bỏ qua**: [`ClaudeCodeAdapter::discover`] chỉ quét đúng một cấp thư mục dưới
-//!   `projects\`, còn `normalize` bỏ các dòng `isSidechain = true`.
+//! - Task M2.4: transcript subagent (`<uuid>\subagents\agent-<agentId>.jsonl`) thành
+//!   session con `claude_code:<sessionId>:<agentId>` có `parent_source_id`; compaction
+//!   (`isCompactSummary`) thành turn `compaction`; `permission_mode` lấy chế độ thoáng
+//!   nhất trong session (chi tiết ở [`normalize`]).
 
 mod diff;
 mod normalize;
@@ -65,8 +65,10 @@ impl Adapter for ClaudeCodeAdapter {
         AgentKind::ClaudeCode
     }
 
-    /// Liệt kê `<root>\projects\*\*.jsonl`, sắp theo đường dẫn. Thư mục không tồn tại
-    /// hoặc không đọc được thì trả về rỗng (máy chưa dùng Claude Code).
+    /// Liệt kê `<root>\projects\*\*.jsonl` (session gốc) và
+    /// `<root>\projects\*\<uuid>\subagents\agent-*.jsonl` (transcript subagent), sắp theo
+    /// đường dẫn. Thư mục không tồn tại hoặc không đọc được thì trả về rỗng (máy chưa
+    /// dùng Claude Code). File cạnh transcript subagent (`*.meta.json`...) không đọc.
     fn discover(&self) -> Vec<SourceFile> {
         let mut files = Vec::new();
         let Ok(projects) = std::fs::read_dir(self.projects_dir()) else {
@@ -80,21 +82,11 @@ impl Adapter for ClaudeCodeAdapter {
                 continue;
             };
             for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().is_none_or(|e| e != "jsonl") {
-                    continue;
+                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                    push_jsonl_files(&entry.path().join("subagents"), "agent-", &mut files);
                 }
-                let Ok(meta) = entry.metadata() else { continue };
-                if !meta.is_file() {
-                    continue;
-                }
-                files.push(SourceFile {
-                    agent: AgentKind::ClaudeCode,
-                    path,
-                    size: meta.len(),
-                    modified: meta.modified().ok(),
-                });
             }
+            push_jsonl_files(&project.path(), "", &mut files);
         }
         files.sort_by(|a, b| a.path.cmp(&b.path));
         files
@@ -115,6 +107,32 @@ impl Adapter for ClaudeCodeAdapter {
     /// (xem hợp đồng ở [`NormalizedSession`]).
     fn normalize(&self, events: Vec<RawEvent>) -> Vec<NormalizedSession> {
         normalize::normalize(events)
+    }
+}
+
+/// Thêm các file `<prefix>*.jsonl` (đúng một cấp) trong `dir` vào `files`. Thư mục không
+/// tồn tại thì bỏ qua.
+fn push_jsonl_files(dir: &Path, prefix: &str, files: &mut Vec<SourceFile>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "jsonl")
+            || !entry.file_name().to_string_lossy().starts_with(prefix)
+        {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else { continue };
+        if !meta.is_file() {
+            continue;
+        }
+        files.push(SourceFile {
+            agent: AgentKind::ClaudeCode,
+            path,
+            size: meta.len(),
+            modified: meta.modified().ok(),
+        });
     }
 }
 
