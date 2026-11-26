@@ -638,7 +638,7 @@ mod tests {
     const ENV_BODY: &str = "DB_HOST=localhost\nFEATURE_FLAG=on\n";
 
     #[test]
-    fn bo_output_khi_doc_file_nhay_cam() {
+    fn drops_output_when_reading_sensitive_file() {
         let env = run(vec![
             // Read của Claude Code: kết quả là turn riêng, không có input.
             call(
@@ -687,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn ghep_ket_qua_voi_luot_goi_song_song() {
+    fn pairs_results_with_parallel_calls() {
         // Hai lượt gọi Read song song rồi hai kết quả theo đúng thứ tự.
         let env = run(vec![
             call(0, "Read", json!({ "file_path": "README.md" })),
@@ -700,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn giu_file_env_mau() {
+    fn keeps_env_template_files() {
         // Quyết định M2.1: `.env.example`/`.env.sample` được giữ, vẫn qua bộ che thường.
         let key = format!("{}{}", "ghp_", "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8");
         let body = format!("DB_HOST=localhost\nGITHUB_TOKEN={key}\n");
@@ -718,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn che_secret_o_moi_vi_tri() {
+    fn redacts_secrets_everywhere() {
         let ts = Utc.with_ymd_and_hms(2026, 11, 26, 9, 0, 0).unwrap();
         let aws = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
         let gl = format!("{}{}", "glpat-", "Ab12Cd34Ef56Gh78Ij90");
