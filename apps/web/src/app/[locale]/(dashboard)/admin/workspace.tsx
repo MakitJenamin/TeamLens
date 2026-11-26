@@ -17,6 +17,7 @@ import {
   type ProjectSummary,
   type User,
 } from "@/lib/api/types";
+import { InvitesPanel } from "./invites-panel";
 import { MergeUser } from "./merge-user";
 
 const panel = "space-y-4 rounded-xl border bg-card p-4 sm:p-5";
@@ -274,6 +275,7 @@ function ProjectSettings({
           <Field name="name" label={t("projectName")} defaultValue={project.name} />
         </ActionForm>
       </section>
+      <InvitesPanel projectId={project.id} />
       <section className={panel}>
         <h2 className="text-lg font-semibold">
           {t("members")} ({members.length})

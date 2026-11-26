@@ -38,5 +38,34 @@
   "cancel": "Cancel",
   "mergeHint": "Devices, sessions, consents and projects of {name} move to the selected account; the {name} account is deleted.",
   "confirmMerge": "Merge {from} into {into}? {from} will be deleted and this cannot be undone.",
-  "mergeDone": "Merged into {name}: {devices} devices, {sessions} sessions, {projects} new projects."
+  "mergeDone": "Merged into {name}: {devices} devices, {sessions} sessions, {projects} new projects.",
+  "invites": {
+    "title": "Invite links",
+    "hint": "Send the link to your team; each person runs one command to join this project.",
+    "expiresInDays": "Expires after (days)",
+    "maxUses": "Usage limit (empty: unlimited)",
+    "create": "Create invite link",
+    "createdTitle": "New invite link",
+    "onlyOnce": "This link is shown only once. Copy it now to send to your team.",
+    "dismiss": "Copied, hide it",
+    "url": "Invite link",
+    "installCommand": "No tl yet: run in PowerShell",
+    "joinCommand": "Already have tl",
+    "empty": "No invite links yet.",
+    "loadError": "Could not load invite links.",
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "used_up": "Used up",
+      "revoked": "Revoked"
+    },
+    "expiresAt": "Expires {date}",
+    "uses": "Used {used}/{max}",
+    "usesUnlimited": "Used {used} (unlimited)",
+    "createdBy": "Created by {name}",
+    "createdByUnknown": "Creator was deleted",
+    "revoke": "Revoke",
+    "confirmRevoke": "Revoke this invite link? People who have not joined yet will no longer be able to use it.",
+    "revoked": "Invite link revoked"
+  }
 }

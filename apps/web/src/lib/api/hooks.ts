@@ -5,10 +5,13 @@ import { api } from "./client";
 import type {
   DeviceApproveRequest,
   DeviceApproveResponse,
+  ExchangeTicketRequest,
+  ExchangeTicketResponse,
   LoginRequest,
   MeResponse,
   ProjectSummary,
   SetupRequest,
+  SetupResponse,
   UserResponse,
 } from "./types";
 
@@ -17,6 +20,7 @@ export const queryKeys = {
   projects: ["projects"] as const,
   project: (id: string) => ["projects", id] as const,
   devices: ["devices"] as const,
+  invites: (projectId: string) => ["projects", projectId, "invites"] as const,
 };
 
 export function useMe(initialData?: MeResponse) {
@@ -46,7 +50,17 @@ export function useLogin() {
 export function useSetup() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: SetupRequest) => api.post<UserResponse>("/setup", body),
+    mutationFn: (body: SetupRequest) => api.post<SetupResponse>("/setup", body),
+    onSuccess: () => queryClient.clear(),
+  });
+}
+
+/** Đổi ticket một lần của `tl open` lấy cookie phiên dashboard. */
+export function useExchangeTicket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ExchangeTicketRequest) =>
+      api.post<ExchangeTicketResponse>("/auth/ticket", body),
     onSuccess: () => queryClient.clear(),
   });
 }

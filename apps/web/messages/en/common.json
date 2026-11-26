@@ -26,5 +26,8 @@
     "noProjectsTitle": "No projects yet",
     "noProjectsDescription": "You are not a member of any project. Ask a leader or an admin to add you.",
     "noProjectsAdmin": "Go to Administration to create the first project."
-  }
+  },
+  "copy": "Copy",
+  "copied": "Copied",
+  "copyFailed": "Could not copy, please select and copy manually."
 }

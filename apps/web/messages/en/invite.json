@@ -1,0 +1,24 @@
+{
+  "pageTitle": "TeamLens invite",
+  "title": "Join {project}",
+  "description": "You have been invited to join the {project} project on TeamLens.",
+  "repos": "Repositories that will be collected",
+  "reposHint": "Only sessions in these repositories are sent; everything else stays on your machine. You will review and consent before joining.",
+  "noRepos": "This project has no repositories yet.",
+  "expiresAt": "The link expires {date}.",
+  "newMachine": "No tl on this machine yet",
+  "newMachineHint": "Open PowerShell and run the command below. It installs tl and joins the project.",
+  "hasTl": "Already have tl",
+  "hasTlHint": "Run the command below in a terminal.",
+  "installCommand": "Install and join command",
+  "joinCommand": "Join command",
+  "errorTitle": "This invite link cannot be used",
+  "errors": {
+    "invite_not_found": "This invite link is not valid. Ask your leader for a new one.",
+    "invite_expired": "This invite link has expired. Ask your leader for a new one.",
+    "invite_used_up": "This invite link has reached its usage limit. Ask your leader for a new one.",
+    "invite_revoked": "This invite link was revoked. Ask your leader for a new one.",
+    "rate_limited": "Too many attempts. Wait a few minutes and reload the page.",
+    "generic": "Could not check the invite link right now. Try reloading in a few minutes."
+  }
+}

@@ -38,5 +38,34 @@
   "cancel": "Hủy",
   "mergeHint": "Thiết bị, session, đồng ý và project của {name} chuyển sang tài khoản được chọn; tài khoản {name} bị xóa.",
   "confirmMerge": "Gộp {from} vào {into}? {from} sẽ bị xóa và không hoàn tác được.",
-  "mergeDone": "Đã gộp vào {name}: {devices} thiết bị, {sessions} session, {projects} project mới."
+  "mergeDone": "Đã gộp vào {name}: {devices} thiết bị, {sessions} session, {projects} project mới.",
+  "invites": {
+    "title": "Link mời",
+    "hint": "Gửi link cho cả nhóm; mỗi người chạy một lệnh để tham gia project này.",
+    "expiresInDays": "Hết hạn sau (ngày)",
+    "maxUses": "Giới hạn lượt (trống: không giới hạn)",
+    "create": "Tạo link mời",
+    "createdTitle": "Link mời mới",
+    "onlyOnce": "Link này chỉ hiện một lần. Sao chép ngay để gửi cho nhóm.",
+    "dismiss": "Đã sao chép, ẩn đi",
+    "url": "Link mời",
+    "installCommand": "Máy chưa có tl: chạy trong PowerShell",
+    "joinCommand": "Máy đã có tl",
+    "empty": "Chưa có link mời nào.",
+    "loadError": "Không tải được danh sách link mời.",
+    "status": {
+      "active": "Đang dùng được",
+      "expired": "Hết hạn",
+      "used_up": "Hết lượt",
+      "revoked": "Đã thu hồi"
+    },
+    "expiresAt": "Hết hạn {date}",
+    "uses": "Đã dùng {used}/{max}",
+    "usesUnlimited": "Đã dùng {used} (không giới hạn)",
+    "createdBy": "Tạo bởi {name}",
+    "createdByUnknown": "Người tạo đã bị xóa",
+    "revoke": "Thu hồi",
+    "confirmRevoke": "Thu hồi link mời này? Người chưa tham gia sẽ không dùng được link nữa.",
+    "revoked": "Đã thu hồi link mời"
+  }
 }
