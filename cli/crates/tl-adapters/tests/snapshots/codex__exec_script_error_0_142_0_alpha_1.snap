@@ -1,0 +1,286 @@
+---
+source: crates/tl-adapters/tests/codex.rs
+expression: s
+---
+{
+  "cwd": "C:\\Users\\dev\\Documents\\Codex\\2026-06-20\\demo-app",
+  "session": {
+    "source_id": "codex:019ee3ce-d034-7433-8c99-cd57297171a3",
+    "agent": "codex",
+    "agent_version": "0.142.0-alpha.1",
+    "repo_remote": "",
+    "branch": null,
+    "cwd_relative": null,
+    "started_at": "2026-06-20T06:55:39.389Z",
+    "ended_at": "2026-06-20T07:33:45.973Z",
+    "parent_source_id": null,
+    "permission_mode": "default"
+  },
+  "turns": [
+    {
+      "seq": 0,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-06-20T06:55:39.445Z",
+      "text": "(… đã thay khi làm fixture #10)"
+    },
+    {
+      "seq": 1,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-06-20T06:55:44.357Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #12)",
+      "usage": {
+        "input": 6437,
+        "output": 31,
+        "cache_read": 14080
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 2,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-06-20T07:32:39.104Z",
+      "text": "(… đã thay khi làm fixture #15)"
+    },
+    {
+      "seq": 3,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-06-20T07:32:49.301Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #17)",
+      "usage": {
+        "input": 345,
+        "output": 65,
+        "cache_read": 20224
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 4,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:32:50.301Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #18)"
+        },
+        "status": "error"
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 5,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:32:50.663Z",
+      "tool": {
+        "name": "exec",
+        "status": "error"
+      },
+      "output": {
+        "text": "Script failed (… đã thay khi làm fixture #19)\n(… đã thay khi làm fixture #20)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 6,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:32:54.113Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #21)"
+        },
+        "status": "error"
+      },
+      "usage": {
+        "input": 7076,
+        "output": 114,
+        "cache_read": 20224
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 7,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:32:54.832Z",
+      "tool": {
+        "name": "exec",
+        "status": "error"
+      },
+      "output": {
+        "text": "Script failed (… đã thay khi làm fixture #22)\n(… đã thay khi làm fixture #23)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 8,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-06-20T07:33:02.685Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #25)",
+      "usage": {
+        "input": 7192,
+        "output": 117,
+        "cache_read": 26880
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 9,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:33:03.228Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #26)"
+        },
+        "status": "ok"
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 10,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:33:06.910Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #27)\nExit code: 0\nWall time: 3.2 seconds\nOutput:\n(… đã thay khi làm fixture #28)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 11,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:33:11.427Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #29)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 3401,
+        "output": 169,
+        "cache_read": 33536
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 12,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:33:12.951Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #30)\n(… đã thay khi làm fixture #31)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 13,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:33:23.320Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #32)"
+        },
+        "status": "error"
+      },
+      "usage": {
+        "input": 578,
+        "output": 168,
+        "cache_read": 36608
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 14,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:33:25.041Z",
+      "tool": {
+        "name": "exec",
+        "status": "error"
+      },
+      "output": {
+        "text": "Script failed (… đã thay khi làm fixture #33)\n(… đã thay khi làm fixture #34)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 15,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-06-20T07:33:29.770Z",
+      "model": "gpt-5.5",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #35)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 905,
+        "output": 190,
+        "cache_read": 36608
+      },
+      "reasoning_effort": "high"
+    },
+    {
+      "seq": 16,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-06-20T07:33:35.761Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #36)\nExit code: 0\nWall time: 2.4 seconds\nOutput:\n(… đã thay khi làm fixture #37)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 17,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-06-20T07:33:45.719Z",
+      "model": "gpt-5.5",
+      "text": "(… đã thay khi làm fixture #39)",
+      "usage": {
+        "input": 672,
+        "output": 145,
+        "cache_read": 37120
+      },
+      "reasoning_effort": "high"
+    }
+  ],
+  "parse_warnings": 0
+}

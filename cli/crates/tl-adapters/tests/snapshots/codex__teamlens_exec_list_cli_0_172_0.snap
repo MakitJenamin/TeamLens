@@ -1,0 +1,188 @@
+---
+source: crates/tl-adapters/tests/codex.rs
+expression: s
+---
+{
+  "cwd": "C:\\Users\\dev\\orca\\workspaces\\TeamLens\\m25",
+  "session": {
+    "source_id": "codex:01a219a9-8613-76e1-9891-1828f595f6c3",
+    "agent": "codex",
+    "agent_version": "0.172.0",
+    "repo_remote": "",
+    "branch": "feat/m2.5-codex-adapter",
+    "cwd_relative": null,
+    "started_at": "2026-11-26T21:01:11.491Z",
+    "ended_at": "2026-11-26T21:02:28.272Z",
+    "parent_source_id": null,
+    "permission_mode": "bypass"
+  },
+  "turns": [
+    {
+      "seq": 0,
+      "role": "user",
+      "kind": "prompt",
+      "ts": "2026-11-26T21:01:13.256Z",
+      "text": "(… đã thay khi làm fixture #12)"
+    },
+    {
+      "seq": 1,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-11-26T21:01:15.344Z",
+      "model": "gpt-6.2-sol",
+      "text": "(… đã thay khi làm fixture #14)",
+      "usage": {
+        "input": 19608,
+        "output": 112,
+        "cache_read": 7552
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 2,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-26T21:01:16.633Z",
+      "model": "gpt-6.2-sol",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #15)"
+        },
+        "status": "ok"
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 3,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-26T21:01:23.286Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #16)\n{\"output\": \"(… đã thay khi làm fixture #17)\", \"metadata\": {\"exit_code\": null}}\n(… đã thay khi làm fixture #18)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 4,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-26T21:01:26.323Z",
+      "model": "gpt-6.2-sol",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #20)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 1093,
+        "output": 87,
+        "cache_read": 27008
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 5,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-26T21:01:33.573Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #21)\n(… đã thay khi làm fixture #22)\n(… đã thay khi làm fixture #23)\n(… đã thay khi làm fixture #24)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 6,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-26T21:01:39.605Z",
+      "model": "gpt-6.2-sol",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #25)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 5013,
+        "output": 236,
+        "cache_read": 28032
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 7,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-26T21:01:47.382Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #26)\n(… đã thay khi làm fixture #27)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 8,
+      "role": "assistant",
+      "kind": "tool_call",
+      "ts": "2026-11-26T21:01:52.604Z",
+      "model": "gpt-6.2-sol",
+      "tool": {
+        "name": "exec",
+        "input": {
+          "input": "(… đã thay khi làm fixture #28)"
+        },
+        "status": "ok"
+      },
+      "usage": {
+        "input": 12263,
+        "output": 190,
+        "cache_read": 32896
+      },
+      "reasoning_effort": "medium"
+    },
+    {
+      "seq": 9,
+      "role": "user",
+      "kind": "tool_result",
+      "ts": "2026-11-26T21:01:59.417Z",
+      "tool": {
+        "name": "exec",
+        "status": "ok"
+      },
+      "output": {
+        "text": "(… đã thay khi làm fixture #29)\n(… đã thay khi làm fixture #30)\n(… đã thay khi làm fixture #31)",
+        "truncated": false
+      }
+    },
+    {
+      "seq": 10,
+      "role": "assistant",
+      "kind": "reply",
+      "ts": "2026-11-26T21:02:27.991Z",
+      "model": "gpt-6.2-sol",
+      "text": "(… đã thay khi làm fixture #33)",
+      "usage": {
+        "input": 1600,
+        "output": 1364,
+        "cache_read": 44928
+      },
+      "reasoning_effort": "medium"
+    }
+  ],
+  "parse_warnings": 0
+}
