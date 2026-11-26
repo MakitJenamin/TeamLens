@@ -17,6 +17,7 @@ import {
   type ProjectSummary,
   type User,
 } from "@/lib/api/types";
+import { MergeUser } from "./merge-user";
 
 const panel = "space-y-4 rounded-xl border bg-card p-4 sm:p-5";
 const row = "flex flex-wrap items-center justify-between gap-3 border-t py-3";
@@ -169,6 +170,7 @@ export function UserAdmin({ users }: { users: User[] }) {
                   )}
                 </ActionForm>
               )}
+              <MergeUser user={user} users={users} />
             </li>
           ))}
         </ul>

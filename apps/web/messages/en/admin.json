@@ -31,5 +31,12 @@
   "makeMember": "Make member",
   "confirmMakeMember": "Make {name} a member? They will only see their own data.",
   "membersHint": "New members join the project with an invite link. Here you can only add people already on the server.",
-  "pickUser": "User"
+  "pickUser": "User",
+  "mergeInto": "Merge into…",
+  "mergeTarget": "Keep account",
+  "merge": "Merge",
+  "cancel": "Cancel",
+  "mergeHint": "Devices, sessions, consents and projects of {name} move to the selected account; the {name} account is deleted.",
+  "confirmMerge": "Merge {from} into {into}? {from} will be deleted and this cannot be undone.",
+  "mergeDone": "Merged into {name}: {devices} devices, {sessions} sessions, {projects} new projects."
 }
