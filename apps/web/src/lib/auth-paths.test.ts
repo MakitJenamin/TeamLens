@@ -20,6 +20,11 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/login")).toBe(false);
     expect(isProtectedPath("/setup")).toBe(false);
   });
+  it("link mời và trang đổi ticket tl open là công khai", () => {
+    expect(isProtectedPath("/i/Zm9vYmFyYmF6cXV4")).toBe(false);
+    expect(isProtectedPath("/auth/cli")).toBe(false);
+    expect(isProtectedPath("/items")).toBe(true);
+  });
   it("dashboard và device cần đăng nhập", () => {
     expect(isProtectedPath("/")).toBe(true);
     expect(isProtectedPath("/device")).toBe(true);

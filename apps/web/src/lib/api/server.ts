@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { ApiError, apiPath, parseResponse } from "./client";
 import { SESSION_COOKIE } from "@/lib/auth-paths";
+import type { InvitePreview } from "./types";
 
 function apiInternalUrl(): string {
   return process.env.API_INTERNAL_URL ?? "http://localhost:3001";
@@ -49,5 +50,34 @@ export async function fetchNeedsSetup(): Promise<boolean | null> {
     return status.needsSetup;
   } catch {
     return null;
+  }
+}
+
+/** Mã mời hợp lệ theo contract (`InviteCode`): chặn ký tự lạ trước khi ghép vào URL. */
+const INVITE_CODE_PATTERN = /^[A-Za-z0-9_-]{10,100}$/;
+
+export type InvitePreviewResult =
+  | { ok: true; preview: InvitePreview }
+  | { ok: false; error: string };
+
+/**
+ * Xem trước link mời (`GET /agent/v1/invites/{code}`, công khai) cho trang `/i/<mã>`.
+ * Không ném lỗi: trả mã lỗi máy đọc để trang hiện thông báo phù hợp.
+ */
+export async function fetchInvitePreview(code: string): Promise<InvitePreviewResult> {
+  if (!INVITE_CODE_PATTERN.test(code)) return { ok: false, error: "invite_not_found" };
+  let res: Response;
+  try {
+    res = await fetch(`${apiInternalUrl()}/agent/v1/invites/${encodeURIComponent(code)}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+  } catch {
+    return { ok: false, error: "network_error" };
+  }
+  try {
+    return { ok: true, preview: await parseResponse<InvitePreview>(res) };
+  } catch (err) {
+    return { ok: false, error: err instanceof ApiError ? err.code : "http_error" };
   }
 }

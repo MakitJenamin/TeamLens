@@ -17,7 +17,13 @@ export type ApiErrorCode =
   | "user_not_found"
   | "invalid_pattern"
   | "invalid_code"
-  | "expired_code";
+  | "expired_code"
+  | "invite_not_found"
+  | "invite_expired"
+  | "invite_used_up"
+  | "invite_revoked"
+  | "invalid_ticket"
+  | "rate_limited";
 
 /** Độ dài mật khẩu tối thiểu (minLength trong setup.yaml, users.yaml). */
 export const PASSWORD_MIN_LENGTH = 8;
@@ -42,6 +48,8 @@ export type Device = Schemas["Device"];
 // --- Body request / response theo operationId ---
 export type SetupStatus = ResponseBody<"getSetupStatus", 200>;
 export type SetupRequest = RequestBody<"setup">;
+/** Kết quả wizard /setup: có `project` và `invite` khi gửi kèm project. */
+export type SetupResponse = ResponseBody<"setup", 201>;
 export type LoginRequest = RequestBody<"login">;
 export type UserResponse = ResponseBody<"login", 200>;
 export type MeResponse = ResponseBody<"getMe", 200>;
@@ -65,3 +73,13 @@ export type SessionPage = ResponseBody<"listProjectSessions", 200>;
 export type SessionDetail = ResponseBody<"getSession", 200>;
 export type SessionTurn = Schemas["SessionTurn"];
 export type ListProjectSessionsQuery = NonNullable<operations["listProjectSessions"]["parameters"]["query"]>;
+
+// --- Link mời, tl open (Mốc 1.5) ---
+export type InviteStatus = Schemas["InviteStatus"];
+export type Invite = Schemas["Invite"];
+/** Link vừa tạo: `code`, `url`, `installCommand` chỉ trả đúng một lần. */
+export type CreatedInvite = Schemas["CreatedInvite"];
+export type CreateInviteRequest = NonNullable<RequestBody<"createProjectInvite">>;
+export type InvitePreview = Schemas["InvitePreview"];
+export type ExchangeTicketRequest = RequestBody<"exchangeLoginTicket">;
+export type ExchangeTicketResponse = ResponseBody<"exchangeLoginTicket", 200>;

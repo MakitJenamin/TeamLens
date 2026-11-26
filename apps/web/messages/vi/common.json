@@ -26,5 +26,8 @@
     "noProjectsTitle": "Chưa có project",
     "noProjectsDescription": "Bạn chưa thuộc project nào. Hãy nhờ leader hoặc admin thêm bạn vào một project.",
     "noProjectsAdmin": "Vào trang Quản trị để tạo project đầu tiên."
-  }
+  },
+  "copy": "Sao chép",
+  "copied": "Đã chép",
+  "copyFailed": "Không sao chép được, hãy chọn và copy tay."
 }

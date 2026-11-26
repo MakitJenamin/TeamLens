@@ -1,0 +1,24 @@
+{
+  "pageTitle": "Link mời TeamLens",
+  "title": "Tham gia {project}",
+  "description": "Bạn được mời tham gia project {project} trên TeamLens.",
+  "repos": "Repo sẽ được thu thập",
+  "reposHint": "Chỉ session làm trong các repo này mới được gửi đi; mọi thứ khác không rời máy bạn. Bạn sẽ xem lại và đồng ý trước khi tham gia.",
+  "noRepos": "Project chưa khai báo repo nào.",
+  "expiresAt": "Link hết hạn {date}.",
+  "newMachine": "Máy chưa có tl",
+  "newMachineHint": "Mở PowerShell rồi chạy lệnh sau. Lệnh cài tl và tự tham gia project.",
+  "hasTl": "Máy đã có tl",
+  "hasTlHint": "Chạy lệnh sau trong terminal.",
+  "installCommand": "Lệnh cài đặt và tham gia",
+  "joinCommand": "Lệnh tham gia",
+  "errorTitle": "Không dùng được link mời",
+  "errors": {
+    "invite_not_found": "Link mời không đúng. Hãy xin leader link mới.",
+    "invite_expired": "Link mời đã hết hạn. Hãy xin leader link mới.",
+    "invite_used_up": "Link mời đã hết lượt dùng. Hãy xin leader link mới.",
+    "invite_revoked": "Link mời đã bị thu hồi. Hãy xin leader link mới.",
+    "rate_limited": "Bạn mở link quá nhiều lần. Đợi ít phút rồi tải lại trang.",
+    "generic": "Không kiểm tra được link mời lúc này. Thử tải lại trang sau ít phút."
+  }
+}

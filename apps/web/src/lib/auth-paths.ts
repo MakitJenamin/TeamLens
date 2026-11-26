@@ -13,8 +13,11 @@ export function splitLocale(pathname: string): { locale: string; path: string } 
   return { locale: defaultLocale, path: pathname || "/" };
 }
 
-/** Các trang công khai (không cần cookie). Còn lại thuộc (dashboard) hoặc /device. */
-const PUBLIC_PATHS = ["/login", "/setup"];
+/**
+ * Các trang công khai (không cần cookie). Còn lại thuộc (dashboard) hoặc /device.
+ * `/i/<mã>`: link mời gửi cho thành viên; `/auth/cli`: đổi ticket của `tl open` lấy phiên.
+ */
+const PUBLIC_PATHS = ["/login", "/setup", "/i", "/auth/cli"];
 
 export function isProtectedPath(pathWithoutLocale: string): boolean {
   return !PUBLIC_PATHS.some(
