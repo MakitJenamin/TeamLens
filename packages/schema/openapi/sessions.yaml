@@ -1,17 +1,428 @@
-# KHUNG — chưa có endpoint. Task: M1.1, M4.1.
+# Nhóm `sessions`: dashboard xem session (cookieAuth), spec mục 7.4. Task: M1.1 (contract), M1.8 (code).
+# - GET /api/v1/projects/{projectId}/sessions: danh sách session của project (lọc cơ bản, phân trang cursor).
+# - GET /api/v1/sessions/{sessionId}: chi tiết session kèm toàn bộ turn.
+# Để sau (M4.1): tìm kiếm full-text `q`, `POST /api/v1/sessions/{sessionId}/llm-review`, notes.
 #
-# Endpoint dashboard xem session (cookieAuth), spec mục 7.4:
-# - GET /api/v1/sessions?project=&user=&agent=&from=&to=&q=
-# - GET /api/v1/sessions/{sessionId} (ghi audit khi xem session của người khác)
-# - POST /api/v1/sessions/{sessionId}/llm-review
-# - GET/POST /api/v1/sessions/{sessionId}/notes
-#
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './sessions.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session trong project mình
+# dẫn dắt; admin xem tất cả. Xem session của người khác đi qua `AccessService` và ghi audit.
+# Trường lấy từ bảng `sessions`/`turns` (apps/api/src/db/schema/sessions.ts), đổi sang camelCase.
+paths:
+  /api/v1/projects/{projectId}/sessions:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectSessions
+      tags: [sessions]
+      summary: Danh sách session của project
+      description: |
+        Sắp xếp theo `startedAt` giảm dần (mới nhất trước), phân trang bằng cursor.
+        Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader và admin thấy mọi
+        session trong project. Mặc định chỉ trả session gốc, ẩn session con (subagent).
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Chỉ lấy session của user này.
+          schema:
+            $ref: './common.yaml#/components/schemas/Id'
+        - name: agent
+          in: query
+          required: false
+          description: Chỉ lấy session của agent này.
+          schema:
+            $ref: '#/components/schemas/AgentKind'
+        - name: from
+          in: query
+          required: false
+          description: Chỉ lấy session có `startedAt` >= mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Chỉ lấy session có `startedAt` < mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: includeSubagents
+          in: query
+          required: false
+          description: true để trả cả session con (subagent); mặc định chỉ session gốc.
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          required: false
+          description: Số session tối đa mỗi trang.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Giá trị `nextCursor` của trang trước (chuỗi mờ, không tự tạo). Bỏ trống để lấy trang đầu.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Một trang session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionPage'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Chi tiết session kèm các turn
+      description: |
+        Trả thông tin session và toàn bộ turn theo `seq` tăng dần. Xem session của người khác ghi audit
+        (`session.view`). Finding của session lấy riêng qua `GET /api/v1/sessions/{sessionId}/findings`.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Chi tiết session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+
+  schemas:
+    AgentKind:
+      $ref: '../session.v1.schema.json#/$defs/AgentKind'
+
+    PermissionMode:
+      $ref: '../session.v1.schema.json#/$defs/PermissionMode'
+
+    TokenUsage:
+      type: object
+      description: Tổng token của session (cộng từ `usage` của các turn).
+      required: [input, output, cacheRead, cacheWrite]
+      additionalProperties: false
+      properties:
+        input:
+          type: integer
+          minimum: 0
+        output:
+          type: integer
+          minimum: 0
+        cacheRead:
+          type: integer
+          minimum: 0
+        cacheWrite:
+          type: integer
+          minimum: 0
+
+    SessionSummary:
+      type: object
+      description: Thông tin tóm tắt một session (một dòng trong danh sách).
+      required:
+        - id
+        - projectId
+        - user
+        - agent
+        - agentVersion
+        - model
+        - repoRemote
+        - branch
+        - cwdRelative
+        - startedAt
+        - endedAt
+        - turnCount
+        - usage
+        - title
+        - parentSessionId
+        - permissionMode
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        projectId:
+          $ref: './common.yaml#/components/schemas/Id'
+        user:
+          $ref: './common.yaml#/components/schemas/UserRef'
+        agent:
+          $ref: '#/components/schemas/AgentKind'
+        agentVersion:
+          type: [string, 'null']
+          examples: [2.1.4]
+        model:
+          type: [string, 'null']
+          description: Model chính của session (model xuất hiện nhiều nhất ở turn của assistant); null nếu không có.
+          examples: [claude-opus-5-5]
+        repoRemote:
+          type: string
+          description: Remote git đã chuẩn hóa (host/org/repo).
+          examples: [github.com/acme/shop-api]
+        branch:
+          type: [string, 'null']
+        cwdRelative:
+          type: [string, 'null']
+          description: Thư mục làm việc tương đối với gốc repo; chuỗi rỗng là gốc repo.
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+          description: null khi session còn đang chạy.
+        turnCount:
+          type: integer
+          minimum: 0
+        usage:
+          $ref: '#/components/schemas/TokenUsage'
+        title:
+          type: [string, 'null']
+          description: Prompt đầu tiên của user (đã che secret), cắt còn tối đa 200 ký tự; null nếu chưa có prompt.
+          maxLength: 200
+        parentSessionId:
+          description: Id session cha khi đây là session con (subagent); null với session gốc hoặc khi cha chưa tới.
+          oneOf:
+            - $ref: './common.yaml#/components/schemas/Id'
+            - type: 'null'
+        permissionMode:
+          description: Chế độ quyền của agent; null khi CLI không gửi.
+          oneOf:
+            - $ref: '#/components/schemas/PermissionMode'
+            - type: 'null'
+
+    SessionPage:
+      type: object
+      required: [items, nextCursor]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        nextCursor:
+          type: [string, 'null']
+          description: Truyền vào `cursor` để lấy trang tiếp; null khi đã hết.
+
+    InstructionFile:
+      $ref: '../session.v1.schema.json#/$defs/InstructionFile'
+
+    SessionDetail:
+      description: Chi tiết session, gồm mọi trường của `SessionSummary` cộng thêm các trường dưới đây.
+      allOf:
+        - $ref: '#/components/schemas/SessionSummary'
+        - type: object
+          required: [sourceId, device, instructionFiles, childSessionIds, turns]
+          properties:
+            sourceId:
+              type: string
+              description: '`<agent>:<id gốc>` do CLI gửi.'
+              examples: [claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60]
+            device:
+              description: Thiết bị đã gửi session; null khi thiết bị đã bị xóa.
+              oneOf:
+                - $ref: './common.yaml#/components/schemas/DeviceRef'
+                - type: 'null'
+            instructionFiles:
+              description: File hướng dẫn cho agent ở gốc repo (chỉ đường dẫn và kích thước); null khi CLI không gửi.
+              oneOf:
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/InstructionFile'
+                - type: 'null'
+            childSessionIds:
+              type: array
+              description: Id các session con (subagent), theo `startedAt` tăng dần.
+              items:
+                $ref: './common.yaml#/components/schemas/Id'
+            turns:
+              type: array
+              description: Mọi turn của session, theo `seq` tăng dần.
+              items:
+                $ref: '#/components/schemas/SessionTurn'
+
+    TurnTool:
+      type: object
+      required: [name, input, status]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          examples: [Edit]
+        input:
+          description: Input gốc của tool (tùy agent, đã cắt khi quá 4 KB); null khi không có.
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+        status:
+          type: [string, 'null']
+          enum: [ok, error, null]
+
+    TurnOutput:
+      type: object
+      required: [text, truncated, originalBytes]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+        truncated:
+          type: boolean
+          description: true khi chỉ giữ 2 KB đầu và 1 KB cuối.
+        originalBytes:
+          type: [integer, 'null']
+          minimum: 0
+          description: Kích thước output gốc (byte) trước khi cắt; null khi CLI không gửi.
+
+    TurnDiff:
+      type: object
+      required: [path, patch, added, removed]
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          description: Đường dẫn file tương đối với gốc repo.
+        patch:
+          type: string
+          description: Unified diff.
+        added:
+          type: integer
+          minimum: 0
+        removed:
+          type: integer
+          minimum: 0
+
+    TurnUsage:
+      type: object
+      required: [input, output, cacheRead, cacheWrite, estimated]
+      additionalProperties: false
+      properties:
+        input:
+          type: integer
+          minimum: 0
+        output:
+          type: integer
+          minimum: 0
+        cacheRead:
+          type: integer
+          minimum: 0
+          description: 0 khi CLI không gửi.
+        cacheWrite:
+          type: integer
+          minimum: 0
+          description: 0 khi CLI không gửi.
+        estimated:
+          type: boolean
+          description: true khi số token là ước tính; false khi CLI không gửi.
+
+    TurnCount:
+      type: object
+      description: Số lượng theo loại (dùng cho `attachments` và `redactions`).
+      required: [type, count]
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          examples: [image, aws_access_key]
+        count:
+          type: integer
+          minimum: 1
+
+    SessionTurn:
+      type: object
+      description: |
+        Một turn trong session (camelCase của `Turn` trong session.v1). Trường không có trong payload ingest
+        trả `null` (hoặc mảng rỗng với `attachments`, `redactions`; `false` với `interrupted`).
+      required:
+        - seq
+        - role
+        - kind
+        - ts
+        - model
+        - text
+        - tool
+        - output
+        - diff
+        - usage
+        - attachments
+        - redactions
+        - interrupted
+        - reasoningEffort
+      additionalProperties: false
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+        role:
+          type: string
+          enum: [user, assistant, system]
+        kind:
+          type: string
+          enum: [prompt, reply, tool_call, tool_result, compaction]
+        ts:
+          type: string
+          format: date-time
+        model:
+          type: [string, 'null']
+        text:
+          type: [string, 'null']
+          description: Nội dung prompt, câu trả lời hoặc tóm tắt compaction (đã che secret).
+        tool:
+          oneOf:
+            - $ref: '#/components/schemas/TurnTool'
+            - type: 'null'
+        output:
+          oneOf:
+            - $ref: '#/components/schemas/TurnOutput'
+            - type: 'null'
+        diff:
+          oneOf:
+            - $ref: '#/components/schemas/TurnDiff'
+            - type: 'null'
+        usage:
+          oneOf:
+            - $ref: '#/components/schemas/TurnUsage'
+            - type: 'null'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TurnCount'
+        redactions:
+          type: array
+          description: Loại secret đã được che trong turn và số lượng.
+          items:
+            $ref: '#/components/schemas/TurnCount'
+        interrupted:
+          type: boolean
+          description: true khi người dùng ngắt lượt này.
+        reasoningEffort:
+          type: [string, 'null']
+          description: Mức suy luận (Codex); null khi agent không ghi.
