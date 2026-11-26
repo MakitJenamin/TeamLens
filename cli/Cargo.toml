@@ -34,6 +34,8 @@ regex = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 toml = "1"
+# Nén gzip body gửi `POST /agent/v1/ingest` (M1.7).
+flate2 = "1"
 
 # Lỗi và log
 thiserror = "2"
