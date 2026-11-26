@@ -24,6 +24,8 @@ cá nhân ngoài TeamLens. Chỉ giữ **cấu trúc** mà adapter dựa vào (c
   nội dung thay theo dòng), turn_aborted, thread_rolled_back; các event khác rút về
   `{type}`.
 - `compacted`: `message` bị thay, `replacement_history` rỗng.
+- Bản 0.172: `item_completed` giữ `turn_id`, `item.type` (nội dung thay);
+  `token_usage_record` chỉ giữ số token; `additional_tools` rút về khung.
 
 Cuối cùng thay trên toàn dòng: thư mục người dùng (`C:\\Users\\<tên>` mọi dạng) →
 `C:\\Users\\dev`, tên máy → `DEV-PC`, email → `dev@example.com`, mẫu token →
@@ -253,6 +255,8 @@ class Sanitizer:
         if t == "web_search_call":
             action = p.get("action") or {}
             return {"type": t, "status": p.get("status"), "action": {"type": action.get("type"), "query": self.neutral()}}
+        if t == "additional_tools":
+            return {"type": t, "role": p.get("role"), "tools": []}
         return {"type": t, "call_id": p.get("call_id")} if p.get("call_id") else {"type": t}
 
     def event(self, p: dict) -> dict:
@@ -296,6 +300,13 @@ class Sanitizer:
             return {k: v for k, v in p.items() if k in ("type", "turn_id", "reason", "num_turns", "started_at")}
         if t == "task_complete":
             return {"type": t, "turn_id": p.get("turn_id"), "last_agent_message": self.text(p.get("last_agent_message"))}
+        if t == "item_completed":
+            item = p.get("item") or {}
+            content = [
+                {"type": c.get("type"), "text": self.neutral()} if "text" in c else {"type": c.get("type")}
+                for c in item.get("content") or []
+            ]
+            return {"type": t, "turn_id": p.get("turn_id"), "item": {"type": item.get("type"), "content": content}}
         if t == "agent_message":
             return {"type": t, "message": self.neutral(), "phase": p.get("phase")}
         return {"type": t}
@@ -320,6 +331,8 @@ class Sanitizer:
             p = self.event(p)
         elif t == "compacted":
             p = {"message": self.text(p.get("message")) or "", "replacement_history": []}
+        elif t == "token_usage_record":
+            p = {"turn_id": p.get("turn_id"), "usage": p.get("usage"), "turn_token_usage": p.get("turn_token_usage")}
         elif t == "world_state":
             p = {"full": True}
         return {"timestamp": d.get("timestamp"), "type": t, "payload": p}
@@ -338,7 +351,7 @@ class Sanitizer:
             s = pat.sub("[REDACTED]", s)
         s = EMAIL.sub(lambda m: m.group(0) if m.group(0) in EMAIL_ALLOWED else "dev@example.com", s)
         for old, new in self.maps:
-            s = re.sub(re.escape(old), new, s, flags=re.I)
+            s = re.sub(re.escape(old), lambda _m, new=new: new, s, flags=re.I)
         return s
 
     def check(self, s: str) -> list[str]:

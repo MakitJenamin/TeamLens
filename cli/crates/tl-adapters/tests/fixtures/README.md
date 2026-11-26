@@ -99,6 +99,7 @@ danh sách mẫu trong `sanitize.py`).
 | `codex/0.142.0/fork-rollback-abort-compaction.jsonl` | Session thật (extension VS Code) ở dự án khác, chỉ giữ dòng 0–16, 226–262, 966–990, 1094–1110, **mọi nội dung tự do và tên file đã thay** | Session **fork**: `session_meta` của chính nó rồi lịch sử chép từ session cha (adapter bỏ), `thread_rolled_back`; lượt mới có `shell_command` chạy song song, `reasoning`, `token_count` (kể cả event lặp), `apply_patch` có diff thật từ `patch_apply_end`, `turn_aborted` khi lệnh shell đang chạy, `compacted` + `context_compacted`, `approval_policy: never` + `danger-full-access` (→ `bypass`) |
 | `codex/0.130.0-alpha.5/ide-add-file.jsonl` | Session thật (extension VS Code, bản cũ) ở dự án khác, cả file, **mọi nội dung tự do và tên file đã thay** | `session_meta` lặp lại mỗi lượt, prompt có khối `# Context from my IDE setup`, `token_count` lặp, `apply_patch` tạo file mới (`patch_apply_end` kiểu `add`), output dạng JSON cũ `{"output", "metadata": {"exit_code"}}`, `on-request` + `workspace-write` (→ `default`) |
 | `codex/0.142.0-alpha.1/exec-script-error.jsonl` | Session thật (Codex Desktop) ngoài repo nào, cả file, **mọi nội dung tự do đã thay** | Tool `exec` (`custom_tool_call`) có output dạng mảng `input_text`, ba lần `Script failed` (→ `status: error`), `mcp_tool_call_end` |
+| `codex/0.172.0/teamlens-exec-list-cli.jsonl` | Session thật `codex exec "liệt kê file trong cli/ và tóm tắt"` chạy trong worktree repo TeamLens, cả file, **mọi nội dung tự do đã thay** | Bản 0.172: không còn event `user_message` (prompt ở `item_completed`/`UserMessage`), `token_usage_record`, `additional_tools`, tool `exec` song song với `token_count`, `reasoning` |
 
 Test ở `../codex.rs` (snapshot + JSON Schema); test tích hợp `tl preview` với fixture
 `ide-add-file` ở `cli/crates/teamlens/tests/codex_preview.rs`.
@@ -115,6 +116,7 @@ python sanitize.py $S/06/25/rollout-...-019efe2b-....jsonl 0.142.0/fork-rollback
   --select 0-16,226-262,966-990,1094-1110 --map <tên-dự-án>=demo-app --map <tên-sản-phẩm>=demo --map <tên-thư-mục-plan>=plan-a
 python sanitize.py $S/05/12/rollout-...-019e1b5f-....jsonl 0.130.0-alpha.5/ide-add-file.jsonl --map <tên-dự-án>=demo-app
 python sanitize.py $S/06/20/rollout-...-019ee3ce-....jsonl 0.142.0-alpha.1/exec-script-error.jsonl --map <tên-thư-mục>=demo-app
+python sanitize.py $S/11/27/rollout-...-01a219a9-....jsonl 0.172.0/teamlens-exec-list-cli.jsonl
 ```
 
 Khác với script của Claude Code, script Codex **luôn** thay mọi nội dung tự do (log nguồn

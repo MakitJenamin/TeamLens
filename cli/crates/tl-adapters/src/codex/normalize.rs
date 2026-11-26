@@ -20,7 +20,9 @@
 //! - `turn_context` (mỗi lượt): `model`, `effort` (→ `reasoning_effort` của các turn
 //!   assistant sau nó), `approval_policy` + `sandbox_policy` + `collaboration_mode` (→
 //!   `permission_mode`, lấy chế độ thoáng nhất từng dùng như adapter Claude Code).
-//! - Prompt lấy từ `event_msg`/`user_message` (đúng chữ người dùng gõ). Các
+//! - Prompt lấy từ `event_msg`/`user_message` (đúng chữ người dùng gõ); bản 0.172 bỏ event
+//!   này nên lấy thêm từ `event_msg`/`item_completed` có `item.type = UserMessage` (cùng
+//!   `turn_id` + cùng chữ thì chỉ tính một lần). Các
 //!   `response_item` `message` role `user`/`developer` bị bỏ vì vừa lặp lại prompt, vừa
 //!   chứa nội dung Codex tự chèn (`<environment_context>`, `# AGENTS.md instructions`,
 //!   `<permissions instructions>`, `<turn_aborted>`...). Tiền tố `# Context from my IDE
@@ -45,11 +47,12 @@
 //!   (không có thì cho chính prompt của lượt đó).
 //! - `compacted` → turn `compaction` (role `system`), text là `message` nếu có.
 //! - Bản ghi `type` lạ, `response_item` lạ, dòng hỏng → `parse_warnings`. Các `event_msg`
-//!   khác (UI, lặp lại `response_item`) và `world_state` bỏ có chủ đích.
+//!   khác (UI, lặp lại `response_item`), `world_state`, và `token_usage_record` /
+//!   `additional_tools` của bản 0.172 bỏ có chủ đích.
 //! - `instruction_files` không thuộc adapter: pipeline điền ở bước `prepare` từ gốc repo
 //!   (AGENTS.md Codex tự chèn vào prompt cũng chính là file đó).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
@@ -123,6 +126,11 @@ struct SessionBuilder {
     tool_calls: HashMap<String, usize>,
     /// Vị trí prompt gần nhất (đầu lượt hiện tại).
     last_prompt: Option<usize>,
+    /// `turn_id` của lượt hiện tại (từ `task_started`/`turn_context`).
+    current_turn: Option<String>,
+    /// (turn_id, text) của prompt đã thêm, để không thêm lại khi cùng prompt có ở cả
+    /// `user_message` lẫn `item_completed`/`UserMessage`.
+    prompted: HashSet<(String, String)>,
     /// `total_token_usage` của `token_count` trước (để khử event lặp).
     last_total: Option<Value>,
     /// Turn assistant đầu tiên sinh ra kể từ `token_count` trước.
@@ -166,6 +174,8 @@ impl SessionBuilder {
             turns: Vec::new(),
             tool_calls: HashMap::new(),
             last_prompt: None,
+            current_turn: None,
+            prompted: HashSet::new(),
             last_total: None,
             unbilled: None,
             pending_usage: None,
@@ -187,7 +197,8 @@ impl SessionBuilder {
                 }
                 return;
             }
-            "world_state" => return,
+            // `token_usage_record` (bản 0.17x) lặp lại số của `token_count`.
+            "world_state" | "token_usage_record" => return,
             "turn_context" | "response_item" | "event_msg" | "compacted" => {}
             _ => {
                 self.warnings += 1;
@@ -237,6 +248,9 @@ impl SessionBuilder {
     }
 
     fn turn_context(&mut self, p: &Value) {
+        if let Some(turn) = non_empty(p, "turn_id") {
+            self.current_turn = Some(turn.to_owned());
+        }
         if let Some(model) = non_empty(p, "model") {
             self.model = Some(model.chars().take(128).collect());
         }
@@ -322,14 +336,58 @@ impl SessionBuilder {
                 | "tool_search_output",
             ) => self.tool_result(p, ts),
             // Suy luận đã mã hóa; ảnh chụp git nội bộ; bản nén ngữ cảnh (đã có `compacted`).
-            Some("reasoning" | "ghost_snapshot" | "compaction" | "compaction_summary") => {}
+            // `additional_tools`: danh sách tool khai báo cho model (bản 0.17x).
+            Some(
+                "reasoning" | "ghost_snapshot" | "compaction" | "compaction_summary"
+                | "additional_tools",
+            ) => {}
             _ => self.warnings += 1,
         }
     }
 
     fn event(&mut self, p: &Value, sub: Option<&str>, ts: DateTime<Utc>) {
         match sub {
-            Some("user_message") => self.prompt(p, ts),
+            Some("user_message") => {
+                let raw = p.get("message").and_then(Value::as_str).unwrap_or("");
+                let count = |k: &str| p.get(k).and_then(Value::as_array).map_or(0, Vec::len);
+                let images = count("images") + count("local_images");
+                self.prompt(None, raw, images, ts);
+            }
+            // Bản 0.17x bỏ `user_message`, prompt chỉ còn ở `item_completed`/`UserMessage`.
+            Some("item_completed") => {
+                let item = p.get("item").unwrap_or(&Value::Null);
+                if item.get("type").and_then(Value::as_str) == Some("UserMessage") {
+                    let mut texts = Vec::new();
+                    let mut images = 0;
+                    for part in item
+                        .get("content")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                    {
+                        match part.get("type").and_then(Value::as_str) {
+                            Some("text" | "Text") => {
+                                texts.extend(part.get("text").and_then(Value::as_str));
+                            }
+                            Some(t) if t.to_ascii_lowercase().contains("image") => images += 1,
+                            _ => {}
+                        }
+                    }
+                    let turn = non_empty(p, "turn_id").map(str::to_owned);
+                    self.prompt(
+                        turn,
+                        &texts.join(
+                            "
+",
+                        ),
+                        images,
+                        ts,
+                    );
+                }
+            }
+            Some("task_started") => {
+                self.current_turn = non_empty(p, "turn_id").map(str::to_owned);
+            }
             Some("token_count") => self.token_count(p),
             Some("turn_aborted") => self.mark_interrupted(),
             Some("patch_apply_end") => self.patch_applied(p),
@@ -338,13 +396,18 @@ impl SessionBuilder {
         }
     }
 
-    fn prompt(&mut self, p: &Value, ts: DateTime<Utc>) {
-        let raw = p.get("message").and_then(Value::as_str).unwrap_or("");
+    /// Thêm prompt; `turn` là `turn_id` nếu nguồn có, không thì lượt hiện tại.
+    fn prompt(&mut self, turn: Option<String>, raw: &str, images: usize, ts: DateTime<Utc>) {
         let text = strip_ide_context(raw);
-        let count = |k: &str| p.get(k).and_then(Value::as_array).map_or(0, Vec::len);
-        let images = u32::try_from(count("images") + count("local_images")).unwrap_or(u32::MAX);
+        let images = u32::try_from(images).unwrap_or(u32::MAX);
         if text.trim().is_empty() && images == 0 {
             return;
+        }
+        // Chỉ khử trùng khi biết lượt (không có turn_id thì hai prompt giống nhau vẫn là hai).
+        if let Some(turn_id) = turn.or_else(|| self.current_turn.clone()) {
+            if !self.prompted.insert((turn_id, text.to_owned())) {
+                return;
+            }
         }
         let mut turn = Turn::new(0, Role::User, TurnKind::Prompt, ts);
         if !text.trim().is_empty() {

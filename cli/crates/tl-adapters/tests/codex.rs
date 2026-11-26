@@ -184,3 +184,25 @@ fn exec_script_error_0_142_0_alpha_1() {
     assert_eq!(usage_sum(&s), (251_886, 999));
     insta::assert_json_snapshot!(s);
 }
+
+#[test]
+fn teamlens_exec_list_cli_0_172_0() {
+    let s = load("0.172.0/teamlens-exec-list-cli.jsonl");
+    // `token_usage_record`, `additional_tools`, `item_completed` của bản mới không là cảnh báo.
+    assert_eq!(s.parse_warnings, 0);
+    assert_eq!(s.session.agent_version.as_deref(), Some("0.172.0"));
+    // Bản 0.172 không còn event `user_message`: prompt lấy từ `item_completed`.
+    assert_eq!(count(&s, TurnKind::Prompt), 1);
+    assert_eq!(s.turns[0].kind, TurnKind::Prompt);
+    assert_eq!(
+        count(&s, TurnKind::ToolCall),
+        count(&s, TurnKind::ToolResult)
+    );
+    assert!(s
+        .turns
+        .iter()
+        .filter(|t| t.role == Role::Assistant)
+        .all(|t| t.reasoning_effort == Some(Some("medium".into()))));
+    assert_eq!(usage_sum(&s), (179_993, 1_989));
+    insta::assert_json_snapshot!(s);
+}

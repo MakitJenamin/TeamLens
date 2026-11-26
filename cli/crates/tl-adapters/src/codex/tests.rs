@@ -13,6 +13,7 @@ const PARENT: &str = "019efe1c-0f48-7aa3-8500-769fdc5230af";
 /// Lượt cũ (trước khi fork) và lượt mới (sau khi fork).
 const OLD_TURN: &str = "019efe20-8da8-7262-922f-9f69613db0f4";
 const NEW_TURN: &str = "019efe2c-0000-7000-8000-000000000001";
+const OTHER_TURN: &str = "019efe2d-0000-7000-8000-000000000002";
 
 fn ev(values: Vec<Value>) -> Vec<RawEvent> {
     values
@@ -552,4 +553,66 @@ fn discover_finds_sessions_and_archived() {
     assert!(CodexAdapter::new(dir.path().join("khong-co"))
         .discover()
         .is_empty());
+}
+
+#[test]
+fn prompt_from_item_completed_in_0_172_without_duplicates() {
+    let item_user = |ts: &str, turn: &str, text: &str| {
+        event(
+            ts,
+            json!({ "type": "item_completed", "turn_id": turn,
+                    "item": { "type": "UserMessage", "content": [{ "type": "text", "text": text }] } }),
+        )
+    };
+    let s = one(vec![
+        meta("2026-11-26T21:01:11Z", SID),
+        event(
+            "2026-11-26T21:01:11Z",
+            json!({ "type": "task_started", "turn_id": NEW_TURN }),
+        ),
+        item(
+            "2026-11-26T21:01:12Z",
+            json!({ "type": "additional_tools", "role": "developer", "tools": [] }),
+        ),
+        context(
+            "2026-11-26T21:01:12Z",
+            NEW_TURN,
+            "medium",
+            "never",
+            "danger-full-access",
+        ),
+        // Bản 0.172: chỉ có item_completed, không có user_message.
+        item_user("2026-11-26T21:01:13Z", NEW_TURN, "liệt kê file"),
+        event(
+            "2026-11-26T21:01:15Z",
+            json!({ "type": "item_completed", "turn_id": NEW_TURN,
+                    "item": { "type": "AgentMessage", "content": [{ "type": "Text", "text": "Đang xem." }] } }),
+        ),
+        reply("2026-11-26T21:01:15Z", "Đang xem."),
+        line(
+            "2026-11-26T21:01:16Z",
+            "token_usage_record",
+            json!({ "usage": { "input_tokens": 10, "output_tokens": 1 } }),
+        ),
+        tokens("2026-11-26T21:01:16Z", (10, 0, 1), (10, 0, 1)),
+        // Lượt sau: có cả user_message lẫn item_completed cùng chữ → một prompt.
+        context(
+            "2026-11-26T21:02:00Z",
+            OTHER_TURN,
+            "medium",
+            "never",
+            "danger-full-access",
+        ),
+        user_message("2026-11-26T21:02:01Z", "tiếp"),
+        item_user("2026-11-26T21:02:01Z", OTHER_TURN, "tiếp"),
+    ]);
+    let prompts: Vec<_> = s
+        .turns
+        .iter()
+        .filter(|t| t.kind == TurnKind::Prompt)
+        .map(|t| t.text.as_deref().unwrap())
+        .collect();
+    assert_eq!(prompts, vec!["liệt kê file", "tiếp"]);
+    assert_eq!(s.turns[1].usage, usage(10, 0, 1));
+    assert_eq!(s.parse_warnings, 0);
 }
