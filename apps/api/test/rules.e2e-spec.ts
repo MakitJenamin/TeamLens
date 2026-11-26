@@ -54,7 +54,8 @@ describe('Chấm session và đọc findings', () => {
     );
     await querySql('SELECT ensure_turns_partitions(now(), 0)');
     await querySql(
-      `INSERT INTO turns (session_id,seq,role,kind,ts,text) SELECT $1,n,'user','prompt',now(),'Vẫn lỗi' FROM generate_series(1,3) n`,
+      `INSERT INTO turns (session_id,seq,role,kind,ts,text) SELECT $1,n,'user','prompt',now(),
+       CASE n WHEN 1 THEN 'Vẫn lỗi ở src/cart.ts' WHEN 2 THEN 'Chưa được' ELSE 'Vẫn lỗi' END FROM generate_series(1,3) n`,
       [id],
     );
     const url = `/api/v1/sessions/${id}/findings`;
@@ -114,5 +115,30 @@ describe('Chấm session và đọc findings', () => {
     );
     await scoreSession(app.get(DB), id);
     expect((await owner.get(url).expect(200)).body.items).toEqual([]);
+    // Hai session cùng tuần mới đủ 10 prompt; retry đồng thời chỉ lưu một finding tuần.
+    const [peer] = await querySql<{ id: string }>(
+      `INSERT INTO sessions (user_id,project_id,source_id,agent,repo_remote,started_at,turn_count)
+      SELECT user_id,project_id,'weekly-peer',agent,repo_remote,started_at,7 FROM sessions WHERE id=$1 RETURNING id`,
+      [id],
+    );
+    await querySql(
+      `INSERT INTO turns (session_id,seq,role,kind,ts,text) SELECT $1,n,'user','prompt',now(),'fix '||n FROM generate_series(1,7) n`,
+      [peer.id],
+    );
+    await Promise.all([
+      scoreSession(app.get(DB), peer.id),
+      scoreSession(app.get(DB), id),
+    ]);
+    const weekly = () =>
+      querySql(
+        "SELECT session_id, evidence->>'count' AS n FROM findings WHERE evidence->>'scope'='user_week' AND session_id IN ($1,$2)",
+        [id, peer.id],
+      );
+    expect(await weekly()).toEqual([{ session_id: peer.id, n: '10' }]);
+    await querySql("UPDATE turns SET text=repeat('x',30) WHERE session_id=$1", [
+      peer.id,
+    ]);
+    await scoreSession(app.get(DB), peer.id);
+    expect(await weekly()).toEqual([]);
   });
 });

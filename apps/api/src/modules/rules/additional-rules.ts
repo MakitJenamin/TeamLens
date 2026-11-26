@@ -1,0 +1,175 @@
+import type { RuleSession, RuleTurn, SessionRule } from './session-engine.js';
+import type { Signal } from './session-signals.js';
+
+const root = (...turns: RuleTurn[]): RuleSession => ({
+  parentSourceId: null,
+  turns,
+});
+const p = (seq: number, text = 'sửa giúp'): RuleTurn => ({
+  seq,
+  role: 'user',
+  kind: 'prompt',
+  text,
+});
+const cmd = (
+  seq: number,
+  command = 'pnpm test',
+  status = 'error',
+): RuleTurn => ({
+  seq,
+  role: 'assistant',
+  kind: 'tool_call',
+  tool: { name: 'Bash', input: { command }, status },
+});
+const edit = (seq: number, lines = 100, patch = '+x'): RuleTurn => ({
+  seq,
+  role: 'assistant',
+  kind: 'tool_call',
+  diff: { path: 'src/main.ts', added: lines, removed: 0, patch },
+});
+function rule(
+  key: string,
+  signal: Signal,
+  category: string,
+  severity: 'medium' | 'high',
+  thresholds: SessionRule['thresholds'],
+  message: string,
+  advice: string,
+  hit: RuleSession,
+  clean: RuleSession,
+): SessionRule {
+  return {
+    key,
+    scope: 'session',
+    category,
+    severity,
+    thresholds,
+    match: { op: 'signal', signal },
+    message,
+    advice,
+    tests: [
+      { name: 'đủ tín hiệu', input: hit, expect: 'triggered' },
+      { name: 'đối chứng', input: clean, expect: 'clean' },
+    ],
+  };
+}
+const loop = (n: number) =>
+  Array.from({ length: n }, (_, i) => cmd(i + 1, 'ls', i < 5 ? 'error' : 'ok'));
+export const additionalSessionRules = [
+  rule(
+    'vague-first-prompt',
+    'shortFirst',
+    'prompt_quality',
+    'medium',
+    { min: 1, minWords: 15 },
+    'Prompt đầu ngắn và thiếu tham chiếu file.',
+    'Nêu file liên quan và kết quả mong đợi.',
+    root(p(0)),
+    root(p(0, 'Sửa src/main.ts')),
+  ),
+  rule(
+    'no-instruction-file',
+    'missingInstructions',
+    'context',
+    'medium',
+    { min: 1 },
+    'Repo chưa có file hướng dẫn.',
+    'Thêm hướng dẫn dùng chung cho agent.',
+    { ...root(p(0)), instructionFiles: [] },
+    root(p(0)),
+  ),
+  rule(
+    'repeated-prompts',
+    'duplicates',
+    'correction_loop',
+    'medium',
+    { min: 3 },
+    'Một prompt xuất hiện {{count}} lần.',
+    'Bổ sung ngữ cảnh khi yêu cầu lại.',
+    root(p(0, 'Fix!'), p(1, 'FIX'), p(2, 'fix.')),
+    root(p(0), p(1)),
+  ),
+  rule(
+    'same-test-failing',
+    'failedCommand',
+    'correction_loop',
+    'medium',
+    { min: 3 },
+    'Cùng lệnh kiểm chứng lỗi {{count}} lần.',
+    'Đọc lỗi trước khi chạy lại.',
+    root(cmd(0), cmd(1), cmd(2)),
+    root(cmd(0), cmd(1), cmd(2, 'pnpm build')),
+  ),
+  rule(
+    'edit-churn',
+    'churn',
+    'correction_loop',
+    'medium',
+    { min: 4 },
+    'Một file sửa {{count}} lần có thay đổi đảo ngược.',
+    'Đọc lại diff và chốt mục tiêu chỉnh sửa.',
+    root(edit(0), edit(1, 1, '-x\n+y'), edit(2), edit(3)),
+    root(edit(0), edit(1), edit(2), edit(3)),
+  ),
+  rule(
+    'runaway-agent-loop',
+    'loop',
+    'correction_loop',
+    'high',
+    { min: 40, minErrors: 5 },
+    'Một prompt dẫn đến {{count}} lời gọi tool kèm nhiều lỗi.',
+    'Dừng vòng lặp và kiểm tra nguyên nhân.',
+    root(p(0), ...loop(40)),
+    root(p(0), ...loop(39)),
+  ),
+  rule(
+    'repeated-compaction',
+    'compactions',
+    'session_management',
+    'medium',
+    { min: 2 },
+    'Session nén ngữ cảnh {{count}} lần.',
+    'Tóm tắt và mở phiên mới.',
+    root(
+      ...[1, 2].map((seq) => ({
+        seq,
+        role: 'system' as const,
+        kind: 'compaction' as const,
+      })),
+    ),
+    root(p(0)),
+  ),
+  rule(
+    'large-diff-unreviewed',
+    'unreviewed',
+    'verification',
+    'high',
+    { min: 500 },
+    'Diff {{count}} dòng chưa có lượt review tiếp theo.',
+    'Đọc diff và hỏi lại các thay đổi quan trọng.',
+    root(edit(0, 500)),
+    root(edit(0, 500), p(1)),
+  ),
+  rule(
+    'vibe-coding',
+    'vibe',
+    'verification',
+    'high',
+    { min: 300, maxPrompts: 5 },
+    'Diff {{count}} dòng với ít prompt và thiếu tiêu chí.',
+    'Nêu tiêu chí và kiểm tra từng phần.',
+    root(p(0), edit(1, 300)),
+    root(p(0, 'Theo spec'), edit(1, 300)),
+  ),
+  rule(
+    'yolo-mode',
+    'bypass',
+    'verification',
+    'high',
+    { min: 1 },
+    'Có lệnh shell trong chế độ bỏ qua phê duyệt.',
+    'Giới hạn quyền phù hợp với tác vụ.',
+    { ...root(cmd(0)), permissionMode: 'bypass' },
+    { ...root(cmd(0)), permissionMode: 'default' },
+  ),
+];

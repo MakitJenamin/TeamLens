@@ -1,3 +1,5 @@
+import { verificationPattern } from './verification-pattern.js';
+import { additionalSessionRules } from './additional-rules.js';
 import type { RuleTurn, SessionRule } from './session-engine.js';
 
 const prompt = (seq: number, text: string): RuleTurn => ({
@@ -96,14 +98,7 @@ export const sessionRules: SessionRule[] = [
     match: {
       op: 'sumDiffWithoutCommand',
       // Nhận lệnh kiểm chứng ở đầu câu lệnh shell, kể cả sau cd ... &&.
-      commandRegex: [
-        String.raw`(?:^|&&|\|\||[;|\n])\s*(?:`,
-        String.raw`(?:npm|pnpm|yarn|bun)(?:\s+--filter\s+[^\s;&|]+)*(?:\s+(?:run|exec))?\s+(?:test|build|lint|jest|vitest|tsc)`,
-        String.raw`|(?:npx\s+)?(?:jest|vitest|tsc|eslint)|(?:python3?\s+-m\s+)?pytest`,
-        String.raw`|go\s+(?:test|build)|cargo\s+(?:test|build|check|clippy)`,
-        String.raw`|(?:\.\/)?(?:mvnw?|gradlew?)\s+(?:test|build|check|verify|package)|test|build|lint`,
-        String.raw`)(?=$|[\s:;&|])`,
-      ].join(''),
+      commandRegex: verificationPattern,
     },
     message:
       'Session sửa {{count}} dòng nhưng chưa ghi nhận lệnh test, build hoặc lint.',
@@ -140,4 +135,5 @@ export const sessionRules: SessionRule[] = [
       },
     ],
   },
+  ...additionalSessionRules,
 ];
