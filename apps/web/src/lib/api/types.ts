@@ -1,7 +1,7 @@
 // Kiểu dữ liệu API của dashboard, lấy từ contract OpenAPI (@teamlens/schema).
 // Không viết tay kiểu mới ở đây: sửa contract trong packages/schema rồi sinh lại type.
 // Các alias giữ tên cũ để code web không phụ thuộc trực tiếp vào cấu trúc file sinh ra.
-import type { RequestBody, ResponseBody, Schemas } from "@teamlens/schema";
+import type { operations, RequestBody, ResponseBody, Schemas } from "@teamlens/schema";
 
 /** Mã lỗi máy đọc được trong body { error, message } (theo các response của contract). */
 export type ApiErrorCode =
@@ -55,3 +55,13 @@ export type CreateUserRequest = RequestBody<"createUser">;
 
 export type DeviceApproveRequest = RequestBody<"approveDevice">;
 export type DeviceApproveResponse = ResponseBody<"approveDevice", 200>;
+
+// --- Session (M1.8) ---
+export type AgentKind = Schemas["AgentKind"];
+export type PermissionMode = Schemas["PermissionMode"];
+export type InstructionFile = Schemas["InstructionFile"];
+export type SessionSummary = Schemas["SessionSummary"];
+export type SessionPage = ResponseBody<"listProjectSessions", 200>;
+export type SessionDetail = ResponseBody<"getSession", 200>;
+export type SessionTurn = Schemas["SessionTurn"];
+export type ListProjectSessionsQuery = NonNullable<operations["listProjectSessions"]["parameters"]["query"]>;

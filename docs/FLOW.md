@@ -63,4 +63,5 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì:** leader xem session của thành viên trong project (có audit), member chỉ xem của mình; điểm, anti-pattern, leaderboard.
 - **Code:** `apps/web/src/app/[locale]/(dashboard)/projects/[projectId]/...`, API ở `apps/api/src/modules/{sessions,stats}/`.
-- **Ghi chú của người làm:** _(điền sau mốc 1)_
+- **Ghi chú của người làm:**
+  - M1.8 (xem session): API `apps/api/src/modules/sessions/` (danh sách cursor `startedAt` giảm dần rồi `id`, mặc định ẩn session con; chi tiết kèm turn theo `seq`, jsonb snake_case → camelCase ở `session-mappers.ts`). Quyền qua `AccessService` (`hasProjectRole` cho danh sách, `canViewUserData` cho lọc `userId` và chi tiết); xem chi tiết session người khác ghi audit `session.view`. Web ở `sessions/_components/` (bảng + "Tải thêm", dòng thời gian, tool call thu gọn, diff text tô màu +/-). Finding gọi `GET /api/v1/sessions/{id}/findings` không type, đọc phòng thủ (`parseFindings`); lỗi/404 thì ẩn khu vực finding.
