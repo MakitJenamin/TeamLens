@@ -1,9 +1,11 @@
 # Nhóm `agent`: endpoint cho CLI (xác thực `deviceToken`), spec mục 7.2 và 7.3.
 # - POST /agent/v1/ingest (M1.1): gửi một batch session theo session.v1.schema.json (`IngestBatch`).
-# - POST /agent/v1/heartbeat (M3.3), GET /agent/v1/config (M2.2): chưa viết.
+# - GET /agent/v1/config (M2.2): cấu hình CLI tải mỗi lần sync.
+# - POST /agent/v1/heartbeat (M3.3): chưa viết.
 #
 # Payload ingest dùng snake_case theo `session.v1.schema.json` (file đó là nguồn chân lý, OpenAPI
-# chỉ tham chiếu `$defs/IngestBatch`); response dùng camelCase như mọi REST API khác.
+# chỉ tham chiếu `$defs/IngestBatch`); response ingest dùng camelCase như mọi REST API khác.
+# Riêng response `GET /agent/v1/config` dùng snake_case (shape đã chốt với CLI ở M2.2).
 paths:
   /agent/v1/ingest:
     post:
@@ -124,9 +126,133 @@ paths:
               example:
                 error: rate_limited
                 message: Gửi quá nhanh, thử lại sau ít phút.
+  /agent/v1/config:
+    get:
+      operationId: agentGetConfig
+      tags: [agent]
+      summary: Cấu hình cho CLI (phạm vi repo, che secret, ngưỡng cắt, phiên bản)
+      description: |
+        CLI tải mỗi lần `tl sync` (spec 6.2, 6.3, 7.2) và cache bản gần nhất để dùng khi mất mạng.
+
+        - `repo_patterns`: repo pattern của mọi project mà user của thiết bị là thành viên. Session có
+          `repo_remote` không khớp pattern nào không được rời máy.
+        - `redaction_patterns`: pattern che secret bổ sung do leader cấu hình (bảng `settings`, key
+          `redaction_patterns`), chạy thêm sau bộ pattern có sẵn của CLI.
+        - `truncation`: ngưỡng cắt (byte, UTF-8) do server chỉ định; thiếu key thì dùng mặc định.
+        - `consent_text_version`: phiên bản văn bản đồng ý hiện hành. Khác phiên bản máy đã đồng ý thì CLI
+          ngừng gửi và nhắc người dùng đồng ý lại.
+        - `min_cli_version`: phiên bản `tl` tối thiểu (semver). CLI cũ hơn ngừng gửi và báo cần cập nhật.
+
+        **Lưu ý:** khác các REST API khác, JSON của endpoint này dùng snake_case.
+      security:
+        - deviceToken: []
+      responses:
+        '200':
+          description: Cấu hình hiện hành cho thiết bị.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfig'
+              example:
+                repo_patterns:
+                  - project_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    pattern: github.com/org/*
+                redaction_patterns:
+                  - id: acme_internal_token
+                    regex: 'acme_[A-Za-z0-9]{32}'
+                truncation:
+                  tool_input_bytes: 4096
+                  output_head_bytes: 2048
+                  output_tail_bytes: 1024
+                  diff_bytes: 262144
+                  thinking_bytes: 8192
+                consent_text_version: 2026-11-27.2
+                min_cli_version: 0.1.0
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
 
 components:
   schemas:
+    AgentConfig:
+      type: object
+      description: Cấu hình CLI tải từ server (snake_case).
+      required: [repo_patterns, redaction_patterns, truncation, consent_text_version, min_cli_version]
+      additionalProperties: false
+      properties:
+        repo_patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRepoPattern'
+        redaction_patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRedactionPattern'
+        truncation:
+          $ref: '#/components/schemas/AgentTruncation'
+        consent_text_version:
+          type: string
+          description: Phiên bản văn bản đồng ý hiện hành (giống `consentText.version` của link mời).
+          examples: [2026-11-27.2]
+        min_cli_version:
+          type: string
+          description: Phiên bản `tl` tối thiểu (semver `x.y.z`).
+          examples: [0.1.0]
+
+    AgentRepoPattern:
+      type: object
+      required: [project_id, pattern]
+      additionalProperties: false
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        pattern:
+          type: string
+          description: Repo pattern đã chuẩn hóa (vd. `github.com/org/*`).
+
+    AgentRedactionPattern:
+      type: object
+      required: [id, regex]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: Tên loại secret; CLI thay đoạn khớp bằng `[REDACTED:<id>]`.
+          examples: [acme_internal_token]
+        regex:
+          type: string
+          description: |
+            Biểu thức chính quy theo cú pháp crate `regex` của Rust (không có look-around, không
+            backreference). CLI bỏ qua pattern biên dịch lỗi.
+          examples: ['acme_[A-Za-z0-9]{32}']
+
+    AgentTruncation:
+      type: object
+      description: Ngưỡng cắt tính bằng byte UTF-8 (spec 6.3).
+      required: [tool_input_bytes, output_head_bytes, output_tail_bytes, diff_bytes, thinking_bytes]
+      additionalProperties: false
+      properties:
+        tool_input_bytes:
+          type: integer
+          minimum: 0
+          description: Tối đa cho `tool.input` (mặc định 4096).
+        output_head_bytes:
+          type: integer
+          minimum: 0
+          description: Phần đầu giữ lại của output tool (mặc định 2048).
+        output_tail_bytes:
+          type: integer
+          minimum: 0
+          description: Phần cuối giữ lại của output tool (mặc định 1024).
+        diff_bytes:
+          type: integer
+          minimum: 0
+          description: Tối đa cho diff (mặc định 262144).
+        thinking_bytes:
+          type: integer
+          minimum: 0
+          description: Tối đa cho thinking (mặc định 8192).
+
     IngestResult:
       type: object
       description: Kết quả ingest một batch. Mỗi session trong batch nằm ở đúng một trong `accepted` hoặc `rejected`.

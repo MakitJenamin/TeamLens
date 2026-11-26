@@ -458,6 +458,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cấu hình cho CLI (phạm vi repo, che secret, ngưỡng cắt, phiên bản)
+         * @description CLI tải mỗi lần `tl sync` (spec 6.2, 6.3, 7.2) và cache bản gần nhất để dùng khi mất mạng.
+         *
+         *     - `repo_patterns`: repo pattern của mọi project mà user của thiết bị là thành viên. Session có
+         *       `repo_remote` không khớp pattern nào không được rời máy.
+         *     - `redaction_patterns`: pattern che secret bổ sung do leader cấu hình (bảng `settings`, key
+         *       `redaction_patterns`), chạy thêm sau bộ pattern có sẵn của CLI.
+         *     - `truncation`: ngưỡng cắt (byte, UTF-8) do server chỉ định; thiếu key thì dùng mặc định.
+         *     - `consent_text_version`: phiên bản văn bản đồng ý hiện hành. Khác phiên bản máy đã đồng ý thì CLI
+         *       ngừng gửi và nhắc người dùng đồng ý lại.
+         *     - `min_cli_version`: phiên bản `tl` tối thiểu (semver). CLI cũ hơn ngừng gửi và báo cần cập nhật.
+         *
+         *     **Lưu ý:** khác các REST API khác, JSON của endpoint này dùng snake_case.
+         */
+        get: operations["agentGetConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/sessions": {
         parameters: {
             query?: never;
@@ -798,6 +829,54 @@ export interface components {
              * @example 0.2.0
              */
             minCliVersion: string;
+        };
+        /** @description Cấu hình CLI tải từ server (snake_case). */
+        AgentConfig: {
+            repo_patterns: components["schemas"]["AgentRepoPattern"][];
+            redaction_patterns: components["schemas"]["AgentRedactionPattern"][];
+            truncation: components["schemas"]["AgentTruncation"];
+            /**
+             * @description Phiên bản văn bản đồng ý hiện hành (giống `consentText.version` của link mời).
+             * @example 2026-11-27.2
+             */
+            consent_text_version: string;
+            /**
+             * @description Phiên bản `tl` tối thiểu (semver `x.y.z`).
+             * @example 0.1.0
+             */
+            min_cli_version: string;
+        };
+        AgentRepoPattern: {
+            /** Format: uuid */
+            project_id: string;
+            /** @description Repo pattern đã chuẩn hóa (vd. `github.com/org/*`). */
+            pattern: string;
+        };
+        AgentRedactionPattern: {
+            /**
+             * @description Tên loại secret; CLI thay đoạn khớp bằng `[REDACTED:<id>]`.
+             * @example acme_internal_token
+             */
+            id: string;
+            /**
+             * @description Biểu thức chính quy theo cú pháp crate `regex` của Rust (không có look-around, không
+             *     backreference). CLI bỏ qua pattern biên dịch lỗi.
+             * @example acme_[A-Za-z0-9]{32}
+             */
+            regex: string;
+        };
+        /** @description Ngưỡng cắt tính bằng byte UTF-8 (spec 6.3). */
+        AgentTruncation: {
+            /** @description Tối đa cho `tool.input` (mặc định 4096). */
+            tool_input_bytes: number;
+            /** @description Phần đầu giữ lại của output tool (mặc định 2048). */
+            output_head_bytes: number;
+            /** @description Phần cuối giữ lại của output tool (mặc định 1024). */
+            output_tail_bytes: number;
+            /** @description Tối đa cho diff (mặc định 262144). */
+            diff_bytes: number;
+            /** @description Tối đa cho thinking (mặc định 8192). */
+            thinking_bytes: number;
         };
         /**
          * @description Tính từ `expiresAt`, `maxUses`/`usedCount`, `revokedAt` (thu hồi ưu tiên nhất).
@@ -2340,6 +2419,52 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    agentGetConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cấu hình hiện hành cho thiết bị. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "repo_patterns": [
+                     *         {
+                     *           "project_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                     *           "pattern": "github.com/org/*"
+                     *         }
+                     *       ],
+                     *       "redaction_patterns": [
+                     *         {
+                     *           "id": "acme_internal_token",
+                     *           "regex": "acme_[A-Za-z0-9]{32}"
+                     *         }
+                     *       ],
+                     *       "truncation": {
+                     *         "tool_input_bytes": 4096,
+                     *         "output_head_bytes": 2048,
+                     *         "output_tail_bytes": 1024,
+                     *         "diff_bytes": 262144,
+                     *         "thinking_bytes": 8192
+                     *       },
+                     *       "consent_text_version": "2026-11-27.2",
+                     *       "min_cli_version": "0.1.0"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AgentConfig"];
+                };
+            };
+            401: components["responses"]["InvalidToken"];
         };
     };
     listProjectSessions: {
