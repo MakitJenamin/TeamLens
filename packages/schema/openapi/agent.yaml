@@ -1,11 +1,12 @@
 # Nhóm `agent`: endpoint cho CLI (xác thực `deviceToken`), spec mục 7.2 và 7.3.
 # - POST /agent/v1/ingest (M1.1): gửi một batch session theo session.v1.schema.json (`IngestBatch`).
 # - GET /agent/v1/config (M2.2): cấu hình CLI tải mỗi lần sync.
-# - POST /agent/v1/heartbeat (M3.3): chưa viết.
+# - POST /agent/v1/heartbeat (M3.3): thiết bị báo trạng thái mỗi 15 phút và ngay khi `tl pause`/`tl resume`.
 #
 # Payload ingest dùng snake_case theo `session.v1.schema.json` (file đó là nguồn chân lý, OpenAPI
 # chỉ tham chiếu `$defs/IngestBatch`); response ingest dùng camelCase như mọi REST API khác.
-# Riêng response `GET /agent/v1/config` dùng snake_case (shape đã chốt với CLI ở M2.2).
+# Riêng response `GET /agent/v1/config` dùng snake_case (shape đã chốt với CLI ở M2.2); heartbeat
+# (request và response) cũng dùng snake_case cho đồng bộ với config.
 paths:
   /agent/v1/ingest:
     post:
@@ -171,8 +172,186 @@ paths:
         '401':
           $ref: './common.yaml#/components/responses/InvalidToken'
 
+  /agent/v1/heartbeat:
+    post:
+      operationId: agentHeartbeat
+      tags: [agent]
+      summary: Thiết bị báo trạng thái (heartbeat)
+      description: |
+        CLI gửi mỗi 15 phút khi daemon chạy, một lần cuối mỗi `tl sync` và ngay khi `tl pause`/`tl resume`
+        (spec 4.1, 4.2, 7.2).
+
+        **Ngữ nghĩa:**
+        - Server ghi `devices.last_seen_at = now()`, `devices.cli_version` và `devices.status` theo `status`
+          (`online` hoặc `paused`). Thiết bị đang ở `consent_revoked` (đã rút đồng ý, M3.7) giữ nguyên
+          trạng thái đó; heartbeat vẫn được ghi nhận.
+        - Số liệu (`agents`, `parse_errors`, `queue`) là ảnh chụp tại thời điểm gửi; server chỉ giữ bản
+          gần nhất của mỗi thiết bị để hiện trên dashboard.
+        - Không có heartbeat quá 30 phút thì dashboard coi thiết bị là `offline` (tính khi đọc, không ghi
+          vào DB).
+        - Response trả trạng thái server đang ghi nhận cùng `consent_text_version`, `min_cli_version` để
+          daemon biết khi nào cần tải lại `GET /agent/v1/config` (đổi văn bản đồng ý, cần cập nhật CLI)
+          mà không phải tải config mỗi 15 phút.
+
+        **Giới hạn:** tối đa 20 request/phút mỗi thiết bị.
+
+        **Lưu ý:** JSON của endpoint này dùng snake_case như `GET /agent/v1/config`.
+      security:
+        - deviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+            example:
+              status: online
+              cli_version: 0.1.0
+              agents:
+                - agent: claude_code
+                  version: 2.1.3
+                  files: 12
+                - agent: codex
+                  version: null
+                  files: 0
+              parse_errors: 1
+              queue:
+                batches: 2
+                bytes: 48213
+                dropped: 0
+                failed: 0
+              sent_at: '2026-11-27T08:15:00Z'
+      responses:
+        '200':
+          description: Đã ghi nhận heartbeat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResult'
+              example:
+                status: online
+                consent_text_version: 2026-11-27.2
+                min_cli_version: 0.1.0
+        '400':
+          description: 'Body không hợp lệ (`error`: `validation_error`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: validation_error
+                message: 'Heartbeat không hợp lệ: status phải là online hoặc paused.'
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+        '429':
+          description: 'Vượt 20 request/phút của thiết bị (`error`: `rate_limited`). Thử lại sau `Retry-After` giây.'
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi gửi lại.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: rate_limited
+                message: Gửi quá nhanh, thử lại sau ít phút.
+
 components:
   schemas:
+    HeartbeatRequest:
+      type: object
+      description: Trạng thái thiết bị CLI gửi lên (snake_case).
+      required: [status, cli_version, agents, parse_errors, queue, sent_at]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [online, paused]
+          description: '`paused` sau `tl pause` (không quét, không gửi); `online` khi đang thu thập.'
+        cli_version:
+          type: string
+          maxLength: 32
+          description: Phiên bản `tl` (semver `x.y.z`).
+          examples: [0.1.0]
+        agents:
+          type: array
+          maxItems: 16
+          description: Agent CLI phát hiện trên máy (mỗi loại agent tối đa một phần tử).
+          items:
+            $ref: '#/components/schemas/HeartbeatAgent'
+        parse_errors:
+          type: integer
+          minimum: 0
+          description: Số lỗi parse đang ghi nhận trong `state.db` (bản ghi log lạ bị bỏ qua).
+        queue:
+          $ref: '#/components/schemas/HeartbeatQueue'
+        sent_at:
+          type: string
+          format: date-time
+          description: Thời điểm CLI gửi (giờ máy, chỉ để tham khảo; server dùng giờ của mình cho `last_seen_at`).
+
+    HeartbeatAgent:
+      type: object
+      required: [agent, version, files]
+      additionalProperties: false
+      properties:
+        agent:
+          $ref: '../session.v1.schema.json#/$defs/AgentKind'
+        version:
+          type: [string, 'null']
+          maxLength: 64
+          description: Phiên bản agent đọc được từ log gần nhất; null nếu chưa biết.
+        files:
+          type: integer
+          minimum: 0
+          description: Số file log của agent CLI tìm thấy.
+
+    HeartbeatQueue:
+      type: object
+      description: Hàng đợi gửi offline trên máy (spec 4.4).
+      required: [batches, bytes, dropped, failed]
+      additionalProperties: false
+      properties:
+        batches:
+          type: integer
+          minimum: 0
+          description: Số batch đang chờ gửi.
+        bytes:
+          type: integer
+          minimum: 0
+          description: Tổng kích thước hàng đợi (byte).
+        dropped:
+          type: integer
+          minimum: 0
+          description: Số batch đã bỏ vì hàng đợi đầy (cộng dồn).
+        failed:
+          type: integer
+          minimum: 0
+          description: Số batch gửi lỗi vĩnh viễn (cộng dồn).
+
+    HeartbeatResult:
+      type: object
+      description: Trạng thái server ghi nhận cho thiết bị (snake_case).
+      required: [status, consent_text_version, min_cli_version]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [online, paused, consent_revoked]
+          description: |
+            Trạng thái thiết bị trên server sau heartbeat. `consent_revoked`: thiết bị đã rút đồng ý,
+            CLI ngừng gửi.
+        consent_text_version:
+          type: string
+          description: Như `AgentConfig.consent_text_version`; khác bản máy đã đồng ý thì tải lại config.
+          examples: [2026-11-27.2]
+        min_cli_version:
+          type: string
+          description: Như `AgentConfig.min_cli_version`.
+          examples: [0.1.0]
+
     AgentConfig:
       type: object
       description: Cấu hình CLI tải từ server (snake_case).
