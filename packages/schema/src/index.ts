@@ -30,6 +30,10 @@ export type SessionSummary = Schemas['SessionSummary'];
 export type SessionPage = Schemas['SessionPage'];
 export type SessionDetail = Schemas['SessionDetail'];
 export type SessionTurn = Schemas['SessionTurn'];
+export type SessionChild = Schemas['SessionChild'];
+export type SessionNote = Schemas['SessionNote'];
+export type SessionNoteList = Schemas['SessionNoteList'];
+export type CreateSessionNoteRequest = Schemas['CreateSessionNoteRequest'];
 export type InstructionFile = Schemas['InstructionFile'];
 
 // Payload ingest của CLI (session.v1.schema.json, snake_case). Tên gốc trong `Schemas` là
