@@ -45,7 +45,12 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì:** mốc 1 chỉ có `tl sync --once` gửi thẳng. Mốc 3 thêm hàng đợi SQLite (`%LOCALAPPDATA%\teamlens\state.db`), retry khi mất mạng, daemon tự chạy khi đăng nhập Windows và heartbeat 15 phút.
 - **Code:** `cli/crates/teamlens/src/{sync,queue,daemon}/`, `cli/crates/teamlens/src/api_client/`.
-- **Ghi chú của người làm:** _(điền sau mốc 1 và mốc 3)_
+- **Ghi chú của người làm:**
+  - Mốc 1 (M1.7): chuỗi xử lý ở `cli/crates/teamlens/src/pipeline/` — `collect` (discover → đọc cả file từ offset 0 → normalize → `ScopeFilter::scope_of` ngay sau normalize; ngoài phạm vi chỉ tăng bộ đếm) → `prepare` (điền `repo_remote`/`branch`/`cwd_relative`/`instruction_files`; mỗi chuỗi: che secret → đổi đường dẫn → che tên user Windows/tên máy thành `[USER]`/`[HOST]` → cắt) → `batch` (JSON < 8 MB, session quá lớn chia theo turn, gzip).
+  - `prepare` bỏ hẳn `diff` của file ngoài repo (schema chỉ nhận đường dẫn tương đối gốc repo); file `.env*`, `*.pem`, `*.key` bị thay toàn bộ output/patch/nội dung input bằng `[REDACTED:sensitive_file]`. Tool input cắt từng chuỗi lồng nhau (4 KB), không cắt JSON nguyên khối. Thinking không có trong schema v1 nên chưa cắt.
+  - File log sửa trong 2 phút gần nhất coi là còn đang ghi → `ended_at = null`.
+  - Gửi (`sync/mod.rs::send_all`): 413 → chia đôi (theo session, rồi theo turn) và gửi lại; 429 → chờ `Retry-After` (tối đa 120 s) rồi thử lại một lần cùng `batch_id`; 401/403/426/lỗi mạng → dừng, exit 1 kèm gợi ý.
+  - Chưa có hàng đợi/offset: mỗi `tl sync` gửi lại toàn bộ session trong phạm vi (server idempotent). M2.3 đọc tăng dần, M3.1 thay bằng hàng đợi `state.db`. Điểm móc consent: `sync/consent_gate.rs::may_send()` (luôn `true`, chờ module `consent` của M3.7).
 
 ## ⑦ Ingest — Người 1, mốc 1 (M1.6)
 
