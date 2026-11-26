@@ -26,8 +26,6 @@ pub async fn dispatch(
 ) -> Result<(), AppError> {
     match command {
         Command::Join(args) => join::run(args),
-        Command::Preview(args) => preview::run(args),
-        Command::Sync(args) => sync::run(args),
         Command::Pause(args) => pause::run(args),
         Command::Resume(args) => resume::run(args),
         Command::Consent(args) => consent::run(args),
@@ -36,6 +34,8 @@ pub async fn dispatch(
         Command::Login(args) => login::run(&make_ctx()?, args, out).await.map(|_| ()),
         Command::Logout(args) => logout::run(&make_ctx()?, args, out).await,
         Command::Status(args) => status::run(&make_ctx()?, args, out).await,
+        Command::Preview(args) => preview::run(&make_ctx()?, args, out).await,
+        Command::Sync(args) => sync::run(&make_ctx()?, args, out).await,
     }
 }
 
