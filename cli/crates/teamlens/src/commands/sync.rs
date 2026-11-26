@@ -11,6 +11,7 @@ use std::time::SystemTime;
 use clap::Args;
 use tl_core::redact::Redactor;
 
+use crate::consent;
 use crate::context::AppContext;
 use crate::error::AppError;
 use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
@@ -44,6 +45,12 @@ pub async fn run_with(
     out: &mut dyn Write,
 ) -> Result<(), AppError> {
     let _ = args.once; // Mốc 1: luôn một lần.
+    if !args.dry_run && !consent_gate::may_send(ctx) {
+        return Err(AppError::user(
+            "Máy này chưa đồng ý chia sẻ dữ liệu với server hiện tại nên không gửi gì.",
+            "Chạy `tl join <link mời>` (link do leader gửi) để xem và đồng ý.",
+        ));
+    }
     let conn = connect(ctx).await?;
 
     let mut filter = ScopeFilter::new(patterns_from_whoami(&conn.whoami));
@@ -53,9 +60,30 @@ pub async fn run_with(
         options: &sources.prepare,
         now: SystemTime::now(),
     };
-    let (prepared, stats) = pipeline.collect(&sources.adapter_refs());
+    let (mut prepared, stats) = pipeline.collect(&sources.adapter_refs());
+
+    // Chỉ gửi session của project đã đồng ý; không backfill thì bỏ session cũ.
+    let consent = consent::current(&ctx.load_config()?).cloned();
+    let before = prepared.len();
+    if let Some(state) = &consent {
+        prepared.retain(|p| state.allows_session(&p.project_id, p.last_activity));
+    }
+    let skipped_by_consent = before - prepared.len();
+
     let turns: usize = prepared.iter().map(|p| p.envelope.turns.len()).sum();
     print_stats(out, &stats, turns);
+    if skipped_by_consent > 0 {
+        let _ = writeln!(
+            out,
+            "Bỏ {skipped_by_consent} session theo lựa chọn khi đồng ý (session cũ khi không gửi lịch sử, hoặc project chưa đồng ý)."
+        );
+    }
+    if consent.is_none() {
+        let _ = writeln!(
+            out,
+            "Máy này chưa đồng ý với server hiện tại: chạy `tl join <link mời>` trước khi gửi thật."
+        );
+    }
 
     if args.dry_run {
         let _ = writeln!(out, "Chạy thử (--dry-run): không gửi gì.");
@@ -64,12 +92,6 @@ pub async fn run_with(
     if prepared.is_empty() {
         let _ = writeln!(out, "Không có session nào trong phạm vi để gửi.");
         return Ok(());
-    }
-    if !consent_gate::may_send() {
-        return Err(AppError::user(
-            "Chưa được phép gửi dữ liệu (chưa đồng ý hoặc đang tạm dừng).",
-            "Chạy `tl consent` hoặc `tl resume`.",
-        ));
     }
 
     let project_of: HashMap<String, String> = prepared

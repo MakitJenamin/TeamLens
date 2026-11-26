@@ -15,14 +15,14 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì (đích Mốc 1.5, SPEC 7.1 và 11.1):** chỉ hai vai trò toàn server: leader (làm mọi thứ, đăng nhập web bằng email + mật khẩu) và member (không email, không mật khẩu). Device token là danh tính của member; member vào dashboard bằng `tl open` (ticket một lần → cookie). Mọi chỗ xem dữ liệu đi qua `AccessService` và ghi audit.
 - **Hiện trạng trên `main` (trước Mốc 1.5):** máy nhận token qua device login giống `gh auth login` (`device_codes`, trang `/device`); vai trò admin + leader/member theo project.
-- **Code:** `cli/crates/teamlens/src/commands/{login,logout,status}.rs`, `cli/crates/tl-platform/src/credentials.rs`; `apps/api/src/modules/{device,auth,access,projects}/`; `apps/web/src/app/[locale]/(auth)/`.
+- **Code:** `cli/crates/teamlens/src/commands/{join,open,logout,status}.rs`, `cli/crates/tl-platform/src/credentials.rs`; `apps/api/src/modules/{device,auth,access,projects}/`; `apps/web/src/app/[locale]/(auth)/`.
 - **Thử ngay (hiện trạng):** `pnpm dev`, rồi `tl login --server http://localhost:3000`, duyệt mã bằng `member1@teamlens.local`, rồi `tl status`.
 
 ## ⓪+ Tham gia và đồng ý — Người 2, Mốc 1.5 (J.1, J.3, J.5, J.7, J.9) và mốc 3 (M3.5–M3.8)
 
 - **Làm gì:** leader chạy wizard `/setup` (tài khoản + project + repo) → nhận link mời chung → gửi cho nhóm → thành viên chạy đúng một lệnh `tl join <link>` (hoặc `install.ps1?code=…`): xem trước link (`GET /agent/v1/invites/{code}`) → màn hình đồng ý trong terminal (tên, backfill, `yes`) → `POST /agent/v1/join` tạo user + thành viên project + thiết bị + bản đồng ý trong một transaction, trả device token → đăng ký daemon bằng Task Scheduler. Không đồng ý thì CLI không gửi gì. Máy thứ hai hoặc cài lại Windows tạo user mới; leader gộp trên trang Thành viên (J.8, Người 1).
 - **Code:** `apps/api/src/modules/{invites,consent}/`, `apps/web/src/app/[locale]/(auth)/i/[code]/`, `cli/crates/teamlens/src/commands/{join,consent,uninstall}.rs`, `cli/crates/teamlens/src/consent/`, `cli/crates/tl-platform/`.
-- **Ghi chú của người làm:** _(điền sau Mốc 1.5 và mốc 3)_
+- **Ghi chú của người làm:** CLI (J.5): `tl join`/`tl login <link>` ở `commands/join.rs` (tách link, xem trước, hỏi tên/backfill/`yes`, `409 consent_outdated` thì xem lại; máy đã có token còn hiệu lực thì gửi Bearer và giữ token cũ). Bản đồng ý lưu ở bảng `[consent]` của `config.toml` (`consent/`); `tl sync` không gửi khi chưa đồng ý cho server hiện tại, bỏ session của project chưa đồng ý và session cũ khi không backfill. `tl open` ở `commands/open.rs`. Task Scheduler (M3.8) chưa làm: `tl join` chỉ nhắc chạy `tl sync`.
 
 ## ① → ② Đọc log và chuẩn hóa — Người 1, mốc 1 (M1.3), mốc 2 (M2.3–M2.5)
 

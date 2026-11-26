@@ -13,7 +13,7 @@ cargo test
 cargo build --release          # ra target/release/tl.exe
 ```
 
-Chạy thử: `cargo run -p teamlens -- status`. Bật log chi tiết: `TL_LOG=debug` (PowerShell: `$env:TL_LOG='debug'`).
+Chạy thử: `cargo run -p teamlens -- status`. Đổi thư mục config/state (thử nhiều server trên một máy): `TL_DATA_DIR=<thư mục>`; token vẫn nằm trong Credential Manager, khóa theo địa chỉ server. Bật log chi tiết: `TL_LOG=debug` (PowerShell: `$env:TL_LOG='debug'`).
 
 Nếu shell không thấy `cargo`, dùng `%USERPROFILE%\.cargo\bin\cargo.exe`. Cần toolchain MSVC (VS Build Tools).
 
@@ -30,9 +30,9 @@ Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.depen
 
 ## Vùng file
 
-Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENTS.md` gốc, mục 3. Module `crates/teamlens/src/consent/` (Người 2) sẽ được tạo ở M3.7.
+Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENTS.md` gốc, mục 3. Module `crates/teamlens/src/consent/` lưu trạng thái đồng ý cục bộ (bảng `[consent]` trong `config.toml`, ghi bởi `tl join`); pipeline gửi hỏi nó qua `sync::consent_gate::may_send()`.
 
-**Vùng nền** (đã làm ở F8, sửa thì PR riêng nhỏ): `Cargo.toml` workspace, `rust-toolchain.toml`, lệnh `login`/`logout`, `api_client`, `config`, `context`, `error`, `cli.rs`, `main.rs`.
+**Vùng nền** (đã làm ở F8, sửa thì PR riêng nhỏ): `Cargo.toml` workspace, `rust-toolchain.toml`, lệnh `logout`, `api_client`, `config`, `context`, `error`, `cli.rs`, `main.rs`.
 
 ## Quy ước
 

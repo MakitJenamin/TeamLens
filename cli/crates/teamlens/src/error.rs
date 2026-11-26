@@ -75,14 +75,14 @@ fn api_hint(e: &ApiError) -> Option<String> {
             Some("Kiểm tra địa chỉ server và kết nối mạng, rồi thử lại.".into())
         }
         ApiError::Api { code, .. } => match code {
-            ApiErrorCode::InvalidToken | ApiErrorCode::Unauthenticated => {
-                Some("Chạy `tl login` để đăng nhập lại.".into())
-            }
-            ApiErrorCode::Forbidden => Some("Liên hệ leader hoặc admin để được cấp quyền.".into()),
+            ApiErrorCode::InvalidToken | ApiErrorCode::Unauthenticated => Some(
+                "Chạy lại `tl join <link mời>` (xin leader link còn hạn) để tham gia lại.".into(),
+            ),
+            ApiErrorCode::Forbidden => Some("Liên hệ leader để được cấp quyền.".into()),
             _ => None,
         },
         ApiError::InvalidResponse { .. } => Some(
-            "Kiểm tra lại địa chỉ server (phải là địa chỉ dashboard TeamLens, ví dụ http://localhost:3000)."
+            "Kiểm tra lại link mời (phải là link dashboard TeamLens dạng https://<server>/i/<mã>)."
                 .into(),
         ),
         ApiError::Build(_) => None,
@@ -111,6 +111,6 @@ mod tests {
             message: "Token không hợp lệ".into(),
         });
         assert_eq!(e.exit_code(), 1);
-        assert!(e.hint().unwrap().contains("tl login"));
+        assert!(e.hint().unwrap().contains("tl join"));
     }
 }

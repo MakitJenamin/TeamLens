@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    consent, daemon, join, login, logout, pause, preview, resume, status, sync, uninstall,
+    consent, daemon, join, logout, open, pause, preview, resume, status, sync, uninstall,
 };
 
 /// TeamLens: thu thập session AI agent trong repo của team, che secret, gửi về server tự host.
@@ -23,10 +23,11 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Tham gia project từ link mời: đăng nhập, đồng ý, cài chạy nền
+    /// Tham gia project từ link mời: xem và đồng ý, nhận token cho máy này
+    #[command(visible_alias = "login")]
     Join(join::JoinArgs),
-    /// Đăng nhập máy này vào server TeamLens (device login)
-    Login(login::LoginArgs),
+    /// Mở dashboard trên trình duyệt, đã đăng nhập sẵn
+    Open(open::OpenArgs),
     /// Đăng xuất: thu hồi token của máy này
     Logout(logout::LogoutArgs),
     /// Trạng thái đăng nhập, project, daemon, hàng đợi

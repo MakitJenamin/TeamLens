@@ -7,6 +7,7 @@ pub mod api_client;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod consent;
 pub mod context;
 pub mod error;
 

@@ -8,6 +8,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::api_client::{ApiClient, ApiErrorCode, WhoamiResponse};
+use crate::consent::{self, ConsentState};
 use crate::context::AppContext;
 use crate::error::AppError;
 
@@ -34,6 +35,8 @@ pub struct StatusReport {
     pub account: Option<WhoamiResponse>,
     /// Lý do không lấy được `account` khi đã có token.
     pub account_error: Option<String>,
+    /// Bản đồng ý cục bộ cho server hiện tại, `null` nếu chưa đồng ý.
+    pub consent: Option<ConsentState>,
     pub daemon: &'static str,
     pub agents: &'static str,
     pub queue: &'static str,
@@ -59,6 +62,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         logged_in: false,
         account: None,
         account_error: None,
+        consent: consent::current(&config).cloned(),
         daemon: PENDING_DAEMON,
         agents: PENDING_DAEMON,
         queue: PENDING_DAEMON,
@@ -82,7 +86,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
             ) {
                 report.logged_in = false;
                 report.account_error = Some(
-                    "Token của máy này không còn hiệu lực (đã bị thu hồi?). Chạy `tl login` để đăng nhập lại."
+                    "Token của máy này không còn hiệu lực (đã bị thu hồi?). Chạy lại `tl join <link mời>` để tham gia lại."
                         .to_owned(),
                 );
             } else {
@@ -100,10 +104,10 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     w("Server:", r.server.as_deref().unwrap_or("chưa cấu hình"));
 
     let login = match (&r.server, r.logged_in, &r.account) {
-        (None, _, _) => "chưa — chạy `tl login --server <địa chỉ>`".to_owned(),
+        (None, _, _) => "chưa — chạy `tl join <link mời>`".to_owned(),
         (Some(_), true, Some(me)) => format!("rồi ({})", me.user.display()),
         (Some(_), true, None) => "rồi (chưa kiểm tra được với server)".to_owned(),
-        (Some(_), false, _) => "chưa — chạy `tl login`".to_owned(),
+        (Some(_), false, _) => "chưa — chạy `tl join <link mời>`".to_owned(),
     };
     w("Đăng nhập:", &login);
     if let Some(err) = &r.account_error {
@@ -128,6 +132,36 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
                 for pattern in &p.repo_patterns {
                     let _ = writeln!(out, "      {pattern}");
                 }
+            }
+        }
+    }
+
+    match &r.consent {
+        None => {
+            let _ = writeln!(
+                out,
+                "{:<12}chưa — chạy `tl join <link mời>` (chưa đồng ý thì không gửi gì)",
+                "Đồng ý:"
+            );
+        }
+        Some(c) => {
+            let _ = writeln!(out, "Đồng ý:");
+            for p in &c.projects {
+                let _ = writeln!(
+                    out,
+                    "  - {} ({}): văn bản {}, lúc {}, {}",
+                    p.project_name,
+                    p.project_slug,
+                    p.text_version,
+                    p.accepted_at
+                        .with_timezone(&chrono::Local)
+                        .format("%d/%m/%Y %H:%M"),
+                    if p.backfill {
+                        "gửi cả lịch sử cũ"
+                    } else {
+                        "chỉ gửi session từ lúc đồng ý"
+                    }
+                );
             }
         }
     }

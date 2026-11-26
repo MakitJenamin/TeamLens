@@ -17,6 +17,9 @@ pub struct Config {
     /// Địa chỉ server TeamLens, đã chuẩn hóa (không có `/` ở cuối).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_url: Option<String>,
+    /// Trạng thái đồng ý cục bộ (ghi bởi `tl join`, đọc bởi `crate::consent`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consent: Option<crate::consent::ConsentState>,
 }
 
 impl Config {
@@ -65,7 +68,7 @@ pub fn normalize_server_url(input: &str) -> Result<String, AppError> {
     if !has_scheme || host.is_empty() || host.contains(char::is_whitespace) {
         return Err(AppError::user(
             format!("Địa chỉ server không hợp lệ: \"{}\"", input.trim()),
-            "Nhập đủ cả http:// hoặc https://, ví dụ: tl login --server https://teamlens.congty.com",
+            "Địa chỉ phải có http:// hoặc https://, ví dụ link mời https://teamlens.congty.com/i/<mã>.",
         ));
     }
     Ok(trimmed.to_owned())
@@ -97,6 +100,7 @@ mod tests {
 
         let cfg = Config {
             server_url: Some("http://localhost:3000".into()),
+            ..Default::default()
         };
         cfg.save(&path).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
