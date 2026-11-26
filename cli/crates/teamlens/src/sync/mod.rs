@@ -1,34 +1,21 @@
 //! Gửi session lên `POST /agent/v1/ingest` và phần dùng chung của `tl sync`/`tl preview`.
 //! Task M1.7.
 //!
-//! Mốc 1 gửi thẳng, không hàng đợi: mỗi lần `tl sync` gửi lại toàn bộ session trong
-//! phạm vi (server idempotent theo `batch_id`, upsert theo `source_id`/`seq`).
-//! M3.1 thêm hàng đợi SQLite + retry, M3.2 daemon gọi lại phần gửi ở đây.
+//! Gửi thật nằm ở hàng đợi [`crate::queue`] (M3.1): `tl sync` xếp hàng rồi flush; daemon
+//! (M3.2) gọi lại đúng các hàm đó.
 
 pub mod agent_config;
 pub mod consent_gate;
 pub mod incremental;
 
-use std::collections::{HashMap, HashSet};
-use std::time::Duration;
-
 use tl_adapters::claude_code::ClaudeCodeAdapter;
 use tl_adapters::codex::CodexAdapter;
 use tl_adapters::Adapter;
-use tl_core::session::SessionEnvelope;
 
-use crate::api_client::{
-    ApiClient, ApiError, ApiErrorCode, IngestAccepted, IngestError, IngestRejected,
-};
+use crate::api_client::{ApiClient, ApiError, ApiErrorCode, IngestError};
 use crate::context::AppContext;
 use crate::error::AppError;
-use crate::pipeline::batch::{group_envelopes, gzip_json, new_batch};
 use crate::pipeline::prepare::PrepareOptions;
-
-/// Chờ `Retry-After` tối đa bao nhiêu "giây" (đơn vị `AppContext::poll_unit`).
-const MAX_RETRY_AFTER_SECS: u64 = 120;
-/// Server không gửi `Retry-After` thì chờ chừng này.
-const DEFAULT_RETRY_AFTER_SECS: u64 = 30;
 
 /// Nguồn log và tùy chọn xử lý của máy; test thay bằng thư mục tạm.
 pub struct Sources {
@@ -109,121 +96,8 @@ fn login_hint(e: ApiError) -> AppError {
     AppError::Api(e)
 }
 
-/// Kết quả gửi cộng dồn qua mọi batch.
-#[derive(Debug, Default)]
-pub struct SendReport {
-    pub batches: usize,
-    pub duplicate_batches: usize,
-    pub accepted: Vec<IngestAccepted>,
-    pub rejected: Vec<IngestRejected>,
-    /// Số turn server đã nhận (batch 202, session không bị từ chối) theo `source_id`.
-    pub delivered_turns: HashMap<String, usize>,
-}
-
-/// Gửi toàn bộ envelope: chia batch (< `max_batch_bytes` JSON), gzip, POST.
-///
-/// - `413`: chia đôi batch (theo session, rồi theo turn) và gửi lại.
-/// - `429`: chờ `Retry-After` (đơn vị `wait_unit`) rồi thử lại **một** lần.
-/// - `401`, `403`, `426`, lỗi mạng và lỗi khác: dừng, trả lỗi kèm báo cáo phần đã gửi được
-///   (`delivered_turns` cho biết turn nào đã tới server để ghi offset).
-pub async fn send_all(
-    client: &ApiClient,
-    envelopes: Vec<SessionEnvelope>,
-    max_batch_bytes: usize,
-    wait_unit: Duration,
-) -> (SendReport, Option<AppError>) {
-    let mut report = SendReport::default();
-    // Ngăn xếp các nhóm cần gửi; nhóm bị 413 được chia đôi rồi đẩy lại.
-    let mut pending: Vec<Vec<SessionEnvelope>> = group_envelopes(envelopes, max_batch_bytes);
-    pending.reverse();
-    while let Some(group) = pending.pop() {
-        match send_group(client, group.clone(), wait_unit).await {
-            Ok(result) => {
-                report.batches += 1;
-                if result.duplicate {
-                    report.duplicate_batches += 1;
-                }
-                let rejected: HashSet<&str> = result
-                    .rejected
-                    .iter()
-                    .map(|r| r.source_id.as_str())
-                    .collect();
-                for env in group
-                    .iter()
-                    .filter(|e| !rejected.contains(e.session.source_id.as_str()))
-                {
-                    *report
-                        .delivered_turns
-                        .entry(env.session.source_id.clone())
-                        .or_default() += env.turns.len();
-                }
-                report.accepted.extend(result.accepted);
-                report.rejected.extend(result.rejected);
-            }
-            Err(IngestError::TooLarge) => match halve(group) {
-                Some((a, b)) => {
-                    pending.push(b);
-                    pending.push(a);
-                }
-                None => {
-                    let err = AppError::user(
-                        "Một turn đơn lẻ vẫn vượt giới hạn kích thước của server.",
-                        "Báo admin kiểm tra giới hạn body của server/proxy (mặc định 10 MB).",
-                    );
-                    return (report, Some(err));
-                }
-            },
-            Err(e) => return (report, Some(ingest_app_error(e))),
-        }
-    }
-    (report, None)
-}
-
-/// Gửi một nhóm thành một batch; `429` thì chờ rồi thử lại một lần (cùng `batch_id`).
-async fn send_group(
-    client: &ApiClient,
-    group: Vec<SessionEnvelope>,
-    wait_unit: Duration,
-) -> Result<crate::api_client::IngestResult, IngestError> {
-    let batch = new_batch(group);
-    let body = gzip_json(&batch).map_err(|e| {
-        IngestError::Api(ApiError::InvalidResponse {
-            status: 0,
-            detail: format!("không nén được batch ({e})"),
-        })
-    })?;
-    match client.ingest_gzip(body.clone()).await {
-        Err(IngestError::RateLimited { retry_after, .. }) => {
-            let secs = retry_after
-                .unwrap_or(DEFAULT_RETRY_AFTER_SECS)
-                .min(MAX_RETRY_AFTER_SECS);
-            tracing::info!(secs, "server báo gửi quá nhanh, chờ rồi thử lại");
-            tokio::time::sleep(wait_unit * secs as u32).await;
-            client.ingest_gzip(body).await
-        }
-        other => other,
-    }
-}
-
-/// Chia đôi nhóm: nhiều session → theo session; một session nhiều turn → theo turn.
-fn halve(mut group: Vec<SessionEnvelope>) -> Option<(Vec<SessionEnvelope>, Vec<SessionEnvelope>)> {
-    if group.len() > 1 {
-        let b = group.split_off(group.len() / 2);
-        return Some((group, b));
-    }
-    let mut env = group.pop()?;
-    if env.turns.len() <= 1 {
-        return None;
-    }
-    let tail = env.turns.split_off(env.turns.len() / 2);
-    let other = SessionEnvelope {
-        session: env.session.clone(),
-        turns: tail,
-    };
-    Some((vec![env], vec![other]))
-}
-
-fn ingest_app_error(e: IngestError) -> AppError {
+/// Lỗi ingest → lỗi tiếng Việt cho người dùng (dùng chung với [`crate::queue`]).
+pub(crate) fn ingest_app_error(e: IngestError) -> AppError {
     match e {
         IngestError::UpgradeRequired {
             min_cli_version,

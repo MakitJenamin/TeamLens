@@ -15,10 +15,10 @@
 //!    các turn này an toàn.
 //! 4. File ngắn lại (bị cắt/thay mới) → quên tiến độ, gửi lại từ đầu.
 //!
-//! Trạng thái chỉ được ghi **sau khi** server trả 202 cho mọi turn của file đó; gửi
-//! lỗi thì lần sau gửi lại đúng phần chưa gửi.
+//! Trạng thái chỉ được chốt **sau khi** server trả 202 cho mọi batch chứa turn của file
+//! đó (M3.1: batch nằm trong hàng đợi, tiến độ "đặt chỗ" chờ trong `queue_reservations`;
+//! lần quét sau so với bản đặt chỗ nên không xếp hàng lại nội dung đã có trong hàng đợi).
 
-use std::collections::HashMap;
 use std::time::SystemTime;
 
 use tl_adapters::SourceFile;
@@ -139,21 +139,9 @@ pub struct FilePlan {
 }
 
 impl FilePlan {
-    /// Trạng thái ghi vào `state.db` nếu mọi turn của file đã tới server.
-    /// `delivered`: số turn server đã nhận theo `source_id`; `expected`: số turn đã
-    /// đưa vào batch theo `source_id` (cộng mọi file).
-    pub fn committed_state(
-        &self,
-        delivered: &HashMap<String, usize>,
-        expected: &HashMap<String, usize>,
-    ) -> Option<FileState> {
-        let all_sent = self.sessions.iter().all(|s| {
-            let id = &s.progress.source_id;
-            delivered.get(id).copied().unwrap_or(0) >= expected.get(id).copied().unwrap_or(0)
-        });
-        if !all_sent {
-            return None;
-        }
+    /// Trạng thái ghi vào `state.db` khi mọi batch chứa các turn của file đã tới server
+    /// (lúc xếp hàng ghi thành bản "đặt chỗ", xem [`crate::queue`]).
+    pub fn target_state(&self) -> FileState {
         let mut sessions: Vec<SessionProgress> = match (&self.prev, self.reset) {
             (Some(p), false) => p.sessions.clone(),
             _ => Vec::new(),
@@ -163,14 +151,14 @@ impl FilePlan {
             sessions.push(s.progress.clone());
         }
         sessions.sort_by(|a, b| a.source_id.cmp(&b.source_id));
-        Some(FileState {
+        FileState {
             agent: self.file.agent.as_str().to_owned(),
             size: self.file.size,
             mtime_ns: mtime_ns(self.file.modified),
             byte_offset: self.file.size,
             sent_while_active: self.active && !self.sessions.is_empty(),
             sessions,
-        })
+        }
     }
 }
 

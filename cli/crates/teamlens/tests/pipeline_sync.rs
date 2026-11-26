@@ -777,7 +777,10 @@ async fn sync_ap_nguong_cat_tu_config() {
 fn in_file(env: &Env) -> PathBuf {
     env.dir
         .path()
-        .join(format!("claude/projects/shop/{IN_SESSION}.jsonl"))
+        .join("claude")
+        .join("projects")
+        .join("shop")
+        .join(format!("{IN_SESSION}.jsonl"))
 }
 
 /// Đặt mtime mọi file log về 10 phút trước (giả lập file đã ổn định).
@@ -1042,4 +1045,257 @@ async fn status_dem_file_cho_on_dinh() {
     assert_eq!(waiting_files(&ctx, &env.sources()), Some(3));
     age_logs(&env);
     assert_eq!(waiting_files(&ctx, &env.sources()), Some(0));
+}
+
+// ---- M3.1: hàng đợi trong state.db ----
+
+use std::time::SystemTime;
+use teamlens::api_client::{AgentConfig, ApiClient};
+use teamlens::queue::{self, FlushOptions, FlushStop};
+use teamlens::state::{state_path, StateDb};
+use teamlens::sync::agent_config;
+
+fn open_state(ctx: &AppContext) -> StateDb {
+    StateDb::open(&state_path(&ctx.config_path)).unwrap()
+}
+
+fn server_config() -> AgentConfig {
+    serde_json::from_value(config_body(CONSENT_VERSION, "0.1.0")).unwrap()
+}
+
+/// Một địa chỉ hiện không có server nào nghe ("API đang tắt").
+fn dead_addr() -> std::net::SocketAddr {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.local_addr().unwrap()
+}
+
+/// Bật server (config + ingest) đúng địa chỉ đã dùng lúc "tắt".
+async fn start_at(addr: std::net::SocketAddr, ingest: Ingest) -> MockServer {
+    let listener = std::net::TcpListener::bind(addr).unwrap();
+    let server = MockServer::builder().listener(listener).start().await;
+    mock_config(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/agent/v1/ingest"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ingest)
+        .mount(&server)
+        .await;
+    server
+}
+
+#[tokio::test]
+async fn hang_doi_tat_api_roi_bat_lai_khong_mat_khong_trung() {
+    let env = Env::new();
+    age_logs(&env);
+    let addr = dead_addr();
+    let uri = format!("http://{addr}");
+    let ctx = env.ctx(&uri);
+    // Config đã cache từ lần chạy trước (API tắt thì dùng cache).
+    agent_config::write_cache(&agent_config::cache_path(&ctx), &uri, &server_config());
+
+    // API tắt: batch vào hàng đợi, offset không tiến, lệnh báo lỗi.
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    let e = r.unwrap_err();
+    assert!(e.to_string().contains("Không kết nối được"), "{e}");
+    assert!(out.contains("Đã xếp hàng 1 batch"), "{out}");
+    assert!(out.contains("hàng đợi giữ 1 batch"), "{out}");
+    let db = open_state(&ctx);
+    let pending = queue::list_pending(&db).unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].attempts, 1);
+    assert!(pending[0].last_error.is_some());
+    let batch_id = pending[0].batch_id.clone();
+    assert_eq!(
+        db.file(&in_file(&env)).unwrap(),
+        None,
+        "offset chưa được chốt"
+    );
+    drop(db);
+
+    // Quét lại khi vẫn tắt: không xếp hàng trùng.
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    assert!(r.is_err());
+    assert!(!out.contains("Đã xếp hàng"), "{out}");
+    assert!(out.contains("Bỏ qua 3 file log không đổi"), "{out}");
+    let db = open_state(&ctx);
+    assert_eq!(queue::list_pending(&db).unwrap().len(), 1);
+    drop(db);
+
+    // Bật API: gửi đúng batch cũ (giữ `batch_id`), đủ turn, không trùng.
+    let ingest = Ingest::new(vec![]);
+    let _server = start_at(addr, ingest.clone()).await;
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("Đã gửi 1 batch"), "{out}");
+    {
+        let bodies = ingest.bodies.lock().unwrap();
+        assert_eq!(bodies.len(), 1);
+        assert_eq!(bodies[0]["batch_id"], batch_id.as_str());
+        assert_valid_batch(&bodies[0]);
+    }
+    let turns = seqs(&sent_turns(&ingest, 0));
+    assert_eq!(turns, (0..turns.len() as u64).collect::<Vec<_>>());
+    let db = open_state(&ctx);
+    assert_eq!(queue::queue_stats(&db).unwrap().pending_batches, 0);
+    let saved = db.file(&in_file(&env)).unwrap().expect("đã chốt offset");
+    assert_eq!(saved.sessions[0].sent_turns as usize, turns.len());
+    drop(db);
+
+    // Lần sau không gửi gì.
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn hang_doi_5xx_thu_lai_theo_backoff() {
+    let env = Env::new();
+    age_logs(&env);
+    let err500 =
+        ResponseTemplate::new(500).set_body_json(json!({ "error": "internal", "message": "lỗi" }));
+    let ingest = Ingest::new(vec![err500.clone(), err500]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    assert!(r.is_err());
+
+    let client = ApiClient::new(&server.uri(), Some(TOKEN.into())).unwrap();
+    let config = server_config();
+    let mut db = open_state(&ctx);
+    let first = queue::list_pending(&db).unwrap().remove(0);
+    let next = first.next_attempt_at.unwrap();
+    let now = SystemTime::now();
+    let wait = (next - chrono::Utc::now()).num_seconds();
+    assert!((10..=31).contains(&wait), "lần 1 chờ 15–30 s: {wait}");
+
+    // Daemon chưa tới giờ: không gửi.
+    let rep = queue::flush(
+        &ctx,
+        &mut db,
+        &client,
+        &config,
+        &FlushOptions::background(now),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(rep.stop, Some(FlushStop::Waiting { .. })));
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+
+    // Tới giờ: 500 lần nữa → số lần thử 2, chờ lâu hơn.
+    let later = now + Duration::from_secs(31);
+    let rep = queue::flush(
+        &ctx,
+        &mut db,
+        &client,
+        &config,
+        &FlushOptions::background(later),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(rep.stop, Some(FlushStop::Retry { .. })));
+    let second = queue::list_pending(&db).unwrap().remove(0);
+    assert_eq!(second.attempts, 2);
+    assert_eq!(second.batch_id, first.batch_id);
+    let gap = (second.next_attempt_at.unwrap() - chrono::DateTime::<chrono::Utc>::from(later))
+        .num_seconds();
+    assert!((29..=61).contains(&gap), "lần 2 chờ 30–60 s: {gap}");
+
+    // Lần 3 thành công, cùng `batch_id`.
+    let rep = queue::flush(
+        &ctx,
+        &mut db,
+        &client,
+        &config,
+        &FlushOptions::background(later + Duration::from_secs(61)),
+    )
+    .await
+    .unwrap();
+    assert!(rep.stop.is_none());
+    assert_eq!(rep.sent_batches, 1);
+    assert_eq!(
+        ingest.bodies.lock().unwrap()[0]["batch_id"],
+        first.batch_id.as_str()
+    );
+    assert!(db.file(&in_file(&env)).unwrap().is_some());
+}
+
+#[tokio::test]
+async fn hang_doi_400_danh_dau_hong_khong_thu_lai() {
+    let env = Env::new();
+    age_logs(&env);
+    let ingest = Ingest::new(vec![ResponseTemplate::new(400).set_body_json(
+        json!({ "error": "invalid_body", "message": "Batch sai schema" }),
+    )]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("bị server từ chối, không gửi lại"), "{out}");
+    let db = open_state(&ctx);
+    let stats = queue::queue_stats(&db).unwrap();
+    assert_eq!((stats.pending_batches, stats.failed_batches), (0, 1));
+    drop(db);
+    // Không thử lại mãi: lần sau không gửi gì.
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn hang_doi_426_giu_nguyen_roi_gui_sau() {
+    let env = Env::new();
+    age_logs(&env);
+    let ingest = Ingest::new(vec![ResponseTemplate::new(426).set_body_json(json!({
+        "error": "unsupported_schema_version",
+        "message": "Phiên bản dữ liệu 1 không được hỗ trợ.",
+        "supportedSchemaVersions": [2],
+        "minCliVersion": "0.9.0"
+    }))]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    assert!(r.unwrap_err().hint().unwrap().contains("0.9.0"));
+    assert!(out.contains("hàng đợi giữ 1 batch"), "{out}");
+    let db = open_state(&ctx);
+    let pending = queue::list_pending(&db).unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(db.file(&in_file(&env)).unwrap(), None);
+    drop(db);
+    // Server nhận lại (vd. sau khi cập nhật): gửi đúng batch cũ.
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    r.unwrap();
+    assert_eq!(
+        ingest.bodies.lock().unwrap()[0]["batch_id"],
+        pending[0].batch_id.as_str()
+    );
+}
+
+#[tokio::test]
+async fn hang_doi_chua_dong_y_thi_khong_gui_va_giu_hang_doi() {
+    let env = Env::new();
+    age_logs(&env);
+    let ingest = Ingest::new(vec![ResponseTemplate::new(503)]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
+    assert!(r.is_err());
+    // Rút đồng ý (config không còn bản đồng ý cho server này).
+    let no_consent = env.ctx_with_consent(&server.uri(), None);
+    let client = ApiClient::new(&server.uri(), Some(TOKEN.into())).unwrap();
+    let mut db = open_state(&no_consent);
+    let opts = FlushOptions {
+        now: SystemTime::now(),
+        ignore_backoff: true,
+        rate_limit_wait: None,
+    };
+    let rep = queue::flush(&no_consent, &mut db, &client, &server_config(), &opts)
+        .await
+        .unwrap();
+    assert!(matches!(rep.stop, Some(FlushStop::Blocked(_))));
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1, "không gửi thêm");
+    assert_eq!(
+        queue::list_pending(&db).unwrap().len(),
+        1,
+        "không xóa hàng đợi"
+    );
 }

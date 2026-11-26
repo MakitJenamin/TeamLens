@@ -3,9 +3,9 @@
 //! Chạy đúng một lần rồi thoát, cả khi không có `--once` (chạy nền là `tl daemon`, M3.2).
 //! M2.3: chỉ gửi phần mới của mỗi file log theo `state.db` ([`crate::sync::incremental`]),
 //! và chỉ gửi file đã ổn định (không đổi ≥ 2 phút) trừ khi có `--include-active`.
-//! Chưa có hàng đợi (M3.1): gửi lỗi thì lần sau đọc và gửi lại phần chưa gửi.
+//! M3.1: phần đã che được xếp vào hàng đợi trong `state.db` rồi mới gửi
+//! ([`crate::queue`]); gửi lỗi thì batch nằm lại hàng đợi, lần sau gửi lại đúng batch đó.
 
-use std::collections::HashMap;
 use std::io::Write;
 use std::time::SystemTime;
 
@@ -18,12 +18,13 @@ use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
 use crate::pipeline::prepare::build_redactor;
 use crate::pipeline::scope::ScopeFilter;
+use crate::queue::{self, format_bytes, FlushOptions, FlushReport, FlushStop};
 use crate::state::{state_path, StateDb};
 use crate::sync::agent_config::{self, ConfigSource};
 use crate::sync::incremental::{
     classify, is_active, scope_fingerprint, FilePlan, FileStatus, PlannedSession, SCOPE_META_KEY,
 };
-use crate::sync::{connect, consent_gate, dashboard_link, send_all, SendReport, Sources};
+use crate::sync::{connect, consent_gate, dashboard_link, Sources};
 
 /// Số link dashboard in tối đa sau khi gửi.
 const MAX_LINKS: usize = 5;
@@ -107,6 +108,8 @@ pub async fn run_with(
     let scope_changed =
         db.meta(SCOPE_META_KEY).map_err(state_err(ctx))?.as_deref() != Some(fingerprint.as_str());
     if scope_changed && !args.dry_run {
+        // Batch cũ thuộc phạm vi cũ (có thể là server khác): bỏ, quét lại từ đầu.
+        queue::clear(&mut db).map_err(state_err(ctx))?;
         db.reset_files().map_err(state_err(ctx))?;
         db.set_meta(SCOPE_META_KEY, &fingerprint)
             .map_err(state_err(ctx))?;
@@ -127,7 +130,7 @@ pub async fn run_with(
             let prev = if scope_changed {
                 None // dry-run khi phạm vi đổi: xem như gửi lại từ đầu.
             } else {
-                db.file(&file.path).map_err(state_err(ctx))?
+                db.effective_file(&file.path).map_err(state_err(ctx))?
             };
             let reset = match classify(&file, prev.as_ref(), now, args.include_active) {
                 FileStatus::Unchanged => {
@@ -202,36 +205,55 @@ pub async fn run_with(
         return Ok(());
     }
 
-    let mut expected: HashMap<String, usize> = HashMap::new();
-    let mut project_of: HashMap<String, String> = HashMap::new();
-    let mut envelopes = Vec::new();
-    for s in plans.iter().flat_map(|p| &p.sessions) {
-        let id = s.progress.source_id.clone();
-        *expected.entry(id.clone()).or_default() += s.turn_count();
-        project_of.insert(id, s.prepared.project_id.clone());
-        envelopes.push(s.prepared.envelope.clone());
+    // Xếp hàng (cùng transaction với đặt chỗ tiến độ) rồi gửi cả hàng đợi, cũ trước.
+    let enq = queue::enqueue(&mut db, &plans, max_batch_bytes).map_err(state_err(ctx))?;
+    if enq.batches > 0 {
+        let _ = writeln!(
+            out,
+            "Đã xếp hàng {} batch ({} turn, {}).",
+            enq.batches,
+            enq.turns,
+            format_bytes(enq.bytes)
+        );
     }
-
-    if envelopes.is_empty() {
-        // Vẫn ghi offset cho file không có gì để gửi (ngoài phạm vi...) để lần sau khỏi đọc.
-        commit(&mut db, &plans, &HashMap::new(), &expected, ctx)?;
+    if enq.dropped > 0 {
+        let _ = writeln!(
+            out,
+            "Cảnh báo: hàng đợi vượt {}, đã bỏ {} batch cũ nhất.",
+            format_bytes(queue::MAX_QUEUE_BYTES),
+            enq.dropped
+        );
+    }
+    let opts = FlushOptions {
+        now: SystemTime::now(),
+        ignore_backoff: true,
+        rate_limit_wait: Some(ctx.poll_unit),
+    };
+    let report = queue::flush(ctx, &mut db, &conn.client, server_config, &opts)
+        .await
+        .map_err(state_err(ctx))?;
+    if report.sent_batches > 0 || !report.failed.is_empty() {
+        print_report(out, &conn.server_url, &report);
+    } else if enq.batches == 0 && report.stop.is_none() {
         let _ = writeln!(out, "Không có session nào mới trong phạm vi để gửi.");
-        return Ok(());
     }
-
-    let (report, err) = send_all(&conn.client, envelopes, max_batch_bytes, ctx.poll_unit).await;
-    // Chỉ ghi offset của file mà server đã nhận đủ (202) mọi turn đã gửi.
-    commit(&mut db, &plans, &report.delivered_turns, &expected, ctx)?;
-    match err {
-        None => {
-            print_report(out, &conn.server_url, &project_of, &report);
-            Ok(())
-        }
-        Some(err) => {
-            if report.batches > 0 {
-                print_report(out, &conn.server_url, &project_of, &report);
-            }
-            Err(err)
+    match report.stop {
+        None => Ok(()),
+        Some(stop) => {
+            let stats = queue::queue_stats(&db).map_err(state_err(ctx))?;
+            let when = match &stop {
+                FlushStop::Retry {
+                    next_attempt_at, ..
+                } => format!(", tự thử lại lúc {}", queue::local_time(*next_attempt_at)),
+                _ => String::new(),
+            };
+            let _ = writeln!(
+                out,
+                "Chưa gửi được: hàng đợi giữ {} batch ({}){when}; chạy lại `tl sync` để gửi tiếp.",
+                stats.pending_batches,
+                format_bytes(stats.pending_bytes)
+            );
+            Err(stop.into_error())
         }
     }
 }
@@ -245,23 +267,6 @@ pub(crate) fn print_config_source(out: &mut dyn Write, source: &ConfigSource) {
             fetched_at.format("%Y-%m-%d %H:%M")
         );
     }
-}
-
-/// Ghi trạng thái các file đã gửi xong.
-fn commit(
-    db: &mut StateDb,
-    plans: &[FilePlan],
-    delivered: &HashMap<String, usize>,
-    expected: &HashMap<String, usize>,
-    ctx: &AppContext,
-) -> Result<(), AppError> {
-    for plan in plans {
-        if let Some(state) = plan.committed_state(delivered, expected) {
-            db.save_file(&plan.file.path, &state)
-                .map_err(state_err(ctx))?;
-        }
-    }
-    Ok(())
 }
 
 fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
@@ -296,17 +301,12 @@ fn print_skips(out: &mut dyn Write, s: &SkipStats) {
     }
 }
 
-fn print_report(
-    out: &mut dyn Write,
-    server_url: &str,
-    project_of: &HashMap<String, String>,
-    r: &SendReport,
-) {
+fn print_report(out: &mut dyn Write, server_url: &str, r: &FlushReport) {
     let turns: u64 = r.accepted.iter().map(|a| a.turns_upserted).sum();
     let _ = writeln!(
         out,
         "Đã gửi {} batch: server nhận {} session ({} turn được thêm/cập nhật), từ chối {}.",
-        r.batches,
+        r.sent_batches,
         r.accepted.len(),
         turns,
         r.rejected.len()
@@ -318,6 +318,12 @@ fn print_report(
             r.duplicate_batches
         );
     }
+    for reason in &r.failed {
+        let _ = writeln!(
+            out,
+            "  ✗ 1 batch bị server từ chối, không gửi lại: {reason}"
+        );
+    }
     for rej in &r.rejected {
         let _ = writeln!(
             out,
@@ -325,14 +331,16 @@ fn print_report(
             rej.source_id, rej.message, rej.error
         );
     }
-    let links: Vec<String> = r
-        .accepted
-        .iter()
-        .filter_map(|a| {
-            let project = project_of.get(&a.source_id)?;
-            Some(dashboard_link(server_url, project, &a.session_id))
-        })
-        .collect();
+    // Một session có thể nằm ở nhiều batch (gửi lại turn cuối, chia nhỏ): in mỗi link một lần.
+    let mut links: Vec<String> = Vec::new();
+    for a in &r.accepted {
+        if let Some(project) = r.project_of.get(&a.source_id) {
+            let link = dashboard_link(server_url, project, &a.session_id);
+            if !links.contains(&link) {
+                links.push(link);
+            }
+        }
+    }
     if !links.is_empty() {
         let _ = writeln!(out, "Xem trên dashboard:");
         for link in links.iter().take(MAX_LINKS) {

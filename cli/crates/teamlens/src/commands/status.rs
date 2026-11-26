@@ -1,7 +1,7 @@
 //! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`).
 //!
-//! Phần daemon, agent phát hiện được, hàng đợi thuộc task M3.2, M3.3. Số file đang chờ
-//! ổn định (M2.3) chỉ đọc metadata file log và `state.db`.
+//! Phần daemon, agent phát hiện được thuộc task M3.2, M3.3. Số file đang chờ ổn định
+//! (M2.3) và hàng đợi (M3.1) chỉ đọc metadata file log và `state.db`.
 
 use std::io::Write;
 use std::time::SystemTime;
@@ -13,6 +13,7 @@ use crate::api_client::{ApiClient, ApiErrorCode, WhoamiResponse};
 use crate::consent::{self, ConsentState};
 use crate::context::AppContext;
 use crate::error::AppError;
+use crate::queue::{self, format_bytes, QueueStats};
 use crate::state::{state_path, StateDb};
 use crate::sync::incremental::{classify, FileStatus};
 use crate::sync::Sources;
@@ -44,7 +45,8 @@ pub struct StatusReport {
     pub consent: Option<ConsentState>,
     pub daemon: &'static str,
     pub agents: &'static str,
-    pub queue: &'static str,
+    /// Hàng đợi batch chờ gửi (M3.1), `null` khi không đọc được `state.db`.
+    pub queue: Option<QueueStats>,
     /// Số file log đã đổi nhưng chưa ổn định (sửa chưa tới 2 phút) nên `tl sync` chưa gửi.
     pub waiting_files: Option<usize>,
 }
@@ -52,6 +54,7 @@ pub struct StatusReport {
 pub async fn run(ctx: &AppContext, args: StatusArgs, out: &mut dyn Write) -> Result<(), AppError> {
     let mut report = collect(ctx).await?;
     report.waiting_files = waiting_files(ctx, &Sources::from_env());
+    report.queue = read_queue(ctx);
     if args.json {
         let text = serde_json::to_string_pretty(&report).expect("StatusReport luôn serialize được");
         let _ = writeln!(out, "{text}");
@@ -75,7 +78,7 @@ pub fn waiting_files(ctx: &AppContext, sources: &Sources) -> Option<usize> {
     for adapter in sources.adapter_refs() {
         for file in adapter.discover() {
             let prev = match &db {
-                Some(db) => db.file(&file.path).ok()?,
+                Some(db) => db.effective_file(&file.path).ok()?,
                 None => None,
             };
             if classify(&file, prev.as_ref(), now, false) == FileStatus::Waiting {
@@ -84,6 +87,15 @@ pub fn waiting_files(ctx: &AppContext, sources: &Sources) -> Option<usize> {
         }
     }
     Some(n)
+}
+
+/// Số liệu hàng đợi; chưa có `state.db` thì hàng đợi trống.
+pub fn read_queue(ctx: &AppContext) -> Option<QueueStats> {
+    let path = state_path(&ctx.config_path);
+    if !path.exists() {
+        return Some(QueueStats::default());
+    }
+    queue::queue_stats(&StateDb::open(&path).ok()?).ok()
 }
 
 /// Thu thập trạng thái. Lỗi mạng/token không làm lệnh thất bại, chỉ ghi vào `account_error`.
@@ -98,7 +110,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         consent: consent::current(&config).cloned(),
         daemon: PENDING_DAEMON,
         agents: PENDING_DAEMON,
-        queue: PENDING_DAEMON,
+        queue: None,
         waiting_files: None,
     };
 
@@ -205,11 +217,40 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     };
     w("Daemon:", r.daemon);
     w("Agent:", r.agents);
-    w("Hàng đợi:", r.queue);
+    w("Hàng đợi:", &queue_text(r.queue.as_ref()));
     if let Some(n) = r.waiting_files.filter(|n| *n > 0) {
         w(
             "Chờ gửi:",
             &format!("{n} file log đang được ghi, `tl sync` gửi khi không đổi đủ 2 phút"),
         );
     }
+}
+
+/// Dòng "Hàng đợi" của `tl status`.
+fn queue_text(q: Option<&QueueStats>) -> String {
+    let Some(q) = q else {
+        return "không đọc được state.db".to_owned();
+    };
+    let mut text = if q.pending_batches == 0 {
+        "trống".to_owned()
+    } else {
+        format!(
+            "{} batch chờ gửi ({})",
+            q.pending_batches,
+            format_bytes(q.pending_bytes)
+        )
+    };
+    if let Some(t) = q.next_attempt_at.filter(|_| q.pending_batches > 0) {
+        text.push_str(&format!(", thử lại lúc {}", queue::local_time(t)));
+    }
+    if q.failed_batches > 0 {
+        text.push_str(&format!(
+            ", {} batch hỏng (server từ chối)",
+            q.failed_batches
+        ));
+    }
+    if q.dropped_batches > 0 {
+        text.push_str(&format!(", đã bỏ {} batch do đầy", q.dropped_batches));
+    }
+    text
 }

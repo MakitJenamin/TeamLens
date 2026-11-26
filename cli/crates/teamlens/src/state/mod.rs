@@ -10,12 +10,19 @@
 //! - `parse_errors`: file đọc lỗi hoặc có bản ghi không nhận ra (chỉ số đếm).
 //! - `meta`: khóa/giá trị (dấu vân tay phạm vi gửi: server + repo pattern + đồng ý).
 //!
-//! Hàng đợi batch (M3.1) sẽ thêm bảng ở migration sau (`user_version` = 2).
+//!
+//! Migration v2 (M3.1) thêm hàng đợi batch (xem [`crate::queue`]):
+//!
+//! - `queue_batches`: batch **đã che** (gzip JSON) chờ gửi hoặc đã hỏng.
+//! - `queue_reservations`: tiến độ file "đặt chỗ" lúc xếp hàng, chỉ chép sang
+//!   `source_files`/`source_sessions` khi mọi batch liên quan đã xong.
+//! - `queue_reservation_batches`: batch nào thuộc lần đặt chỗ nào.
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
@@ -55,10 +62,41 @@ const MIGRATIONS: &[&str] = &[
         value TEXT NOT NULL
     );
     "#,
+    // v2 (M3.1): hàng đợi batch đã che + tiến độ đặt chỗ chờ server nhận.
+    r#"
+    CREATE TABLE queue_batches (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        batch_id        TEXT NOT NULL UNIQUE,
+        ord             INTEGER NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'pending',
+        body            BLOB NOT NULL,
+        size_bytes      INTEGER NOT NULL,
+        turns           INTEGER NOT NULL,
+        projects        TEXT NOT NULL DEFAULT '{}',
+        attempts        INTEGER NOT NULL DEFAULT 0,
+        next_attempt_ms INTEGER NOT NULL DEFAULT 0,
+        last_error      TEXT,
+        created_at      TEXT NOT NULL
+    );
+    CREATE INDEX queue_batches_order ON queue_batches(status, ord, id);
+    CREATE TABLE queue_reservations (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        path       TEXT NOT NULL,
+        state      TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX queue_reservations_path ON queue_reservations(path, id);
+    CREATE TABLE queue_reservation_batches (
+        reservation_id INTEGER NOT NULL REFERENCES queue_reservations(id) ON DELETE CASCADE,
+        batch_id       TEXT NOT NULL,
+        PRIMARY KEY (reservation_id, batch_id)
+    );
+    CREATE INDEX queue_reservation_batches_batch ON queue_reservation_batches(batch_id);
+    "#,
 ];
 
 /// Tiến độ gửi một session trong một file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionProgress {
     pub source_id: String,
     /// Số turn (tức `seq` lớn nhất + 1) server đã nhận.
@@ -69,7 +107,7 @@ pub struct SessionProgress {
 }
 
 /// Trạng thái đã ghi của một file log.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileState {
     pub agent: String,
     pub size: u64,
@@ -97,7 +135,8 @@ pub fn mtime_ns(t: Option<SystemTime>) -> Option<i64> {
 
 /// Kết nối tới `state.db`.
 pub struct StateDb {
-    conn: Connection,
+    /// Module [`crate::queue`] dùng chung kết nối (bảng `queue_*`).
+    pub(crate) conn: Connection,
 }
 
 /// Đường dẫn `state.db` cạnh file config.
@@ -199,39 +238,30 @@ impl StateDb {
         Ok(Some(state))
     }
 
+    /// Trạng thái để quét lần này: bản "đặt chỗ" mới nhất trong hàng đợi (batch đã xếp
+    /// hàng nhưng server chưa nhận) nếu có, không thì bản đã chốt. Nhờ vậy mất mạng nhiều
+    /// lần quét liền cũng không xếp hàng lại cùng nội dung.
+    pub fn effective_file(&self, path: &Path) -> rusqlite::Result<Option<FileState>> {
+        let reserved: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT state FROM queue_reservations WHERE path = ?1 ORDER BY id DESC LIMIT 1",
+                [path_key(path)],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match reserved {
+            Some(json) => serde_json::from_str(&json)
+                .map(Some)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
+            None => self.file(path),
+        }
+    }
+
     /// Ghi trạng thái file (thay toàn bộ tiến độ session của file) trong một transaction.
     pub fn save_file(&mut self, path: &Path, state: &FileState) -> rusqlite::Result<()> {
-        let key = path_key(path);
         let tx = self.conn.transaction()?;
-        tx.execute(
-            "INSERT INTO source_files
-                (path, agent, size, mtime_ns, byte_offset, sent_while_active, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-             ON CONFLICT(path) DO UPDATE SET
-                agent = excluded.agent, size = excluded.size, mtime_ns = excluded.mtime_ns,
-                byte_offset = excluded.byte_offset,
-                sent_while_active = excluded.sent_while_active,
-                updated_at = excluded.updated_at",
-            params![
-                key,
-                state.agent,
-                state.size as i64,
-                state.mtime_ns,
-                state.byte_offset as i64,
-                state.sent_while_active,
-                now_text(),
-            ],
-        )?;
-        tx.execute("DELETE FROM source_sessions WHERE path = ?1", [&key])?;
-        {
-            let mut ins = tx.prepare(
-                "INSERT INTO source_sessions (path, source_id, sent_turns, resend_from)
-                 VALUES (?1, ?2, ?3, ?4)",
-            )?;
-            for s in &state.sessions {
-                ins.execute(params![key, s.source_id, s.sent_turns, s.resend_from])?;
-            }
-        }
+        save_file_tx(&tx, path, state)?;
         tx.commit()
     }
 
@@ -290,16 +320,57 @@ impl StateDb {
         Ok(())
     }
 
-    /// Quên mọi offset (lần sau đọc và gửi lại từ đầu mọi file).
+    /// Quên mọi offset (lần sau đọc và gửi lại từ đầu mọi file), kể cả tiến độ đặt chỗ
+    /// của hàng đợi (batch đã xếp hàng vẫn giữ, xem [`crate::queue::clear`]).
     pub fn reset_files(&mut self) -> rusqlite::Result<()> {
         let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM queue_reservations", [])?;
         tx.execute("DELETE FROM source_sessions", [])?;
         tx.execute("DELETE FROM source_files", [])?;
         tx.commit()
     }
 }
 
-fn path_key(path: &Path) -> String {
+/// Ghi trạng thái file trong transaction có sẵn (dùng chung với [`crate::queue`]).
+pub(crate) fn save_file_tx(
+    tx: &rusqlite::Transaction<'_>,
+    path: &Path,
+    state: &FileState,
+) -> rusqlite::Result<()> {
+    let key = path_key(path);
+    tx.execute(
+        "INSERT INTO source_files
+            (path, agent, size, mtime_ns, byte_offset, sent_while_active, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(path) DO UPDATE SET
+            agent = excluded.agent, size = excluded.size, mtime_ns = excluded.mtime_ns,
+            byte_offset = excluded.byte_offset,
+            sent_while_active = excluded.sent_while_active,
+            updated_at = excluded.updated_at",
+        params![
+            key,
+            state.agent,
+            state.size as i64,
+            state.mtime_ns,
+            state.byte_offset as i64,
+            state.sent_while_active,
+            now_text(),
+        ],
+    )?;
+    tx.execute("DELETE FROM source_sessions WHERE path = ?1", [&key])?;
+    {
+        let mut ins = tx.prepare(
+            "INSERT INTO source_sessions (path, source_id, sent_turns, resend_from)
+             VALUES (?1, ?2, ?3, ?4)",
+        )?;
+        for s in &state.sessions {
+            ins.execute(params![key, s.source_id, s.sent_turns, s.resend_from])?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn path_key(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
@@ -373,5 +444,39 @@ mod tests {
         db.set_meta("k", "v1").unwrap();
         db.set_meta("k", "v2").unwrap();
         assert_eq!(db.meta("k").unwrap().as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn migrate_v1_len_v2_giu_du_lieu() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("state.db");
+        // DB do bản M2.3 tạo: chỉ có bước v1.
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO source_files (path, agent, size, mtime_ns, byte_offset, updated_at)
+                 VALUES ('C:/x/a.jsonl', 'claude_code', 100, 42, 100, 'x')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO source_sessions VALUES ('C:/x/a.jsonl', 'claude_code:a', 5, 3)",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO meta VALUES ('k', 'v')", [])
+                .unwrap();
+        }
+        let db = StateDb::open(&path).unwrap();
+        assert_eq!(db.schema_version().unwrap(), 2);
+        assert_eq!(db.file(Path::new("C:/x/a.jsonl")).unwrap(), Some(sample()));
+        assert_eq!(db.meta("k").unwrap().as_deref(), Some("v"));
+        let n: i64 = db
+            .conn
+            .query_row("SELECT count(*) FROM queue_batches", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
     }
 }
