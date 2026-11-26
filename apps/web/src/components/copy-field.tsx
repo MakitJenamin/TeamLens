@@ -51,7 +51,3 @@ export function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Câu lệnh tham gia khi máy đã có `tl`. */
-export function joinCommand(url: string): string {
-  return `tl join ${url}`;
-}

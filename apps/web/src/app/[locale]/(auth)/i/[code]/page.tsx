@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { CopyField, joinCommand } from "@/components/copy-field";
+import { CopyField } from "@/components/copy-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchInvitePreview } from "@/lib/api/server";
+import { installCommand, joinCommand } from "@/lib/invite-commands";
 
 const KNOWN_ERRORS = [
   "invite_not_found",
@@ -48,7 +49,6 @@ export default async function InvitePage({ params }: PageProps<"/[locale]/i/[cod
   const { preview } = result;
   const origin = preview.serverUrl.replace(/\/+$/, "");
   const inviteUrl = `${origin}/i/${code}`;
-  const installCommand = `irm ${origin}/install.ps1?code=${code} | iex`;
 
   return (
     <Card>
@@ -77,7 +77,7 @@ export default async function InvitePage({ params }: PageProps<"/[locale]/i/[cod
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">{t("newMachine")}</h2>
           <p className="text-muted-foreground text-xs">{t("newMachineHint")}</p>
-          <CopyField label={t("installCommand")} value={installCommand} />
+          <CopyField label={t("installCommand")} value={installCommand(origin, code)} />
         </section>
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">{t("hasTl")}</h2>
