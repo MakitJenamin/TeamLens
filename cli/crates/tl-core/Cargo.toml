@@ -9,8 +9,15 @@ rust-version.workspace = true
 # Quy tắc: crate này KHÔNG phụ thuộc tokio, reqwest hay đọc/ghi file.
 # Mọi I/O nằm ở `teamlens` hoặc `tl-adapters`, để logic ở đây test được thuần túy.
 [dependencies]
+chrono = { workspace = true }
 regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+jsonschema = { workspace = true }
 
 [lints]
 workspace = true

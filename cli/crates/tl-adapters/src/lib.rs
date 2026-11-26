@@ -18,38 +18,11 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
-pub use tl_core::session::NormalizedSession;
+/// Loại agent, định nghĩa ở `tl_core::session` (dùng chung với schema v1).
+pub use tl_core::session::{AgentKind, NormalizedSession};
 
 /// Giới hạn độ dài một dòng log (10 MB); dài hơn thì cắt (thường là ảnh base64).
 pub const MAX_LINE_BYTES: usize = 10 * 1024 * 1024;
-
-/// Loại agent. Giá trị serde trùng với trường `agent` trong schema v1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentKind {
-    ClaudeCode,
-    Codex,
-    CopilotVscode,
-    Antigravity,
-}
-
-impl AgentKind {
-    /// Chuỗi định danh dùng trong schema và `source_id` (ví dụ `claude_code`).
-    pub fn as_str(self) -> &'static str {
-        match self {
-            AgentKind::ClaudeCode => "claude_code",
-            AgentKind::Codex => "codex",
-            AgentKind::CopilotVscode => "copilot_vscode",
-            AgentKind::Antigravity => "antigravity",
-        }
-    }
-}
-
-impl std::fmt::Display for AgentKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
 
 /// Một file log tìm thấy trên máy.
 #[derive(Debug, Clone, PartialEq, Eq)]
