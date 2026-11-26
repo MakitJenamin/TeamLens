@@ -12,6 +12,9 @@
 
 pub mod claude_code;
 pub mod codex;
+mod jsonl;
+
+pub use jsonl::read_jsonl;
 
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -43,12 +46,31 @@ pub struct SourceFile {
 pub struct Offset(pub u64);
 
 /// Một bản ghi thô đọc từ log, chưa chuẩn hóa.
+///
+/// Dòng không parse được (JSON hỏng, dòng bị cắt vì quá [`MAX_LINE_BYTES`]) vẫn được
+/// trả về với `value = Value::Null` để `normalize` đếm vào `parse_warnings`
+/// (xem [`RawEvent::unparsed`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawEvent {
     /// Offset bắt đầu của bản ghi trong file.
     pub offset: Offset,
-    /// Nội dung đã parse (JSONL: mỗi dòng một giá trị).
+    /// Nội dung đã parse (JSONL: mỗi dòng một giá trị); `Null` khi không parse được.
     pub value: serde_json::Value,
+}
+
+impl RawEvent {
+    /// Bản ghi đánh dấu một dòng không parse được.
+    pub fn unparsed(offset: Offset) -> Self {
+        Self {
+            offset,
+            value: serde_json::Value::Null,
+        }
+    }
+
+    /// `true` khi dòng gốc không parse được (hoặc đúng là `null`, cũng không hợp lệ).
+    pub fn is_unparsed(&self) -> bool {
+        self.value.is_null()
+    }
 }
 
 /// Lỗi khi đọc log. Bản ghi lẻ không nhận ra KHÔNG phải lỗi (chỉ đếm cảnh báo).
