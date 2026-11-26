@@ -61,3 +61,15 @@ export async function insertUser(input: {
   );
   return row.id;
 }
+
+/** Ghi bản đồng ý còn hiệu lực (phiên bản hiện tại) cho thiết bị của device token. */
+export async function grantConsent(deviceToken: string): Promise<void> {
+  const { sha256 } = await import('../src/common/crypto.js');
+  const { CONSENT_TEXT_VERSION } =
+    await import('../src/modules/consent/consent-text.js');
+  await querySql(
+    `INSERT INTO consents (user_id, device_id, text_version, backfill)
+     SELECT user_id, id, $2, false FROM devices WHERE token_hash = $1`,
+    [sha256(deviceToken), CONSENT_TEXT_VERSION],
+  );
+}

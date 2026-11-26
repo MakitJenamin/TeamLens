@@ -13,7 +13,7 @@ import { type AuthUser, CurrentUser } from '../../common/auth-context.js';
 import { LeaderOnly, ProjectAccess } from '../access/access.guards.js';
 import { ProjectsService } from './projects.service.js';
 
-const createProjectSchema = z.object({
+export const createProjectSchema = z.object({
   name: z.string().trim().min(1, 'Tên project không được để trống').max(100),
   slug: z
     .string()

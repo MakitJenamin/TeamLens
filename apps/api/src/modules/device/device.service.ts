@@ -19,6 +19,7 @@ import {
   projectRepos,
   projects,
   users,
+  webLoginTickets,
 } from '../../db/schema/index.js';
 import { isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
@@ -35,6 +36,8 @@ export const DEVICE_TOKEN_PREFIX = 'tld_';
  * (user duyệt sát giờ hết hạn, CLI chưa kịp poll).
  */
 export const APPROVED_GRACE_SECONDS = 5 * 60;
+/** Thời gian sống của ticket đăng nhập dashboard cho `tl open`. */
+export const WEB_LOGIN_TTL_SECONDS = 60;
 /** Chỉ ghi `last_seen_at` khi giá trị cũ đã quá mức này, tránh ghi DB mỗi request. */
 export const LAST_SEEN_TOUCH_SECONDS = 5 * 60;
 
@@ -261,7 +264,8 @@ export class DeviceService {
       .where(eq(devices.id, deviceId))
       .limit(1);
     if (!device) throw notFound('Không tìm thấy thiết bị');
-    if (device.userId !== actor.id && actor.role !== 'leader') throw forbidden();
+    if (device.userId !== actor.id && actor.role !== 'leader')
+      throw forbidden();
     if (device.revokedAt) return;
     await this.db.transaction(async (tx) => {
       await tx
@@ -310,6 +314,27 @@ export class DeviceService {
         name: row.device.name,
         userId: row.device.userId,
       },
+    };
+  }
+
+  /**
+   * `tl open`: tạo ticket đăng nhập dashboard một lần (60 giây). DB chỉ lưu SHA-256;
+   * web đổi ticket qua `POST /api/v1/auth/ticket`.
+   */
+  async createWebLoginTicket(
+    user: AuthUser,
+    device: AuthDevice,
+  ): Promise<{ url: string; expiresIn: number }> {
+    const ticket = randomToken();
+    await this.db.insert(webLoginTickets).values({
+      id: sha256(ticket),
+      userId: user.id,
+      deviceId: device.id,
+      expiresAt: new Date(Date.now() + WEB_LOGIN_TTL_SECONDS * 1000),
+    });
+    return {
+      url: `${this.publicUrl}/auth/cli?ticket=${ticket}`,
+      expiresIn: WEB_LOGIN_TTL_SECONDS,
     };
   }
 

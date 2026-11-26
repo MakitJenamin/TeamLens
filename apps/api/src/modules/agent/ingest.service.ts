@@ -6,12 +6,14 @@ import type {
   IngestTurn,
   Schemas,
 } from '@teamlens/schema';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { fromDrizzle } from 'pg-boss';
+import { ApiError } from '../../common/api-error.js';
 import type { AuthDevice, AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import {
+  consents,
   ingestBatches,
   projectMembers,
   projectRepos,
@@ -19,6 +21,7 @@ import {
   turns,
 } from '../../db/schema/index.js';
 import { JOBS } from '../../queue/jobs.js';
+import { CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
 import { QueueService } from '../../queue/queue.service.js';
 import {
   type MemberRepoPattern,
@@ -95,12 +98,37 @@ export class IngestService {
     private readonly queue: QueueService,
   ) {}
 
+  /**
+   * Thiết bị phải có bản đồng ý còn hiệu lực (chưa rút) với phiên bản văn bản hiện tại;
+   * không có thì từ chối cả batch: 403 `consent_required` (SPEC 4.3).
+   */
+  private async assertConsent(device: AuthDevice): Promise<void> {
+    const [row] = await this.db
+      .select({ id: consents.id })
+      .from(consents)
+      .where(
+        and(
+          eq(consents.deviceId, device.id),
+          eq(consents.textVersion, CONSENT_TEXT_VERSION),
+          isNull(consents.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      throw new ApiError(
+        403,
+        'consent_required',
+        'Thiết bị này chưa đồng ý chia sẻ dữ liệu. Chạy `tl consent` để xem và đồng ý.',
+      );
+    }
+  }
+
   async ingest(
     user: AuthUser,
     device: AuthDevice,
     batch: IngestBatch,
   ): Promise<IngestResult> {
-    // TODO(M3.7): kiểm tra consents của thiết bị (chưa đồng ý/đã rút → 403 consent_required).
+    await this.assertConsent(device);
     const months = new Set(
       batch.sessions.flatMap((s) => s.turns.map((t) => monthKey(t.ts))),
     );

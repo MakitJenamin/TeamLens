@@ -2,6 +2,7 @@ import {
   type INestApplication,
   StandardSchemaValidationPipe,
 } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { ApiError } from './common/api-error.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
@@ -9,6 +10,12 @@ import { INGEST_PATH, ingestBodyReader } from './modules/agent/ingest-body.js';
 
 /** Cấu hình chung cho app (dùng cả ở main.ts và e2e test). Không đặt global prefix. */
 export function setupApp(app: INestApplication): INestApplication {
+  // API chạy sau proxy (Next rewrite khi dev, Caddy khi production) trên mạng nội bộ:
+  // tin `X-Forwarded-For` từ các địa chỉ đó để `req.ip` là IP thật (rate limit theo IP).
+  (app as NestExpressApplication).set(
+    'trust proxy',
+    'loopback, linklocal, uniquelocal',
+  );
   app.use(cookieParser());
   // Ingest của CLI: body tới 10 MB sau giải nén gzip. Phải đăng ký trước parser JSON mặc định
   // của Nest (100 KB, chạy lúc app.init()), xem modules/agent/ingest-body.ts.

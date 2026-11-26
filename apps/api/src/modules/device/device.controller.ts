@@ -47,6 +47,13 @@ export class AgentDeviceController {
     return this.devices.whoami(user, device);
   }
 
+  /** `tl open`: link đăng nhập dashboard một lần. */
+  @Post('web-login')
+  @HttpCode(200)
+  webLogin(@CurrentUser() user: AuthUser, @CurrentDevice() device: AuthDevice) {
+    return this.devices.createWebLoginTicket(user, device);
+  }
+
   /** Thu hồi token của chính thiết bị đang gọi. */
   @Post('logout')
   @HttpCode(204)

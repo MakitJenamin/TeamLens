@@ -1,0 +1,141 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { z } from 'zod';
+import { ApiError } from '../../common/api-error.js';
+import {
+  type AuthUser,
+  CurrentUser,
+  Public,
+} from '../../common/auth-context.js';
+import { LeaderOnly } from '../access/access.guards.js';
+import { IngestRateLimiter } from '../agent/rate-limiter.js';
+import { DeviceService } from '../device/device.service.js';
+import { InvitesService } from './invites.service.js';
+
+/** Giới hạn cho hai endpoint công khai (xem trước + join), tính chung theo IP. */
+export const PUBLIC_INVITE_LIMIT_PER_MINUTE = 10;
+
+/** Bộ đếm riêng cho endpoint công khai của link mời (khóa theo IP). */
+export class InviteRateLimiter extends IngestRateLimiter {}
+
+export const createInviteSchema = z
+  .object({
+    expiresInDays: z.int().min(1).max(30).optional(),
+    maxUses: z.int().min(1).max(1000).nullable().optional(),
+  })
+  .optional();
+
+export const joinSchema = z.object({
+  code: z.string().min(10).max(100),
+  name: z.string().trim().min(1, 'Tên không được để trống').max(100),
+  deviceName: z.string().trim().min(1, 'Thiếu tên thiết bị').max(100),
+  os: z.string().trim().min(1, 'Thiếu hệ điều hành').max(50),
+  cliVersion: z.string().trim().min(1, 'Thiếu phiên bản CLI').max(50),
+  consent: z.object({
+    textVersion: z.string().min(1).max(100),
+    backfill: z.boolean(),
+  }),
+});
+
+const invalidToken = () =>
+  new ApiError(
+    401,
+    'invalid_token',
+    'Token thiết bị không hợp lệ hoặc đã bị thu hồi',
+  );
+
+/** Quản lý link mời trên dashboard (chỉ leader). */
+@Controller('api/v1/projects/:projectId/invites')
+@LeaderOnly()
+export class DashboardInvitesController {
+  constructor(private readonly invites: InvitesService) {}
+
+  @Get()
+  list(@Param('projectId') projectId: string) {
+    return this.invites.list(projectId);
+  }
+
+  @Post()
+  create(
+    @CurrentUser() user: AuthUser,
+    @Param('projectId') projectId: string,
+    @Body({ schema: createInviteSchema })
+    body: z.infer<typeof createInviteSchema>,
+  ) {
+    return this.invites.create(user, projectId, body ?? {});
+  }
+
+  @Delete(':inviteId')
+  @HttpCode(204)
+  async revoke(
+    @CurrentUser() user: AuthUser,
+    @Param('projectId') projectId: string,
+    @Param('inviteId') inviteId: string,
+  ): Promise<void> {
+    await this.invites.revoke(user, projectId, inviteId);
+  }
+}
+
+/** Endpoint công khai cho `tl join`. */
+@Controller('agent/v1')
+export class AgentInvitesController {
+  constructor(
+    private readonly invites: InvitesService,
+    private readonly devices: DeviceService,
+    private readonly limiter: InviteRateLimiter,
+  ) {}
+
+  @Public()
+  @Get('invites/:code')
+  preview(
+    @Param('code') code: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.limit(req, res);
+    return this.invites.preview(code);
+  }
+
+  @Public()
+  @Post('join')
+  async join(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body({ schema: joinSchema }) body: z.infer<typeof joinSchema>,
+  ) {
+    this.limit(req, res);
+    // Có header Authorization thì phải là device token hợp lệ (máy đã tham gia).
+    let existing = null;
+    const header = req.headers.authorization;
+    if (header !== undefined) {
+      const match = /^Bearer\s+(\S+)$/i.exec(header);
+      if (!match) throw invalidToken();
+      existing = await this.devices.authenticate(match[1]);
+      if (!existing) throw invalidToken();
+    }
+    const { created, result } = await this.invites.join(body, existing);
+    res.status(created ? 201 : 200);
+    return result;
+  }
+
+  private limit(req: Request, res: Response): void {
+    const retryAfter = this.limiter.hit(
+      req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      PUBLIC_INVITE_LIMIT_PER_MINUTE,
+    );
+    if (retryAfter !== null) {
+      res.setHeader('Retry-After', String(retryAfter));
+      throw new ApiError(429, 'rate_limited', 'Thử lại sau ít phút.');
+    }
+  }
+}
