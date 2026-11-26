@@ -5,7 +5,7 @@
 # (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   invites.yaml · consent.yaml · rules.yaml · stats.yaml · admin.yaml
+#   invites.yaml · consent.yaml · stats.yaml · admin.yaml
 # agent.yaml mới có ingest (heartbeat, config viết sau).
 openapi: 3.1.0
 info:
@@ -46,6 +46,8 @@ tags:
     description: CLI gửi dữ liệu (ingest session).
   - name: sessions
     description: Xem session trên dashboard.
+  - name: rules
+    description: Rule và nhận xét về session.
 
 paths:
   # health.yaml
@@ -112,7 +114,10 @@ paths:
   /api/v1/sessions/{sessionId}:
     $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}'
 
-  # invites.yaml, consent.yaml, rules.yaml, stats.yaml, admin.yaml:
+  /api/v1/sessions/{sessionId}/findings:
+    $ref: './rules.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1findings'
+
+  # invites.yaml, consent.yaml, stats.yaml, admin.yaml:
   # thêm `$ref` ở đây khi các file đó có path.
 
 components:
@@ -183,6 +188,10 @@ components:
     UnsupportedSchemaVersionError:
       $ref: './agent.yaml#/components/schemas/UnsupportedSchemaVersionError'
 
+    SessionFinding:
+      $ref: './rules.yaml#/components/schemas/SessionFinding'
+    SessionFindings:
+      $ref: './rules.yaml#/components/schemas/SessionFindings'
     # sessions.yaml
     AgentKind:
       $ref: './sessions.yaml#/components/schemas/AgentKind'

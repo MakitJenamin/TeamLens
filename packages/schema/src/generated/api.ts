@@ -473,6 +473,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Danh sách nhận xét của một session
+         * @description Member xem session của mình, leader xem session thuộc project mình dẫn dắt,
+         *     admin xem mọi session. Ghi audit khi xem dữ liệu của người khác.
+         */
+        get: operations["listSessionFindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -660,6 +683,22 @@ export interface components {
              * @example 0.2.0
              */
             minCliVersion: string;
+        };
+        SessionFinding: {
+            id: components["schemas"]["Id"];
+            /** @description Khóa của rule đã tạo nhận xét. */
+            ruleKey: string;
+            /** @enum {string} */
+            severity: "low" | "medium" | "high";
+            /** @description Nhận xét hiển thị cho người xem session. */
+            message: string;
+            /** @description Số thứ tự turn làm bằng chứng, hoặc null nếu nhận xét áp dụng cho cả session. */
+            turnSeq: number | null;
+            /** @description Đoạn trích ngắn đã che secret nếu có bằng chứng văn bản còn được lưu. */
+            evidenceExcerpt: string | null;
+        };
+        SessionFindings: {
+            items: components["schemas"]["SessionFinding"][];
         };
         /**
          * @description Agent sinh ra session.
@@ -2140,6 +2179,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionDetail"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSessionFindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Các nhận xét đã ghi nhận. Danh sách rỗng khi chưa có nhận xét. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionFindings"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
