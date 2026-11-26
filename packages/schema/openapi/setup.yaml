@@ -1,4 +1,4 @@
-# Nhóm `setup`: tạo tài khoản admin đầu tiên khi server mới cài (trang /setup).
+# Nhóm `setup`: tạo tài khoản leader đầu tiên khi server mới cài (trang /setup).
 paths:
   /api/v1/setup/status:
     get:
@@ -24,8 +24,8 @@ paths:
     post:
       operationId: setup
       tags: [setup]
-      summary: Tạo admin đầu tiên và đăng nhập luôn
-      description: Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `isAdmin = true`.
+      summary: Tạo leader đầu tiên và đăng nhập luôn
+      description: Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `role = leader`.
       security: []
       requestBody:
         required: true
@@ -47,7 +47,7 @@ paths:
                   minLength: 8
       responses:
         '201':
-          description: Đã tạo admin; cookie `tl_session` được đặt.
+          description: Đã tạo leader; cookie `tl_session` được đặt.
           headers:
             Set-Cookie:
               $ref: './common.yaml#/components/headers/SetSessionCookie'

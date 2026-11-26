@@ -4,7 +4,6 @@ import { readEnv } from '../config/env.js';
 import { hashPassword } from '../common/passwords.js';
 import { createDatabase, type Database } from './client.js';
 import {
-  type ProjectRole,
   projectMembers,
   projectRepos,
   projects,
@@ -22,25 +21,25 @@ const SEED_USERS = [
     key: 'admin',
     email: 'admin@teamlens.local',
     name: 'Quản trị viên',
-    isAdmin: true,
+    role: 'leader',
   },
   {
     key: 'leader',
     email: 'leader@teamlens.local',
     name: 'Trưởng nhóm',
-    isAdmin: false,
+    role: 'leader',
   },
   {
     key: 'member1',
     email: 'member1@teamlens.local',
     name: 'Thành viên 1',
-    isAdmin: false,
+    role: 'member',
   },
   {
     key: 'member2',
     email: 'member2@teamlens.local',
     name: 'Thành viên 2',
-    isAdmin: false,
+    role: 'member',
   },
 ] as const;
 type UserKey = (typeof SEED_USERS)[number]['key'];
@@ -51,21 +50,21 @@ const SEED_PROJECTS = [
     name: 'TeamLens',
     slug: 'teamlens',
     repos: ['github.com/makitjenamin/teamlens'],
-    members: { leader: 'leader', member1: 'member', member2: 'member' },
+    members: ['leader', 'member1', 'member2'],
   },
   {
     key: 'demo',
     name: 'Demo',
     slug: 'demo',
     repos: ['github.com/acme/*'],
-    members: { leader: 'leader' },
+    members: ['leader'],
   },
 ] as const satisfies readonly {
   key: string;
   name: string;
   slug: string;
   repos: readonly string[];
-  members: Partial<Record<UserKey, ProjectRole>>;
+  members: readonly UserKey[];
 }[];
 
 interface SeedTurn {
@@ -349,7 +348,7 @@ async function upsertUsers(db: Database): Promise<Record<UserKey, string>> {
       .values({
         email: u.email,
         name: u.name,
-        isAdmin: u.isAdmin,
+        role: u.role,
         passwordHash,
       })
       .onConflictDoNothing({ target: users.email });
@@ -383,17 +382,11 @@ async function upsertProjects(
         .values({ projectId: row.id, remotePattern: pattern })
         .onConflictDoNothing();
     }
-    for (const [userKey, role] of Object.entries(p.members) as [
-      UserKey,
-      ProjectRole,
-    ][]) {
+    for (const userKey of p.members) {
       await db
         .insert(projectMembers)
-        .values({ projectId: row.id, userId: userIds[userKey], role })
-        .onConflictDoUpdate({
-          target: [projectMembers.projectId, projectMembers.userId],
-          set: { role },
-        });
+        .values({ projectId: row.id, userId: userIds[userKey] })
+        .onConflictDoNothing();
     }
   }
   return ids;

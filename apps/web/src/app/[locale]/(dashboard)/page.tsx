@@ -12,8 +12,8 @@ export default async function DashboardHome({ params }: PageProps<"/[locale]">) 
 
   const projects = await serverApi<ProjectSummary[]>("/projects");
   if (projects.length > 0) {
-    // Ưu tiên project mà mình là thành viên, rồi mới tới project bất kỳ (admin).
-    const first = projects.find((p) => p.role !== null) ?? projects[0];
+    // Ưu tiên project mà mình là thành viên, rồi mới tới project bất kỳ (leader).
+    const first = projects.find((p) => p.isMember) ?? projects[0];
     redirect({ href: `/projects/${encodeURIComponent(first.id)}/overview`, locale });
   }
 
@@ -30,9 +30,9 @@ export default async function DashboardHome({ params }: PageProps<"/[locale]">) 
           <FolderOpenIcon className="text-muted-foreground mx-auto mb-2 size-10" />
           <CardTitle className="text-xl">{t("home.noProjectsTitle")}</CardTitle>
           <CardDescription>
-            {me.user.isAdmin ? t("home.noProjectsAdmin") : t("home.noProjectsDescription")}
+            {me.user.role === "leader" ? t("home.noProjectsAdmin") : t("home.noProjectsDescription")}
           </CardDescription>
-          {me.user.isAdmin && (
+          {me.user.role === "leader" && (
             <Button render={<Link href="/admin" />} className="mx-auto mt-4">
               {tNav("admin")}
             </Button>

@@ -8,7 +8,6 @@ import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import {
   authSessions,
-  type ProjectRole,
   projectMembers,
   projects,
   type User,
@@ -21,13 +20,13 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 export function toAuthUser(
-  user: Pick<User, 'id' | 'email' | 'name' | 'isAdmin'>,
+  user: Pick<User, 'id' | 'email' | 'name' | 'role'>,
 ): AuthUser {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
-    isAdmin: user.isAdmin,
+    role: user.role,
   };
 }
 
@@ -39,7 +38,6 @@ export interface Membership {
   projectId: string;
   projectName: string;
   projectSlug: string;
-  role: ProjectRole;
 }
 
 @Injectable()
@@ -54,7 +52,7 @@ export class AuthService {
     return row.n === 0;
   }
 
-  /** Tạo admin đầu tiên. Chỉ được gọi khi chưa có user nào. */
+  /** Tạo leader đầu tiên. Chỉ được gọi khi chưa có user nào. */
   async setup(input: {
     email: string;
     name: string;
@@ -62,7 +60,7 @@ export class AuthService {
   }): Promise<AuthUser> {
     const passwordHash = await hashPassword(input.password);
     return this.db.transaction(async (tx) => {
-      // Khóa để hai request /setup đồng thời không cùng tạo admin.
+      // Khóa để hai request /setup đồng thời không cùng tạo leader.
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtext('teamlens:setup'))`,
       );
@@ -76,7 +74,7 @@ export class AuthService {
           email: normalizeEmail(input.email),
           name: input.name.trim(),
           passwordHash,
-          isAdmin: true,
+          role: 'leader',
         })
         .returning();
       return toAuthUser(user);
@@ -92,7 +90,8 @@ export class AuthService {
         and(eq(users.email, normalizeEmail(email)), isNull(users.deletedAt)),
       )
       .limit(1);
-    if (!user) {
+    // Member không có mật khẩu: so với hash giả để thời gian phản hồi như email sai.
+    if (!user?.passwordHash) {
       this.dummyHash ??= hashPassword(randomToken());
       await verifyPassword(await this.dummyHash, password);
     } else if (await verifyPassword(user.passwordHash, password)) {
@@ -153,7 +152,6 @@ export class AuthService {
         projectId: projects.id,
         projectName: projects.name,
         projectSlug: projects.slug,
-        role: projectMembers.role,
       })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))

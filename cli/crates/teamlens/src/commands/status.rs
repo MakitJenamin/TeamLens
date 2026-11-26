@@ -101,7 +101,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
 
     let login = match (&r.server, r.logged_in, &r.account) {
         (None, _, _) => "chưa — chạy `tl login --server <địa chỉ>`".to_owned(),
-        (Some(_), true, Some(me)) => format!("rồi ({})", me.user.email),
+        (Some(_), true, Some(me)) => format!("rồi ({})", me.user.display()),
         (Some(_), true, None) => "rồi (chưa kiểm tra được với server)".to_owned(),
         (Some(_), false, _) => "chưa — chạy `tl login`".to_owned(),
     };
@@ -113,7 +113,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     if let Some(me) = &r.account {
         w(
             "Người dùng:",
-            &format!("{} <{}>", me.user.name, me.user.email),
+            &format!("{} · {}", me.user.display(), me.role),
         );
         w("Thiết bị:", &me.device.name);
         if me.projects.is_empty() {
@@ -121,7 +121,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
         } else {
             let _ = writeln!(out, "Project:");
             for p in &me.projects {
-                let _ = writeln!(out, "  - {} ({}) · {}", p.name, p.slug, p.role);
+                let _ = writeln!(out, "  - {} ({})", p.name, p.slug);
                 if p.repo_patterns.is_empty() {
                     let _ = writeln!(out, "      (chưa có repo)");
                 }

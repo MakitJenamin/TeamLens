@@ -1,12 +1,9 @@
 {
   "projects": "Projects",
   "users": "Accounts",
-  "createUser": "Create account",
   "name": "Full name",
   "email": "Email",
   "password": "Password",
-  "adminRole": "Administrator",
-  "userRole": "User",
   "saved": "Changes saved",
   "member": "Member",
   "leader": "Leader",
@@ -18,10 +15,7 @@
   "saveName": "Save name",
   "members": "Project members",
   "addMember": "Add member",
-  "role": "Role",
   "noMembers": "No members yet.",
-  "saveRole": "Save role",
-  "roleFor": "Role for {name}",
   "remove": "Remove",
   "confirmMember": "Remove {name} from this project?",
   "repos": "Project repositories",
@@ -30,5 +24,12 @@
   "noRepos": "No repository patterns yet.",
   "confirmRepo": "Remove repository pattern {name} from this project?",
   "title": "Administration",
-  "description": "Users, projects, repo patterns, invites, devices, LLM provider, retention, redaction patterns and audit log."
+  "description": "Projects, repo patterns, invite links, leaders, LLM provider, retention, redaction patterns and audit log.",
+  "createLeader": "Add leader",
+  "createLeaderHint": "Leaders have full access and sign in to the dashboard with email and password. Members need no account: they join with an invite link.",
+  "makeLeader": "Make leader",
+  "makeMember": "Make member",
+  "confirmMakeMember": "Make {name} a member? They will only see their own data.",
+  "membersHint": "New members join the project with an invite link. Here you can only add people already on the server.",
+  "pickUser": "User"
 }

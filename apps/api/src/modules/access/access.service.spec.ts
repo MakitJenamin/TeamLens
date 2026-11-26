@@ -1,126 +1,80 @@
 import type { AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
-import type { ProjectRole } from '../../db/schema/index.js';
 import { AccessService } from './access.service.js';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const OTHER_PROJECT = '22222222-2222-4222-8222-222222222222';
 
-function user(id: string, isAdmin = false): AuthUser {
-  return { id, email: `${id}@x.local`, name: id, isAdmin };
+function user(id: string, role: AuthUser['role'] = 'member'): AuthUser {
+  return { id, email: null, name: id, role };
 }
 
-const admin = user('aaaaaaaa-0000-4000-8000-000000000001', true);
-const leader = user('aaaaaaaa-0000-4000-8000-000000000002');
+const leader = user('aaaaaaaa-0000-4000-8000-000000000002', 'leader');
 const member1 = user('aaaaaaaa-0000-4000-8000-000000000003');
 const member2 = user('aaaaaaaa-0000-4000-8000-000000000004');
-const outsider = user('aaaaaaaa-0000-4000-8000-000000000005');
 
-/** Thành viên giả: chỉ PROJECT có thành viên. */
-const MEMBERSHIPS: Record<string, ProjectRole> = {
-  [`${leader.id}:${PROJECT}`]: 'leader',
-  [`${member1.id}:${PROJECT}`]: 'member',
-  [`${member2.id}:${PROJECT}`]: 'member',
-  // Chỉ thuộc project B.
-  [`${outsider.id}:${OTHER_PROJECT}`]: 'member',
-};
+/** Thành viên giả: member1 và member2 chỉ thuộc PROJECT. */
+const MEMBERSHIPS = new Set([
+  `${member1.id}:${PROJECT}`,
+  `${member2.id}:${PROJECT}`,
+]);
 
 describe('AccessService', () => {
   let service: AccessService;
-  let getRole: ReturnType<typeof vi.spyOn>;
+  let isMember: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     service = new AccessService({} as Database);
-    getRole = vi
-      .spyOn(service, 'getRole')
-      .mockImplementation(
-        async (userId, projectId) =>
-          MEMBERSHIPS[`${userId}:${projectId}`] ?? null,
+    isMember = vi
+      .spyOn(service, 'isProjectMember')
+      .mockImplementation(async (userId, projectId) =>
+        MEMBERSHIPS.has(`${userId}:${projectId}`),
       );
   });
 
-  describe('assertProjectRole', () => {
-    it('admin luôn được, kể cả không là thành viên', async () => {
-      await expect(
-        service.assertProjectRole(admin, PROJECT, ['leader']),
-      ).resolves.toBeUndefined();
-      expect(getRole).not.toHaveBeenCalled();
+  describe('canAccessProject', () => {
+    it('leader vào mọi project, không cần là thành viên', async () => {
+      await expect(service.canAccessProject(leader, OTHER_PROJECT)).resolves.toBe(
+        true,
+      );
+      expect(isMember).not.toHaveBeenCalled();
     });
 
-    it('leader được thao tác cần leader', async () => {
-      await expect(
-        service.assertProjectRole(leader, PROJECT, ['leader']),
-      ).resolves.toBeUndefined();
+    it('member vào project mình tham gia', async () => {
+      await expect(service.canAccessProject(member1, PROJECT)).resolves.toBe(
+        true,
+      );
     });
 
-    it('member bị 403 với thao tác cần leader', async () => {
+    it('member không vào project khác', async () => {
       await expect(
-        service.assertProjectRole(member1, PROJECT, ['leader']),
-      ).rejects.toMatchObject({
-        status: 403,
-        response: { error: 'forbidden' },
-      });
-    });
-
-    it('member được thao tác cho mọi thành viên', async () => {
-      await expect(
-        service.assertProjectRole(member1, PROJECT, ['leader', 'member']),
-      ).resolves.toBeUndefined();
-    });
-
-    it('người ngoài và leader ở project khác bị 403', async () => {
-      await expect(
-        service.assertProjectRole(outsider, PROJECT, ['leader', 'member']),
-      ).rejects.toMatchObject({ status: 403 });
-      await expect(
-        service.assertProjectRole(leader, OTHER_PROJECT, ['leader']),
-      ).rejects.toMatchObject({ status: 403 });
+        service.canAccessProject(member1, OTHER_PROJECT),
+      ).resolves.toBe(false);
     });
   });
 
   describe('canViewUserData', () => {
-    it('admin xem được dữ liệu của bất kỳ ai', async () => {
-      expect(await service.canViewUserData(admin, member1.id, PROJECT)).toBe(
-        true,
-      );
-      expect(
-        await service.canViewUserData(admin, member1.id, OTHER_PROJECT),
-      ).toBe(true);
+    it('ai cũng xem được dữ liệu của chính mình', () => {
+      expect(service.canViewUserData(member1, member1.id)).toBe(true);
     });
 
-    it('leader xem được dữ liệu thành viên trong project của mình', async () => {
-      expect(await service.canViewUserData(leader, member1.id, PROJECT)).toBe(
-        true,
-      );
+    it('leader xem được dữ liệu của mọi người', () => {
+      expect(service.canViewUserData(leader, member1.id)).toBe(true);
     });
 
-    it('leader project A không xem được user chỉ thuộc project B', async () => {
-      expect(await service.canViewUserData(leader, outsider.id, PROJECT)).toBe(
-        false,
-      );
+    it('member không xem được dữ liệu của member khác', () => {
+      expect(service.canViewUserData(member1, member2.id)).toBe(false);
+    });
+  });
+
+  describe('assertLeader', () => {
+    it('leader đi qua', () => {
+      expect(() => service.assertLeader(leader)).not.toThrow();
     });
 
-    it('leader không xem được ở project mình không làm leader', async () => {
-      expect(
-        await service.canViewUserData(leader, member1.id, OTHER_PROJECT),
-      ).toBe(false);
-    });
-
-    it('member chỉ xem dữ liệu của chính mình', async () => {
-      expect(await service.canViewUserData(member1, member1.id, PROJECT)).toBe(
-        true,
-      );
-      expect(await service.canViewUserData(member1, member2.id, PROJECT)).toBe(
-        false,
-      );
-      expect(await service.canViewUserData(member1, leader.id, PROJECT)).toBe(
-        false,
-      );
-    });
-
-    it('người ngoài không xem được dữ liệu người khác', async () => {
-      expect(await service.canViewUserData(outsider, member1.id, PROJECT)).toBe(
-        false,
+    it('member bị 403', () => {
+      expect(() => service.assertLeader(member1)).toThrow(
+        expect.objectContaining({ status: 403 }),
       );
     });
   });

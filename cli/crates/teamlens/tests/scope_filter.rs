@@ -35,9 +35,10 @@ fn whoami() -> WhoamiResponse {
     WhoamiResponse {
         user: WhoamiUser {
             id: "u1".into(),
-            email: "member@example.invalid".into(),
+            email: Some("member@example.invalid".into()),
             name: "Member 1".into(),
         },
+        role: "member".into(),
         device: WhoamiDevice {
             id: "d1".into(),
             name: "LAPTOP-01".into(),
@@ -47,14 +48,12 @@ fn whoami() -> WhoamiResponse {
                 id: "proj-acme".into(),
                 name: "Acme".into(),
                 slug: "acme".into(),
-                role: "member".into(),
                 repo_patterns: vec!["github.com/acme/*".into(), "github.com/acme/*/*".into()],
             },
             WhoamiProject {
                 id: "proj-shop".into(),
                 name: "Shop".into(),
                 slug: "shop".into(),
-                role: "leader".into(),
                 repo_patterns: vec!["github.com/acme/shop-api".into()],
             },
         ],

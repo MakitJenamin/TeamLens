@@ -208,7 +208,7 @@ fn whoami_body() -> Value {
         "user": { "id": "u1", "email": "member@example.invalid", "name": "Member" },
         "device": { "id": "d1", "name": "MAY-TEST" },
         "projects": [
-            { "id": "proj-acme", "name": "Acme", "slug": "acme", "role": "member",
+            { "id": "proj-acme", "name": "Acme", "slug": "acme",
               "repoPatterns": ["github.com/acme/*"] }
         ]
     })

@@ -25,22 +25,25 @@ components:
     Role:
       type: string
       enum: [leader, member]
-      description: Vai trò trong project.
+      description: Vai trò toàn server. Leader làm mọi thứ; member chỉ dữ liệu của mình (SPEC 11.1).
 
     User:
       type: object
-      required: [id, email, name, isAdmin]
+      required: [id, email, name, role]
       additionalProperties: false
       properties:
         id:
           $ref: '#/components/schemas/Id'
         email:
-          type: string
-          format: email
+          description: Chỉ leader có email (đăng nhập dashboard); `null` với member.
+          oneOf:
+            - type: string
+              format: email
+            - type: 'null'
         name:
           type: string
-        isAdmin:
-          type: boolean
+        role:
+          $ref: '#/components/schemas/Role'
 
     UserRef:
       type: object
@@ -51,14 +54,18 @@ components:
         id:
           $ref: '#/components/schemas/Id'
         email:
-          type: string
-          format: email
+          description: '`null` với member (không có email).'
+          oneOf:
+            - type: string
+              format: email
+            - type: 'null'
         name:
           type: string
 
     Membership:
       type: object
-      required: [projectId, projectName, projectSlug, role]
+      description: Project user hiện tại là thành viên.
+      required: [projectId, projectName, projectSlug]
       additionalProperties: false
       properties:
         projectId:
@@ -67,8 +74,6 @@ components:
           type: string
         projectSlug:
           $ref: '#/components/schemas/ProjectSlug'
-        role:
-          $ref: '#/components/schemas/Role'
 
     ProjectSlug:
       type: string
@@ -83,7 +88,7 @@ components:
 
     ProjectListItem:
       type: object
-      required: [id, name, slug, role]
+      required: [id, name, slug, isMember]
       additionalProperties: false
       properties:
         id:
@@ -92,11 +97,9 @@ components:
           type: string
         slug:
           $ref: '#/components/schemas/ProjectSlug'
-        role:
-          description: Vai trò của user hiện tại; `null` khi admin không là thành viên.
-          oneOf:
-            - $ref: '#/components/schemas/Role'
-            - type: 'null'
+        isMember:
+          type: boolean
+          description: User hiện tại có là thành viên project không (leader thấy cả project mình không tham gia).
 
     Project:
       type: object
@@ -156,8 +159,11 @@ components:
         userId:
           $ref: '#/components/schemas/Id'
         email:
-          type: string
-          format: email
+          description: '`null` với member (không có email).'
+          oneOf:
+            - type: string
+              format: email
+            - type: 'null'
         name:
           type: string
         role:

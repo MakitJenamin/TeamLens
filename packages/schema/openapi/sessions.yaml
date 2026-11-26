@@ -3,8 +3,7 @@
 # - GET /api/v1/sessions/{sessionId}: chi tiết session kèm toàn bộ turn.
 # Để sau (M4.1): tìm kiếm full-text `q`, `POST /api/v1/sessions/{sessionId}/llm-review`, notes.
 #
-# Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session trong project mình
-# dẫn dắt; admin xem tất cả. Xem session của người khác đi qua `AccessService` và ghi audit.
+# Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session. Xem session của người khác đi qua `AccessService` và ghi audit.
 # Trường lấy từ bảng `sessions`/`turns` (apps/api/src/db/schema/sessions.ts), đổi sang camelCase.
 paths:
   /api/v1/projects/{projectId}/sessions:
@@ -16,7 +15,7 @@ paths:
       summary: Danh sách session của project
       description: |
         Sắp xếp theo `startedAt` giảm dần (mới nhất trước), phân trang bằng cursor.
-        Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader và admin thấy mọi
+        Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader thấy mọi
         session trong project. Mặc định chỉ trả session gốc, ẩn session con (subagent).
       security:
         - cookieAuth: []

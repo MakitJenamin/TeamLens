@@ -20,7 +20,7 @@ export default async function AdminPage({ params, searchParams }: PageProps<"/[l
 
   const me = await serverApiOrNull<MeResponse>("/auth/me");
   if (!me) return redirect({ href: "/login", locale });
-  if (!me.user.isAdmin) return redirect({ href: "/", locale });
+  if (me.user.role !== "leader") return redirect({ href: "/", locale });
   const query = await searchParams;
   const tab = query.tab === "users" ? "users" : "projects";
   let panel;
@@ -29,14 +29,21 @@ export default async function AdminPage({ params, searchParams }: PageProps<"/[l
   } else {
     const projects = await serverApi<ProjectSummary[]>("/projects");
     const selected = projects.find((p) => p.id === query.project) ?? projects[0];
-    const [project, members] = selected
+    const [project, members, users] = selected
       ? await Promise.all([
           serverApi<ProjectDetail>(`/projects/${selected.id}`),
           serverApi<Member[]>(`/projects/${selected.id}/members`),
+          serverApi<User[]>("/users"),
         ])
-      : [null, []];
+      : [null, [], []];
     panel = (
-      <ProjectAdmin key={project?.id} projects={projects} project={project} members={members} />
+      <ProjectAdmin
+        key={project?.id}
+        projects={projects}
+        project={project}
+        members={members}
+        users={users}
+      />
     );
   }
   return (

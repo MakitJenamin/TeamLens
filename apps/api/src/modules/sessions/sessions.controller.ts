@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { type AuthUser, CurrentUser } from '../../common/auth-context.js';
-import { ProjectRoles } from '../access/project-roles.guard.js';
+import { ProjectAccess } from '../access/access.guards.js';
 import { AGENT_KINDS } from './session-mappers.js';
 import { SessionsService } from './sessions.service.js';
 
@@ -33,7 +33,7 @@ export class SessionsController {
   constructor(private readonly sessions: SessionsService) {}
 
   @Get('projects/:projectId/sessions')
-  @ProjectRoles('leader', 'member')
+  @ProjectAccess()
   list(
     @CurrentUser() user: AuthUser,
     @Param('projectId') projectId: string,

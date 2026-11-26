@@ -20,7 +20,7 @@ it("yêu cầu đăng nhập trước khi đọc danh sách tài khoản", async
 });
 
 it("chặn thành viên kể cả khi mở thẳng tab tài khoản", async () => {
-  vi.mocked(serverApiOrNull).mockResolvedValue({ user: { isAdmin: false } });
+  vi.mocked(serverApiOrNull).mockResolvedValue({ user: { role: "member" } });
   await expect(AdminPage(props)).rejects.toThrow("redirect /");
   expect(serverApi).not.toHaveBeenCalled();
 });

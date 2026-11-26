@@ -5,7 +5,12 @@ import { DB } from '../src/db/db.module.js';
 import { JOBS } from '../src/queue/jobs.js';
 import { QueueService } from '../src/queue/queue.service.js';
 import { scoreSession } from '../src/modules/rules/score-session.js';
-import { createTestApp, querySql, resetDatabase } from './helpers.js';
+import {
+  createTestApp,
+  insertUser,
+  querySql,
+  resetDatabase,
+} from './helpers.js';
 
 describe('Chấm session và đọc findings', () => {
   let app: INestApplication<App>;
@@ -35,17 +40,18 @@ describe('Chấm session và đọc findings', () => {
       email: 'member@teamlens.local',
       password: 'teamlens123',
     };
-    const member = await admin
-      .post('/api/v1/users')
-      .send({ ...memberCredentials, name: 'Member' })
-      .expect(201);
+    const member = {
+      body: {
+        id: await insertUser({ ...memberCredentials, name: 'Member' }),
+      },
+    };
     const project = await admin
       .post('/api/v1/projects')
       .send({ name: 'Demo', slug: 'demo' })
       .expect(201);
     await admin
       .post(`/api/v1/projects/${project.body.id}/members`)
-      .send({ email: memberCredentials.email, role: 'member' })
+      .send({ userId: member.body.id })
       .expect(201);
     const [{ id }] = await querySql<{ id: string }>(
       `INSERT INTO sessions (user_id, project_id, source_id, agent, repo_remote, started_at)
@@ -95,10 +101,7 @@ describe('Chấm session và đọc findings', () => {
       ),
     ).toHaveLength(1);
     const other = { email: 'other@teamlens.local', password: 'teamlens123' };
-    await admin
-      .post('/api/v1/users')
-      .send({ ...other, name: 'Other' })
-      .expect(201);
+    await insertUser({ ...other, name: 'Other' });
     const outsider = request.agent(server);
     await outsider.post('/api/v1/auth/login').send(other).expect(200);
     await outsider.get(url).expect(403);

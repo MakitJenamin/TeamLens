@@ -55,6 +55,9 @@ impl std::fmt::Debug for DeviceTokenResponse {
 #[serde(rename_all = "camelCase")]
 pub struct WhoamiResponse {
     pub user: WhoamiUser,
+    /// Vai trò toàn server: `leader` hoặc `member`.
+    #[serde(default = "default_role")]
+    pub role: String,
     pub device: WhoamiDevice,
     pub projects: Vec<WhoamiProject>,
 }
@@ -63,8 +66,24 @@ pub struct WhoamiResponse {
 #[serde(rename_all = "camelCase")]
 pub struct WhoamiUser {
     pub id: String,
-    pub email: String,
+    /// Chỉ leader có email; member tham gia bằng `tl join` thì `null`.
+    #[serde(default)]
+    pub email: Option<String>,
     pub name: String,
+}
+
+impl WhoamiUser {
+    /// Tên hiển thị: `Tên <email>` nếu có email, không thì chỉ tên.
+    pub fn display(&self) -> String {
+        match &self.email {
+            Some(email) => format!("{} <{email}>", self.name),
+            None => self.name.clone(),
+        }
+    }
+}
+
+fn default_role() -> String {
+    "member".to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,8 +99,6 @@ pub struct WhoamiProject {
     pub id: String,
     pub name: String,
     pub slug: String,
-    /// `leader` hoặc `member`.
-    pub role: String,
     pub repo_patterns: Vec<String>,
 }
 

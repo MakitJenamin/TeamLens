@@ -90,7 +90,7 @@ interface SummaryRow {
   id: string;
   projectId: string;
   userId: string;
-  userEmail: string;
+  userEmail: string | null;
   userName: string;
   agent: string;
   agentVersion: string | null;
@@ -146,8 +146,8 @@ export class SessionsService {
   ) {}
 
   /**
-   * Danh sách session của project (người gọi đã qua `@ProjectRoles('leader', 'member')`).
-   * Leader/admin thấy mọi session; member chỉ thấy của mình, lọc `userId` người khác trả 403.
+   * Danh sách session của project (người gọi đã qua `@ProjectAccess()`).
+   * Leader thấy mọi session; member chỉ thấy của mình, lọc `userId` người khác trả 403.
    */
   async list(
     viewer: AuthUser,
@@ -163,12 +163,9 @@ export class SessionsService {
 
     let ownerFilter: string | undefined = query.userId;
     if (ownerFilter !== undefined) {
-      if (!(await this.access.canViewUserData(viewer, ownerFilter, projectId)))
-        throw forbidden();
-    } else if (
-      !(await this.access.hasProjectRole(viewer, projectId, ['leader']))
-    ) {
-      // Không phải leader/admin: chỉ thấy session của chính mình.
+      if (!this.access.canViewUserData(viewer, ownerFilter)) throw forbidden();
+    } else if (!this.access.isLeader(viewer)) {
+      // Member: chỉ thấy session của chính mình.
       ownerFilter = viewer.id;
     }
 
@@ -226,8 +223,7 @@ export class SessionsService {
       .limit(1);
     if (!row) throw sessionNotFound();
 
-    if (!(await this.access.canViewUserData(viewer, row.userId, row.projectId)))
-      throw forbidden();
+    if (!this.access.canViewUserData(viewer, row.userId)) throw forbidden();
     if (viewer.id !== row.userId)
       await this.audit.record(viewer.id, 'session.view', 'session', row.id);
 

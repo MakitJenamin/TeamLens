@@ -29,9 +29,9 @@ export function projectNavItems(projectId: string): NavItem[] {
 }
 
 /** Link chung; "Quản trị" chỉ hiện với admin. */
-export function generalNavItems(isAdmin: boolean): NavItem[] {
+export function generalNavItems(isLeader: boolean): NavItem[] {
   const items: NavItem[] = [{ key: "me", href: "/me", icon: UserIcon }];
-  if (isAdmin) items.push({ key: "admin", href: "/admin", icon: ShieldIcon });
+  if (isLeader) items.push({ key: "admin", href: "/admin", icon: ShieldIcon });
   return items;
 }
 
