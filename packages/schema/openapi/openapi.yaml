@@ -39,9 +39,9 @@ tags:
   - name: users
     description: Quản lý tài khoản và vai trò (leader).
   - name: devices
-    description: Duyệt device login và quản lý thiết bị (dashboard).
+    description: Xem và thu hồi thiết bị (dashboard).
   - name: agent-auth
-    description: Device login, whoami và logout của CLI.
+    description: whoami, logout và web-login (`tl open`) của CLI.
   - name: agent
     description: CLI gửi dữ liệu (ingest session).
   - name: sessions
@@ -95,18 +95,12 @@ paths:
     $ref: './users.yaml#/paths/~1api~1v1~1users~1{userId}~1merge'
 
   # devices.yaml
-  /api/v1/device/approve:
-    $ref: './devices.yaml#/paths/~1api~1v1~1device~1approve'
   /api/v1/devices:
     $ref: './devices.yaml#/paths/~1api~1v1~1devices'
   /api/v1/devices/{deviceId}/revoke:
     $ref: './devices.yaml#/paths/~1api~1v1~1devices~1{deviceId}~1revoke'
 
   # agent-auth.yaml
-  /agent/v1/device/code:
-    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1device~1code'
-  /agent/v1/device/token:
-    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1device~1token'
   /agent/v1/whoami:
     $ref: './agent-auth.yaml#/paths/~1agent~1v1~1whoami'
   /agent/v1/logout:
@@ -151,7 +145,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: tld_<token>
-      description: Device token của CLI, lấy qua device login (`/agent/v1/device/*`).
+      description: Device token của CLI, lấy qua `POST /agent/v1/join` (`tl join <link mời>`).
 
   # Đăng ký lại schema dùng chung để type sinh ra có tên ổn định (components["schemas"]["User"]...).
   schemas:
@@ -189,8 +183,6 @@ components:
       $ref: './common.yaml#/components/schemas/DeviceRef'
     Device:
       $ref: './common.yaml#/components/schemas/Device'
-    UserCode:
-      $ref: './common.yaml#/components/schemas/UserCode'
 
     # session.v1.schema.json (payload ingest, snake_case). Bundler tự thêm các `$defs` con với tên gốc
     # (`Session`, `SessionEnvelope`, `Turn`, `Tool`, `Output`, `Diff`, `Usage`, ...); src/index.ts export

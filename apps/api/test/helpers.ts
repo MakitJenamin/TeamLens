@@ -11,7 +11,7 @@ export async function resetDatabase(): Promise<void> {
     onnotice: () => undefined,
   });
   try {
-    await sql`TRUNCATE users, projects, device_codes, settings, audit_log, rules CASCADE`;
+    await sql`TRUNCATE users, projects, settings, audit_log, rules CASCADE`;
   } finally {
     await sql.end();
   }
@@ -60,6 +60,26 @@ export async function insertUser(input: {
     [input.email, input.name, input.role ?? 'member', hash],
   );
   return row.id;
+}
+
+/**
+ * Tạo thiết bị có device token thẳng trong DB (thay cho `tl join` khi test không cần
+ * luồng mời). DB chỉ lưu SHA-256 của token. Trả id và token gốc.
+ */
+export async function insertDevice(
+  userId: string,
+  name: string,
+): Promise<{ id: string; token: string }> {
+  const { randomToken, sha256 } = await import('../src/common/crypto.js');
+  const { DEVICE_TOKEN_PREFIX } =
+    await import('../src/modules/device/device.service.js');
+  const token = DEVICE_TOKEN_PREFIX + randomToken();
+  const [row] = await querySql<{ id: string }>(
+    `INSERT INTO devices (user_id, name, os, cli_version, token_hash)
+     VALUES ($1, $2, 'windows', '0.1.0', $3) RETURNING id`,
+    [userId, name, sha256(token)],
+  );
+  return { id: row.id, token };
 }
 
 /** Ghi bản đồng ý còn hiệu lực (phiên bản hiện tại) cho thiết bị của device token. */

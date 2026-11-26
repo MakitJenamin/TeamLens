@@ -13,11 +13,6 @@ import { users } from './users.js';
 
 const tz = { withTimezone: true } as const;
 
-/** @deprecated Vai trò theo project đã bỏ (dùng `users.role`); cột xóa ở J.10. */
-export const PROJECT_ROLES = ['leader', 'member'] as const;
-/** @deprecated Xem `PROJECT_ROLES`. */
-export type ProjectRole = (typeof PROJECT_ROLES)[number];
-
 /** Cấu hình riêng của project (bật leaderboard, ngưỡng cắt output...). */
 export type ProjectSettings = Record<string, unknown>;
 
@@ -54,8 +49,6 @@ export const projectMembers = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** @deprecated Không đọc/ghi trong code mới; xóa ở J.10. */
-    role: text('role').$type<ProjectRole>().notNull().default('member'),
     createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   },
   (t) => [
@@ -71,8 +64,6 @@ export const invites = pgTable('invites', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   codeHash: text('code_hash').notNull().unique(),
-  /** @deprecated Link mời chỉ tạo member; xóa ở J.10. */
-  role: text('role').$type<ProjectRole>().notNull().default('member'),
   expiresAt: timestamp('expires_at', tz).notNull(),
   // null = không giới hạn số lần dùng.
   maxUses: integer('max_uses'),

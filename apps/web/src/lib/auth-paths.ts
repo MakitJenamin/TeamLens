@@ -14,7 +14,7 @@ export function splitLocale(pathname: string): { locale: string; path: string } 
 }
 
 /**
- * Các trang công khai (không cần cookie). Còn lại thuộc (dashboard) hoặc /device.
+ * Các trang công khai (không cần cookie). Còn lại thuộc (dashboard).
  * `/i/<mã>`: link mời gửi cho thành viên; `/auth/cli`: đổi ticket của `tl open` lấy phiên.
  */
 const PUBLIC_PATHS = ["/login", "/setup", "/i", "/auth/cli"];

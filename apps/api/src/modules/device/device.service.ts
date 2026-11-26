@@ -1,19 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
-import {
-  ApiError,
-  forbidden,
-  isUniqueViolation,
-  notFound,
-} from '../../common/api-error.js';
+import { forbidden, notFound } from '../../common/api-error.js';
 import type { AuthDevice, AuthUser } from '../../common/auth-context.js';
 import { randomToken, sha256 } from '../../common/crypto.js';
 import type { Env } from '../../config/env.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import {
-  deviceCodes,
   devices,
   projectMembers,
   projectRepos,
@@ -24,30 +18,12 @@ import {
 import { isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
 import { toAuthUser } from '../auth/auth.service.js';
-import { generateUserCode, normalizeUserCode } from './user-code.js';
 
-/** Thời gian sống của device code: 15 phút. */
-export const DEVICE_CODE_TTL_SECONDS = 900;
-/** Khoảng cách tối thiểu giữa hai lần poll /device/token. */
-export const POLL_INTERVAL_SECONDS = 5;
 export const DEVICE_TOKEN_PREFIX = 'tld_';
-/**
- * Code đã được duyệt vẫn đổi được token trong khoảng này sau `expiresAt`
- * (user duyệt sát giờ hết hạn, CLI chưa kịp poll).
- */
-export const APPROVED_GRACE_SECONDS = 5 * 60;
 /** Thời gian sống của ticket đăng nhập dashboard cho `tl open`. */
 export const WEB_LOGIN_TTL_SECONDS = 60;
 /** Chỉ ghi `last_seen_at` khi giá trị cũ đã quá mức này, tránh ghi DB mỗi request. */
 export const LAST_SEEN_TOUCH_SECONDS = 5 * 60;
-
-const tokenError = (error: string, message: string) =>
-  new ApiError(400, error, message);
-const expiredToken = () =>
-  tokenError(
-    'expired_token',
-    'Mã thiết bị không hợp lệ hoặc đã hết hạn, hãy chạy lại `tl login`',
-  );
 
 export interface DeviceDto {
   id: string;
@@ -70,172 +46,6 @@ export class DeviceService {
     config: ConfigService<Env, true>,
   ) {
     this.publicUrl = config.get('TEAMLENS_PUBLIC_URL', { infer: true });
-  }
-
-  /** Bước 1: CLI xin device code + user code. */
-  async createCode(input: {
-    deviceName: string;
-    os: string;
-    cliVersion: string;
-  }) {
-    const deviceCode = randomToken();
-    const expiresAt = new Date(Date.now() + DEVICE_CODE_TTL_SECONDS * 1000);
-    // Va chạm user code rất hiếm (20^8 tổ hợp), vẫn thử lại vài lần cho chắc.
-    for (let attempt = 0; ; attempt++) {
-      const userCode = generateUserCode();
-      try {
-        await this.db.insert(deviceCodes).values({
-          deviceCodeHash: sha256(deviceCode),
-          userCode,
-          deviceName: input.deviceName,
-          os: input.os,
-          cliVersion: input.cliVersion,
-          expiresAt,
-        });
-        const verificationUri = `${this.publicUrl}/device`;
-        return {
-          deviceCode,
-          userCode,
-          verificationUri,
-          verificationUriComplete: `${verificationUri}?code=${userCode}`,
-          expiresIn: DEVICE_CODE_TTL_SECONDS,
-          interval: POLL_INTERVAL_SECONDS,
-        };
-      } catch (error) {
-        if (!isUniqueViolation(error) || attempt >= 4) throw error;
-      }
-    }
-  }
-
-  /**
-   * Bước 3: CLI poll lấy token. Token chỉ được sinh và trả về đúng một lần, ngay khi CLI
-   * nhận (sau khi đã duyệt); DB chỉ giữ SHA-256 nên không cần lưu token gốc ở đâu cả.
-   */
-  async pollToken(
-    deviceCode: string,
-  ): Promise<{ accessToken: string; deviceId: string }> {
-    const [row] = await this.db
-      .select()
-      .from(deviceCodes)
-      .where(eq(deviceCodes.deviceCodeHash, sha256(deviceCode)))
-      .limit(1);
-    if (!row || row.status === 'consumed') throw expiredToken();
-
-    const now = new Date();
-    const tooFast =
-      row.lastPolledAt !== null &&
-      now.getTime() - row.lastPolledAt.getTime() < POLL_INTERVAL_SECONDS * 1000;
-    await this.db
-      .update(deviceCodes)
-      .set({ lastPolledAt: now })
-      .where(eq(deviceCodes.id, row.id));
-    if (tooFast) {
-      throw tokenError(
-        'slow_down',
-        `Poll quá nhanh, hãy chờ ít nhất ${POLL_INTERVAL_SECONDS} giây`,
-      );
-    }
-    if (row.status === 'denied') {
-      throw tokenError(
-        'access_denied',
-        'Yêu cầu đăng nhập thiết bị đã bị từ chối',
-      );
-    }
-    if (row.status === 'pending') {
-      if (row.expiresAt <= now) throw expiredToken();
-      throw tokenError(
-        'authorization_pending',
-        'Đang chờ xác nhận mã trên trình duyệt',
-      );
-    }
-
-    // status === 'approved'. Quá thời gian grace: thu hồi thiết bị đã tạo lúc duyệt
-    // (chưa từng có token) để không để lại thiết bị mồ côi, rồi báo hết hạn.
-    const graceEnd = row.expiresAt.getTime() + APPROVED_GRACE_SECONDS * 1000;
-    if (now.getTime() > graceEnd) {
-      await this.db.transaction(async (tx) => {
-        const [expired] = await tx
-          .update(deviceCodes)
-          .set({ status: 'consumed' })
-          .where(
-            and(eq(deviceCodes.id, row.id), eq(deviceCodes.status, 'approved')),
-          )
-          .returning();
-        if (expired?.deviceId) {
-          await tx
-            .update(devices)
-            .set({ revokedAt: now })
-            .where(
-              and(
-                eq(devices.id, expired.deviceId),
-                isNull(devices.tokenHash),
-                isNull(devices.revokedAt),
-              ),
-            );
-        }
-      });
-      throw expiredToken();
-    }
-
-    // status === 'approved': đổi sang consumed rồi mới sinh token (chống trả token hai lần).
-    return this.db.transaction(async (tx) => {
-      const [consumed] = await tx
-        .update(deviceCodes)
-        .set({ status: 'consumed' })
-        .where(
-          and(eq(deviceCodes.id, row.id), eq(deviceCodes.status, 'approved')),
-        )
-        .returning();
-      if (!consumed?.deviceId) throw expiredToken();
-      const accessToken = DEVICE_TOKEN_PREFIX + randomToken();
-      await tx
-        .update(devices)
-        .set({ tokenHash: sha256(accessToken), lastSeenAt: now })
-        .where(eq(devices.id, consumed.deviceId));
-      return { accessToken, deviceId: consumed.deviceId };
-    });
-  }
-
-  /** Bước 2: user đã đăng nhập dashboard nhập user code để duyệt thiết bị. */
-  async approve(user: AuthUser, rawUserCode: string) {
-    const invalid = () =>
-      new ApiError(404, 'invalid_code', 'Mã không đúng hoặc đã được dùng');
-    const userCode = normalizeUserCode(rawUserCode);
-    if (!userCode) throw invalid();
-    const [row] = await this.db
-      .select()
-      .from(deviceCodes)
-      .where(eq(deviceCodes.userCode, userCode))
-      .limit(1);
-    if (!row || row.status !== 'pending') throw invalid();
-    if (row.expiresAt <= new Date()) {
-      throw new ApiError(
-        410,
-        'expired_code',
-        'Mã đã hết hạn, hãy chạy lại `tl login`',
-      );
-    }
-
-    return this.db.transaction(async (tx) => {
-      const [device] = await tx
-        .insert(devices)
-        .values({
-          userId: user.id,
-          name: row.deviceName,
-          os: row.os,
-          cliVersion: row.cliVersion,
-        })
-        .returning();
-      const [approved] = await tx
-        .update(deviceCodes)
-        .set({ status: 'approved', userId: user.id, deviceId: device.id })
-        .where(
-          and(eq(deviceCodes.id, row.id), eq(deviceCodes.status, 'pending')),
-        )
-        .returning();
-      if (!approved) throw invalid();
-      return { device: { id: device.id, name: device.name } };
-    });
   }
 
   async listOwn(userId: string): Promise<DeviceDto[]> {

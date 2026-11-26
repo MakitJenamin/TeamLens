@@ -27,8 +27,8 @@ src/proxy.ts                         # next-intl + chặn trang cần đăng nh�
 src/i18n/                            # routing (vi mặc định, en; localePrefix as-needed), loader gộp file dịch
 src/lib/api/                         # client fetch, hooks TanStack Query, serverApi (server component), types
 src/components/ui/                   # shadcn (sinh ra, hạn chế sửa tay)
-src/components/{auth,dashboard}/     # form login/setup/device, sidebar, placeholder
-src/app/[locale]/(auth)/             # login, setup, device
+src/components/{auth,dashboard}/     # form login/setup/tl open, sidebar, placeholder
+src/app/[locale]/(auth)/             # login, setup, i/[code] (link mời), auth/cli (tl open)
 src/app/[locale]/(dashboard)/        # layout có sidebar + các màn hình
 ```
 
@@ -44,7 +44,7 @@ src/app/[locale]/(dashboard)/        # layout có sidebar + các màn hình
 
 ## Vùng sở hữu
 
-Vùng sở hữu của Người 1 và Người 2: bảng ở `AGENTS.md` gốc, mục 3. Layout, sidebar, `(auth)/{login,setup,device}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
+Vùng sở hữu của Người 1 và Người 2: bảng ở `AGENTS.md` gốc, mục 3. Layout, sidebar, `(auth)/{login,setup,auth}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

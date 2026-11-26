@@ -211,12 +211,6 @@ components:
           type: [string, 'null']
           format: date-time
 
-    UserCode:
-      type: string
-      description: Mã ngắn 8 ký tự dạng `XXXX-XXXX`, bảng chữ `BCDFGHJKLMNPQRSTVWXZ`.
-      pattern: '^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$'
-      examples: [WDJB-MJHT]
-
   parameters:
     ProjectId:
       name: projectId
@@ -302,4 +296,4 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: invalid_token
-            message: Token thiết bị không hợp lệ hoặc đã bị thu hồi. Chạy `tl login` để đăng nhập lại.
+            message: Token thiết bị không hợp lệ hoặc đã bị thu hồi. Chạy `tl join <link mời>` để tham gia lại.

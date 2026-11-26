@@ -1,11 +1,4 @@
-import {
-  boolean,
-  index,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const tz = { withTimezone: true } as const;
 
@@ -24,8 +17,6 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   passwordHash: text('password_hash'),
   role: text('role').$type<UserRole>().notNull().default('member'),
-  /** @deprecated Thay bằng `role`; xóa ở J.10. Không đọc cột này trong code mới. */
-  isAdmin: boolean('is_admin').notNull().default(false),
   createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', tz),
 });

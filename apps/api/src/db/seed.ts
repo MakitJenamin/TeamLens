@@ -1,5 +1,5 @@
 // Script `pnpm db:seed`: dữ liệu mẫu cho dev. Chạy lại nhiều lần an toàn (idempotent).
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { readEnv } from '../config/env.js';
 import { randomToken, sha256 } from '../common/crypto.js';
 import { hashPassword } from '../common/passwords.js';
@@ -22,13 +22,12 @@ import {
 
 const SEED_PASSWORD = 'teamlens123';
 
+/**
+ * Mốc 1.5: chỉ leader có email + mật khẩu; member không có (tham gia bằng `tl join`,
+ * dùng device token in ra cuối seed). `legacyEmail`: email member của seed cũ, để DB dev
+ * cũ dùng lại đúng user đó thay vì tạo trùng.
+ */
 const SEED_USERS = [
-  {
-    key: 'admin',
-    email: 'admin@teamlens.local',
-    name: 'Quản trị viên',
-    role: 'leader',
-  },
   {
     key: 'leader',
     email: 'leader@teamlens.local',
@@ -37,13 +36,15 @@ const SEED_USERS = [
   },
   {
     key: 'member1',
-    email: 'member1@teamlens.local',
+    email: null,
+    legacyEmail: 'member1@teamlens.local',
     name: 'Thành viên 1',
     role: 'member',
   },
   {
     key: 'member2',
-    email: 'member2@teamlens.local',
+    email: null,
+    legacyEmail: 'member2@teamlens.local',
     name: 'Thành viên 2',
     role: 'member',
   },
@@ -344,24 +345,53 @@ const SEED_SESSIONS: SeedSession[] = [
   },
 ];
 
+/**
+ * Leader: tạo theo email nếu chưa có (không ghi đè mật khẩu/tên).
+ * Member: tìm theo email cũ (DB dev từ trước Mốc 1.5) rồi theo tên trong các member không
+ * email; chưa có thì tạo mới không email/mật khẩu. User khác (vd. `admin@` cũ) để nguyên.
+ */
 async function upsertUsers(db: Database): Promise<Record<UserKey, string>> {
   const passwordHash = await hashPassword(SEED_PASSWORD);
   const ids = {} as Record<UserKey, string>;
   for (const u of SEED_USERS) {
-    // Không ghi đè mật khẩu/tên nếu user đã tồn tại.
-    await db
-      .insert(users)
-      .values({
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        passwordHash,
-      })
-      .onConflictDoNothing({ target: users.email });
-    const [row] = await db
+    if (u.email !== null) {
+      await db
+        .insert(users)
+        .values({ email: u.email, name: u.name, role: u.role, passwordHash })
+        .onConflictDoNothing({ target: users.email });
+      const [row] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, u.email));
+      ids[u.key] = row.id;
+      continue;
+    }
+    const [existing] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, u.email));
+      .where(
+        and(
+          isNull(users.deletedAt),
+          or(
+            eq(users.email, u.legacyEmail),
+            and(
+              isNull(users.email),
+              eq(users.role, 'member'),
+              eq(users.name, u.name),
+            ),
+          ),
+        ),
+      )
+      .orderBy(asc(users.createdAt))
+      .limit(1);
+    if (existing) {
+      ids[u.key] = existing.id;
+      continue;
+    }
+    const [row] = await db
+      .insert(users)
+      .values({ email: null, name: u.name, role: u.role, passwordHash: null })
+      .returning({ id: users.id });
     ids[u.key] = row.id;
   }
   return ids;
@@ -581,11 +611,19 @@ async function main(): Promise<void> {
         userIds.leader,
       );
       console.log(
-        `Seed xong: ${SEED_USERS.length} user, ${SEED_PROJECTS.length} project, ${count} session, ${n} turn (mật khẩu: ${SEED_PASSWORD}).`,
+        `Seed xong: ${SEED_USERS.length} user, ${SEED_PROJECTS.length} project, ${count} session, ${n} turn.`,
+      );
+      console.log(
+        `Đăng nhập dashboard: ${SEED_USERS[0].email} / ${SEED_PASSWORD} (member không có mật khẩu, dùng \`tl open\`).`,
       );
       // Chỉ dữ liệu dev: in token thiết bị mẫu và link mời để test tay.
       for (const [key, token] of Object.entries(tokens)) {
         console.log(`Device token của ${key} (${SEED_DEVICE_NAME}): ${token}`);
+      }
+      if (Object.keys(tokens).length > 0) {
+        console.log(
+          `Gọi thử: curl -H "Authorization: Bearer <token>" ${env.TEAMLENS_PUBLIC_URL}/agent/v1/whoami. Thử CLI: tl join <link mời dưới đây>.`,
+        );
       }
       console.log(
         `Link mời project teamlens: ${env.TEAMLENS_PUBLIC_URL}/i/${SEED_INVITE_CODE} (mã: ${SEED_INVITE_CODE})`,

@@ -23,7 +23,7 @@ describe("loadMessages", () => {
       "rules",
       "admin",
       "me",
-      "device",
+      "invite",
     ]) {
       expect(vi_).toHaveProperty(ns);
     }

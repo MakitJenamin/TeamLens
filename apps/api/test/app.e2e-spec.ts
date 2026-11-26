@@ -1,8 +1,11 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import { sha256 } from '../src/common/crypto.js';
+import { CONSENT_TEXT_VERSION } from '../src/modules/consent/consent-text.js';
 import {
   createTestApp,
+  insertDevice,
   insertUser,
   querySql,
   resetDatabase,
@@ -400,94 +403,42 @@ describe('TeamLens API (e2e)', () => {
     });
   });
 
-  describe('device login', () => {
-    it('code → token (pending) → approve → token → whoami → logout → whoami 401', async () => {
-      const code = await request(server)
-        .post('/agent/v1/device/code')
-        .send({ deviceName: 'LAPTOP-01', os: 'windows', cliVersion: '0.1.0' })
-        .expect(200);
-      expect(code.body).toEqual({
-        deviceCode: expect.any(String),
-        userCode: expect.stringMatching(
-          /^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/,
-        ),
-        verificationUri: 'http://localhost:3000/device',
-        verificationUriComplete: `http://localhost:3000/device?code=${code.body.userCode}`,
-        expiresIn: 900,
-        interval: 5,
-      });
-      const { deviceCode, userCode } = code.body as {
-        deviceCode: string;
-        userCode: string;
-      };
+  describe('device token: tl join → whoami → logout', () => {
+    /** Leader tạo link mời cho project `teamlens` rồi trả mã mời. */
+    async function createInviteCode(): Promise<string> {
+      const [project] = await querySql<{ id: string }>(
+        "SELECT id FROM projects WHERE slug = 'teamlens'",
+      );
+      const leader = await loginAs('leader@teamlens.local');
+      const res = await leader
+        .post(`/api/v1/projects/${project.id}/invites`)
+        .expect(201);
+      return String(res.body.url).split('/i/')[1];
+    }
 
-      const pending = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(400);
-      expect(pending.body.error).toBe('authorization_pending');
-
-      const tooFast = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(400);
-      expect(tooFast.body.error).toBe('slow_down');
-
-      const unknown = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode: 'khong-ton-tai' })
-        .expect(400);
-      expect(unknown.body.error).toBe('expired_token');
-
-      // Duyệt phải đăng nhập.
-      await request(server)
-        .post('/api/v1/device/approve')
-        .send({ userCode })
-        .expect(401);
-      const member = await loginAs('member2@teamlens.local');
-      const wrong = await member
-        .post('/api/v1/device/approve')
-        .send({ userCode: 'BBBB-BBBB' })
-        .expect(404);
-      expect(wrong.body.error).toBe('invalid_code');
-      const approved = await member
-        .post('/api/v1/device/approve')
-        .send({ userCode: userCode.toLowerCase() })
-        .expect(200);
-      expect(approved.body).toEqual({
-        device: { id: expect.any(String), name: 'LAPTOP-01' },
-      });
-      await member
-        .post('/api/v1/device/approve')
-        .send({ userCode })
-        .expect(404);
-
-      // Chờ hết `interval` rồi mới poll lại.
-      await new Promise((resolve) => setTimeout(resolve, 5100));
-      const token = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(200);
-      expect(token.body).toEqual({
-        accessToken: expect.stringMatching(/^tld_[\w-]{43}$/),
-        deviceId: approved.body.device.id,
-      });
-      const accessToken = token.body.accessToken as string;
-
-      // Token chỉ trả một lần.
-      await new Promise((resolve) => setTimeout(resolve, 5100));
-      const twice = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(400);
-      expect(twice.body.error).toBe('expired_token');
+    it('join → whoami → devices → logout → whoami 401', async () => {
+      const code = await createInviteCode();
+      const joined = await request(server)
+        .post('/agent/v1/join')
+        .send({
+          code,
+          name: 'Thành viên 3',
+          deviceName: 'LAPTOP-01',
+          os: 'windows',
+          cliVersion: '0.1.0',
+          consent: { textVersion: CONSENT_TEXT_VERSION, backfill: false },
+        })
+        .expect(201);
+      expect(joined.body.accessToken).toMatch(/^tld_[\w-]{43}$/);
+      const accessToken = joined.body.accessToken as string;
+      const deviceId = joined.body.deviceId as string;
 
       // DB chỉ lưu SHA-256 của token.
       const [stored] = await querySql<{ token_hash: string }>(
         'SELECT token_hash FROM devices WHERE id = $1',
-        [approved.body.device.id],
+        [deviceId],
       );
-      expect(stored.token_hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(stored.token_hash).toBe(sha256(accessToken));
       expect(stored.token_hash).not.toContain(accessToken);
 
       const whoami = await request(server)
@@ -496,19 +447,40 @@ describe('TeamLens API (e2e)', () => {
         .expect(200);
       expect(whoami.body).toEqual({
         user: {
-          id: expect.any(String),
-          email: 'member2@teamlens.local',
-          name: 'Member 2',
+          id: joined.body.userId,
+          email: null,
+          name: 'Thành viên 3',
         },
         role: 'member',
-        device: { id: approved.body.device.id, name: 'LAPTOP-01' },
-        projects: [],
+        device: { id: deviceId, name: 'LAPTOP-01' },
+        projects: [
+          {
+            id: expect.any(String),
+            name: 'TeamLens',
+            slug: 'teamlens',
+            repoPatterns: ['github.com/makitjenamin/teamlens'],
+          },
+        ],
       });
 
+      // Member không có mật khẩu: vào dashboard bằng `tl open` (web-login → auth/ticket).
+      const ticketRes = await request(server)
+        .post('/agent/v1/web-login')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+      const member = request.agent(server);
+      await member
+        .post('/api/v1/auth/ticket')
+        .send({
+          ticket: new URL(ticketRes.body.url as string).searchParams.get(
+            'ticket',
+          ),
+        })
+        .expect(200);
       const devices = await member.get('/api/v1/devices').expect(200);
       expect(devices.body).toEqual([
         {
-          id: approved.body.device.id,
+          id: deviceId,
           name: 'LAPTOP-01',
           os: 'windows',
           cliVersion: '0.1.0',
@@ -547,25 +519,17 @@ describe('TeamLens API (e2e)', () => {
     });
 
     it('whoami trả vai trò, project và repo pattern; revoke chỉ chủ thiết bị hoặc leader', async () => {
-      const code = await request(server)
-        .post('/agent/v1/device/code')
-        .send({ deviceName: 'PC-LEADER', os: 'windows', cliVersion: '0.1.0' })
-        .expect(200);
-      const leader = await loginAs('leader@teamlens.local');
-      const approved = await leader
-        .post('/api/v1/device/approve')
-        .send({ userCode: code.body.userCode })
-        .expect(200);
-      const token = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode: code.body.deviceCode })
-        .expect(200);
+      const [leaderRow] = await querySql<{ id: string }>(
+        "SELECT id FROM users WHERE email = 'leader@teamlens.local'",
+      );
+      const device = await insertDevice(leaderRow.id, 'PC-LEADER');
 
       const whoami = await request(server)
         .get('/agent/v1/whoami')
-        .set('Authorization', `Bearer ${token.body.accessToken}`)
+        .set('Authorization', `Bearer ${device.token}`)
         .expect(200);
       expect(whoami.body.role).toBe('leader');
+      expect(whoami.body.device).toEqual({ id: device.id, name: 'PC-LEADER' });
       expect(whoami.body.projects).toEqual([
         {
           id: expect.any(String),
@@ -575,37 +539,14 @@ describe('TeamLens API (e2e)', () => {
         },
       ]);
 
-      const deviceId = approved.body.device.id as string;
       const other = await loginAs('member2@teamlens.local');
-      await other.post(`/api/v1/devices/${deviceId}/revoke`).expect(403);
+      await other.post(`/api/v1/devices/${device.id}/revoke`).expect(403);
       const admin = await loginAs('admin@teamlens.local');
-      await admin.post(`/api/v1/devices/${deviceId}/revoke`).expect(204);
+      await admin.post(`/api/v1/devices/${device.id}/revoke`).expect(204);
       await request(server)
         .get('/agent/v1/whoami')
-        .set('Authorization', `Bearer ${token.body.accessToken}`)
+        .set('Authorization', `Bearer ${device.token}`)
         .expect(401);
-    });
-
-    it('mã hết hạn → approve 410 expired_code, token expired_token', async () => {
-      const code = await request(server)
-        .post('/agent/v1/device/code')
-        .send({ deviceName: 'OLD', os: 'windows', cliVersion: '0.1.0' })
-        .expect(200);
-      await querySql(
-        `UPDATE device_codes SET expires_at = now() - interval '1 minute' WHERE user_code = $1`,
-        [code.body.userCode],
-      );
-      const member = await loginAs('member1@teamlens.local');
-      const res = await member
-        .post('/api/v1/device/approve')
-        .send({ userCode: code.body.userCode })
-        .expect(410);
-      expect(res.body.error).toBe('expired_code');
-      const token = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode: code.body.deviceCode })
-        .expect(400);
-      expect(token.body.error).toBe('expired_token');
     });
   });
 
