@@ -15,6 +15,20 @@
       "when": 1795641044627,
       "tag": "0001_turns_partitioned",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795651837932,
+      "tag": "0002_session_v1_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795652189375,
+      "tag": "0003_session_parent_source",
+      "breakpoints": true
     }
   ]
 }
