@@ -12,9 +12,10 @@ TeamLens (lệnh `tl`) là công cụ open-source, tự host, giúp leader xem t
 
 | Vai trò | Cần gì |
 | --- | --- |
-| Leader | Xem prompt, session và diff code của thành viên trong project; điểm kỹ năng; anti-pattern; leaderboard |
-| Member | Xem dữ liệu và điểm của chính mình, biết cần cải thiện gì, kiểm soát việc đồng ý |
-| Admin | Cài đặt server, quản lý user/project, cấu hình LLM key và thời gian giữ dữ liệu |
+| Leader | Người tự host server và có toàn quyền: tạo project, khai báo repo, tạo link mời, xem prompt/session/diff của thành viên, điểm kỹ năng, anti-pattern, leaderboard, cấu hình LLM key và thời gian giữ dữ liệu |
+| Member | Tham gia bằng một lệnh `tl join <link mời>`; xem dữ liệu và điểm của chính mình, biết cần cải thiện gì, kiểm soát việc đồng ý |
+
+Không có vai trò Admin riêng: server do leader tự host nên leader là vai trò cao nhất (xem mục 11.1).
 
 **Mục tiêu MVP**
 
@@ -71,8 +72,9 @@ CLI là một file `tl.exe` duy nhất, viết bằng Rust, vừa là công cụ
 
 | Lệnh | Việc làm |
 | --- | --- |
-| `tl join <invite-url>` | Lưu địa chỉ server từ invite, chạy device login, hiển thị màn hình đồng ý, đăng ký daemon |
-| `tl login` / `tl logout` | Device login lại hoặc thu hồi token của máy này |
+| `tl join <invite-url>` | **Lệnh duy nhất thành viên cần chạy.** Đọc địa chỉ server và mã mời từ link, hiển thị màn hình đồng ý (hỏi tên hiển thị), đổi mã mời lấy device token, đăng ký daemon (mục 4.3, 7.1). `tl login <invite-url>` là tên gọi khác của cùng lệnh |
+| `tl open` | Mở dashboard trên trình duyệt, đã đăng nhập sẵn bằng device token của máy này (member không có mật khẩu, mục 7.1) |
+| `tl logout` | Thu hồi token của máy này; muốn dùng lại thì chạy `tl join` với một link mời còn hạn |
 | `tl status` | Trạng thái daemon, agent phát hiện được, số session đang chờ gửi, lần sync cuối, lỗi parse |
 | `tl preview [session]` | Hiển thị chính xác payload sẽ gửi (sau khi che secret và cắt output) |
 | `tl sync` | Ép quét và gửi ngay |
@@ -90,15 +92,18 @@ CLI là một file `tl.exe` duy nhất, viết bằng Rust, vừa là công cụ
 - Heartbeat mỗi 15 phút, kèm phiên bản CLI, agent phát hiện được và số lỗi parse.
 - Giới hạn tài nguyên mục tiêu: dưới 30 MB RAM khi rảnh, dưới 2% CPU trung bình.
 
-### 4.3 Luồng đồng ý khi setup
+### 4.3 Luồng đồng ý khi `tl join`
 
-1. Hiển thị tên server, project và danh sách repo sẽ được thu thập (lấy từ server).
+Màn hình đồng ý là một phần của `tl join`, chạy trong terminal, không cần trình duyệt.
+
+1. Hiển thị tên server, project và danh sách repo sẽ được thu thập (lấy từ `GET /agent/v1/invites/{code}`).
 2. Liệt kê dữ liệu sẽ gửi: toàn bộ prompt, câu trả lời, tool call, diff code; output bị cắt; secret bị che.
-3. Hỏi riêng: có gửi toàn bộ lịch sử session cũ trên máy không (kèm số lượng và khoảng ngày).
-4. Người dùng gõ `yes`. Từ chối thì CLI thoát, không cài daemon, không gửi gì.
-5. Gửi bản ghi đồng ý (phiên bản văn bản, thời điểm, lựa chọn backfill) lên server.
+3. Hỏi tên hiển thị (để leader biết ai là ai; không hỏi email, không đặt mật khẩu).
+4. Hỏi riêng: có gửi toàn bộ lịch sử session cũ trên máy không (kèm số lượng và khoảng ngày).
+5. Người dùng gõ `yes`. Từ chối thì CLI thoát, không gọi server lần nào nữa, không cài daemon, không gửi gì.
+6. Bản ghi đồng ý (phiên bản văn bản, thời điểm, lựa chọn backfill) được gửi cùng request `POST /agent/v1/join`, nên không có trạng thái "đã có token nhưng chưa đồng ý".
 
-Khi văn bản đồng ý thay đổi trên server, daemon dừng gửi cho tới khi người dùng đồng ý lại qua `tl status`.
+Khi văn bản đồng ý thay đổi trên server, daemon dừng gửi cho tới khi người dùng đồng ý lại qua `tl consent` (ghi bằng `POST /agent/v1/consent`).
 
 ### 4.4 Hàng đợi offline và lưu trữ local
 
@@ -202,7 +207,7 @@ Mọi bước lọc và che đều chạy trên máy thành viên, trước khi 
 - Bộ pattern có sẵn theo kiểu gitleaks: AWS key, GitHub/GitLab token, Slack token, khóa API của OpenAI/Anthropic/Google, JWT, private key PEM, connection string có mật khẩu, `password=` trong URL và file `.env`.
 - Thêm kiểm tra entropy cho chuỗi dài từ 20 ký tự, chỉ áp dụng khi đứng sau từ khóa như `key`, `secret`, `token`, `password` để tránh che nhầm hash commit.
 - Thay bằng `[REDACTED:<loại>]`, ghi số lượng vào `redactions`. Nội dung file `.env*`, `*.pem`, `*.key` mà agent đọc thì bỏ toàn bộ output.
-- Admin thêm được pattern riêng trên server; CLI tải về cùng danh sách remote.
+- Leader thêm được pattern riêng trên server; CLI tải về cùng danh sách remote.
 
 ### 6.3 Giữ gì, cắt gì
 
@@ -216,32 +221,62 @@ Mọi bước lọc và che đều chạy trên máy thành viên, trước khi 
 | Ảnh đính kèm | Chỉ đếm số lượng |
 | Đường dẫn tuyệt đối, tên máy, tên user Windows | Thay bằng đường dẫn tương đối trong repo hoặc `~` |
 
-Các ngưỡng trên là mặc định, admin chỉnh được trên server.
+Các ngưỡng trên là mặc định, leader chỉnh được trên server.
 
 ### 6.4 Minh bạch
 
 - `tl preview` cho thành viên xem đúng payload sẽ gửi.
-- Mỗi lần leader hoặc admin mở một session của người khác, server ghi audit log (ai, lúc nào, session nào). Thành viên xem được audit log liên quan tới mình.
-- Thành viên rút đồng ý thì dữ liệu cũ vẫn nằm trên server theo retention; admin xóa được toàn bộ dữ liệu của một người khi có yêu cầu.
+- Mỗi lần leader mở một session của người khác, server ghi audit log (ai, lúc nào, session nào). Thành viên xem được audit log liên quan tới mình (qua `tl open`).
+- Thành viên rút đồng ý thì dữ liệu cũ vẫn nằm trên server theo retention; leader xóa được toàn bộ dữ liệu của một người khi có yêu cầu.
 
 ## 7. Server API
 
-Server NestJS có hai nhóm API: `/agent/v1/*` cho CLI (xác thực bằng device token) và `/api/v1/*` cho dashboard (xác thực bằng session cookie). Contract viết bằng OpenAPI trước khi code; CLI Rust sinh client từ spec này.
+Server NestJS có hai nhóm API: `/agent/v1/*` cho CLI (xác thực bằng device token, trừ hai endpoint đọc/dùng link mời) và `/api/v1/*` cho dashboard (xác thực bằng session cookie). Contract viết bằng OpenAPI trước khi code; CLI Rust sinh client từ spec này.
 
-### 7.1 Device login (giống `gh auth login`)
+### 7.1 Danh tính và tham gia bằng link mời
 
-1. Leader tạo invite cho project: `https://teamlens.congty.com/i/<invite-code>` (hết hạn sau 7 ngày, dùng một lần hoặc nhiều lần tùy cấu hình).
-2. Thành viên chạy `tl join <url>`; CLI gọi `POST /agent/v1/device/code` và nhận `device_code` cùng mã ngắn `user_code` (ví dụ `WDJB-MJHT`).
-3. CLI mở trình duyệt tới trang xác nhận; thành viên đăng nhập (hoặc tạo tài khoản từ invite) và nhập mã.
-4. CLI poll `POST /agent/v1/device/token` mỗi 5 giây; khi được duyệt sẽ nhận device token (opaque, lưu hash trên server). Token lưu trong Windows Credential Manager.
-5. Mỗi máy một token riêng; thành viên hoặc admin thu hồi được từng thiết bị.
+**Nguyên tắc:** link mời là thứ duy nhất thành viên cần. Mã mời được đổi trực tiếp lấy device token; device token là danh tính của thành viên. Thành viên không có email, không có mật khẩu và không phải qua lại giữa trình duyệt với CLI. Chỉ leader có email + mật khẩu (để vào dashboard từ bất kỳ máy nào).
+
+**Leader chuẩn bị (một lần):**
+
+1. `docker compose up -d` trên VPS, mở web lần đầu.
+2. Trang `/setup` là một wizard: tạo tài khoản leader (email + mật khẩu) → tạo project đầu tiên + repo pattern → hiện ngay link mời và câu lệnh cài để copy.
+3. Leader gửi link (hoặc câu lệnh) cho cả nhóm qua kênh chat.
+
+**Link mời** (`https://teamlens.congty.com/i/<code>`): dùng chung cho cả nhóm, gắn với một project. Mặc định hết hạn sau 7 ngày; leader đặt được giới hạn số lượt dùng (`max_uses`) và thu hồi bất cứ lúc nào. Mã sinh ngẫu nhiên 32 byte, DB chỉ lưu SHA-256. Mở link bằng trình duyệt thì trang `/i/<code>` chỉ hiện hướng dẫn cài và câu lệnh cần chạy.
+
+**Thành viên tham gia (một lệnh):**
+
+```
+tl join https://teamlens.congty.com/i/<code>
+# hoặc, khi chưa cài tl.exe:
+irm https://teamlens.congty.com/install.ps1?code=<code> | iex
+```
+
+1. CLI gọi `GET /agent/v1/invites/{code}` (công khai): nhận tên project, repo pattern, văn bản đồng ý và phiên bản. Link sai, hết hạn, hết lượt hay đã thu hồi thì báo lỗi và dừng.
+2. Màn hình đồng ý trong terminal (mục 4.3): hỏi tên hiển thị, hỏi backfill, người dùng gõ `yes`.
+3. CLI gọi `POST /agent/v1/join` với `{ code, name, deviceName, os, cliVersion, consent: { textVersion, backfill } }`. Trong một transaction, server: khóa dòng invite và kiểm tra lại → tạo `users` (role `member`, không email, không mật khẩu) → `project_members` → `devices` (kèm `token_hash`) → `consents` → tăng `invites.used_count` → ghi audit `member.join`. Trả device token đúng một lần.
+4. CLI lưu token vào Windows Credential Manager, lưu địa chỉ server vào config, đăng ký `tl daemon` bằng Task Scheduler.
+
+**Máy đã tham gia, dùng link của project khác:** `tl join <link khác>` gửi kèm device token hiện có; server không tạo user/thiết bị mới mà chỉ thêm `project_members` và `consents` cho user đó.
+
+**Thành viên xem dashboard:** `tl open` gọi `POST /agent/v1/web-login` (bằng device token), nhận URL `/auth/cli?ticket=<ticket>` sống 60 giây, dùng một lần, rồi mở trình duyệt. Web đổi ticket qua `POST /api/v1/auth/ticket` lấy cookie `tl_session` như đăng nhập thường. DB chỉ lưu SHA-256 của ticket.
+
+**Thu hồi:** mỗi máy một token, không hết hạn theo thời gian. Token mất hiệu lực khi thành viên chạy `tl logout`, khi leader hoặc chính thành viên thu hồi thiết bị trên dashboard, hoặc khi user bị xóa.
+
+**Máy thứ hai, cài lại Windows, mất token:** thành viên chạy lại `tl join` với link mời còn hạn. Server không nhận ra đó là cùng một người nên tạo một user mới; leader vào trang Thành viên bấm **"Gộp vào…"** để nhập user mới vào user cũ (mục 10). Gộp là chuyển `devices`, `sessions`, `consents`, `project_members` sang user cũ, ghi audit `member.merge`, xóa user thừa, rồi chấm lại điểm và tính lại `user_weekly_stats` của các tuần bị ảnh hưởng. Nếu hai user có session trùng `source_id` thì giữ bản có `updated_at` mới hơn.
+
+**Bảo mật của link chung:** ai có link còn hạn đều tham gia được. Người lạ tham gia chỉ gửi được dữ liệu của chính họ và không xem được dữ liệu của ai khác (member chỉ thấy dữ liệu của mình). Leader thấy ngay người mới trên trang Thành viên để xóa, và thu hồi link khi lộ. Hai endpoint công khai giới hạn 10 request/phút mỗi IP.
 
 ### 7.2 Endpoint cho CLI
 
 | Method + path | Mô tả |
 | --- | --- |
-| `POST /agent/v1/device/code` | Bắt đầu device login |
-| `POST /agent/v1/device/token` | Poll lấy token |
+| `GET /agent/v1/invites/{code}` | Công khai. Xem trước link mời: project, repo pattern, văn bản đồng ý, phiên bản |
+| `POST /agent/v1/join` | Công khai (hoặc kèm device token nếu máy đã tham gia). Đổi mã mời + đồng ý lấy device token |
+| `POST /agent/v1/web-login` | Xin ticket đăng nhập dashboard một lần cho `tl open` |
+| `GET /agent/v1/whoami` | User, thiết bị và các project kèm repo pattern |
+| `POST /agent/v1/logout` | Thu hồi token của chính máy đang gọi |
 | `GET /agent/v1/config` | Danh sách pattern remote, pattern redaction, ngưỡng cắt, phiên bản văn bản đồng ý, phiên bản CLI tối thiểu |
 | `POST /agent/v1/consent` | Ghi nhận đồng ý hoặc rút đồng ý |
 | `POST /agent/v1/ingest` | Gửi một batch session (định dạng mục 5.3), nén gzip, tối đa 10 MB |
@@ -258,7 +293,7 @@ Server NestJS có hai nhóm API: `/agent/v1/*` cho CLI (xác thực bằng devic
 
 ### 7.4 Endpoint cho dashboard (rút gọn)
 
-`/auth/*` (đăng nhập email + mật khẩu, SSO để phase 3) · `/projects` · `/projects/:id/members` · `/projects/:id/invites` · `/projects/:id/overview` · `/projects/:id/leaderboard` · `/projects/:id/rules` · `/users/:id/profile?project=` · `/sessions?project=&user=&agent=&from=&to=&q=` · `/sessions/:id` · `/sessions/:id/llm-review` (POST) · `/sessions/:id/notes` · `/audit` · `/admin/settings`.
+`/auth/*` (leader đăng nhập email + mật khẩu; `POST /auth/ticket` đổi ticket của `tl open`; SSO để phase 3) · `/projects` · `/projects/:id/members` · `/projects/:id/invites` (tạo, liệt kê, thu hồi) · `/users/:id/merge` (POST, gộp user) · `/projects/:id/overview` · `/projects/:id/leaderboard` · `/projects/:id/rules` · `/users/:id/profile?project=` · `/sessions?project=&user=&agent=&from=&to=&q=` · `/sessions/:id` · `/sessions/:id/llm-review` (POST) · `/sessions/:id/notes` · `/audit` · `/settings`.
 
 ## 8. Data model (Postgres)
 
@@ -266,12 +301,13 @@ Postgres 16 là nơi lưu duy nhất; nội dung prompt dùng full-text search s
 
 | Bảng | Cột chính | Ghi chú |
 | --- | --- | --- |
-| `users` | id, email, name, password_hash, is_admin, created_at, deleted_at | |
+| `users` | id, name, role, email, password_hash, created_at, deleted_at | role: `leader`, `member`. `email` và `password_hash` chỉ leader có (null với member) |
 | `devices` | id, user_id, name, os, cli_version, token_hash, last_seen_at, status, revoked_at | status: online, offline, paused, consent_revoked |
 | `projects` | id, name, slug, settings (jsonb), created_at | settings: bật leaderboard, ngưỡng cắt output |
 | `project_repos` | id, project_id, remote_pattern | ví dụ `github.com/org/*` |
-| `project_members` | project_id, user_id, role | role: leader, member |
-| `invites` | id, project_id, code_hash, role, expires_at, max_uses, used_count | |
+| `project_members` | project_id, user_id | Chỉ ghi ai thuộc project nào; vai trò nằm ở `users.role` |
+| `invites` | id, project_id, code_hash, expires_at, max_uses, used_count, revoked_at, created_by | Link chung, chỉ tạo member; `max_uses` null = không giới hạn |
+| `web_login_tickets` | id (SHA-256 của ticket), user_id, device_id, expires_at, used_at | Ticket 60 giây cho `tl open` |
 | `consents` | id, user_id, device_id, text_version, backfill, granted_at, revoked_at | |
 | `sessions` | id, user_id, project_id, device_id, source_id, agent, agent_version, repo_remote, branch, started_at, ended_at, turn_count, token totals, parent_session_id | unique (user_id, source_id) |
 | `turns` | session_id, seq, role, kind, ts, model, text, tool (jsonb), output (jsonb), diff (jsonb), usage (jsonb), redactions (jsonb), tsv (tsvector) | PK (session_id, seq), partition theo `ts` |
@@ -331,8 +367,8 @@ Leader bật/tắt rule và chỉnh ngưỡng theo project; màn hình rule có 
 
 ### 9.3 Chấm bằng LLM
 
-- Kích hoạt: nút "Chấm bằng LLM" trên trang session. Chỉ hiện khi admin đã cấu hình provider. Không chạy tự động.
-- Provider: Anthropic, OpenAI, Gemini, hoặc endpoint tương thích OpenAI (Ollama, vLLM). Admin nhập key và chọn model.
+- Kích hoạt: nút "Chấm bằng LLM" trên trang session. Chỉ hiện khi leader đã cấu hình provider. Không chạy tự động.
+- Provider: Anthropic, OpenAI, Gemini, hoặc endpoint tương thích OpenAI (Ollama, vLLM). Leader nhập key và chọn model.
 - Đầu vào: các turn của session (đã cắt gọn theo ngân sách token cấu hình được, mặc định 60k token) cùng các finding từ rule.
 - Đầu ra JSON có schema cố định: điểm 1–5 cho mỗi nhóm kỹ năng, lý do kèm số thứ tự turn làm bằng chứng, 3 gợi ý cải thiện, và một phiên bản prompt viết lại cho prompt kém nhất.
 - Rubric có phiên bản (`rubric_version`) để so sánh được kết quả qua thời gian. Lưu chi phí ước tính của mỗi lần chấm.
@@ -340,7 +376,7 @@ Leader bật/tắt rule và chỉnh ngưỡng theo project; màn hình rule có 
 
 ## 10. Web dashboard (Next.js)
 
-MVP có 5 màn hình cho leader và các màn hình quản trị tối thiểu; member dùng chung các màn hình này nhưng chỉ thấy dữ liệu của mình. Mọi màn hình có bộ lọc chung: project, khoảng ngày, agent.
+MVP có 5 màn hình cho leader và các màn hình quản trị tối thiểu; member dùng chung các màn hình này nhưng chỉ thấy dữ liệu của mình, và vào dashboard bằng `tl open` thay vì mật khẩu. Mọi màn hình có bộ lọc chung: project, khoảng ngày, agent.
 
 | Màn hình | Nội dung | Ai xem |
 | --- | --- | --- |
@@ -349,33 +385,38 @@ MVP có 5 màn hình cho leader và các màn hình quản trị tối thiểu; 
 | Xem lại session | Dòng hội thoại: prompt, câu trả lời, tool call thu gọn, diff tô màu, đánh dấu turn dính finding; nút "Chấm bằng LLM"; ghi chú của leader theo turn; tìm kiếm trong session | Leader; member xem của mình |
 | Leaderboard | Xếp hạng theo điểm rule tổng và từng nhóm, trong tuần/tháng; chỉ tính người có từ 5 session trong kỳ; có công tắc bật/tắt theo project | Leader; member thấy khi leader bật chế độ công khai |
 | Quản lý rule | Danh sách rule, bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, thử trên dữ liệu gần đây, chạy lại | Leader |
-| Quản trị | User, project, repo pattern, invite, thiết bị, LLM provider, retention, pattern redaction, audit log | Admin |
+| Thành viên | Danh sách thành viên kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý); người mới tham gia; thu hồi thiết bị; xóa thành viên; **"Gộp vào…"** để nhập user trùng (máy thứ hai, cài lại Windows) vào user cũ | Leader |
+| Quản trị | Project, repo pattern, link mời (tạo, giới hạn lượt, thu hồi), thêm leader, LLM provider, retention, pattern redaction, audit log | Leader |
 | Của tôi | Đồng ý đã cấp, thiết bị, audit log ai đã xem session của mình | Mọi người |
 
 Gợi ý thư viện: shadcn/ui + Tailwind, TanStack Query, Recharts hoặc ECharts cho biểu đồ, `react-diff-view` cho diff, `next-intl` cho tiếng Việt và tiếng Anh (dự án open-source nên có i18n từ đầu).
 
 ## 11. Phân quyền, retention và triển khai
 
-Một server phục vụ một tổ chức và chứa không giới hạn số project; vai trò Leader/Member gán theo từng project, Admin áp dụng toàn server.
+Một server do một leader (hoặc một nhóm leader) tự host cho team của mình và chứa không giới hạn số project. Chỉ có hai vai trò, áp dụng cho toàn server (`users.role`): **Leader** làm được mọi thứ, **Member** chỉ đụng tới dữ liệu của mình. Project chỉ dùng để nhóm repo và gom thành viên, không mang vai trò riêng.
 
 ### 11.1 Ma trận quyền
 
-| Hành động | Admin | Leader (trong project) | Member |
-| --- | --- | --- | --- |
-| Xem session và điểm của mình | Có | Có | Có |
-| Xem session của người khác | Có (ghi audit) | Có, trong project (ghi audit) | Không |
-| Xem leaderboard | Có | Có | Khi leader bật chế độ công khai |
-| Chấm bằng LLM | Có | Có | Session của mình, nếu admin cho phép |
-| Quản lý rule của project | Có | Có | Không |
-| Tạo invite, quản lý thành viên và repo pattern | Có | Có | Không |
-| Tạo project, cấu hình LLM key, retention | Có | Không | Không |
-| Xóa toàn bộ dữ liệu của một người | Có | Không | Yêu cầu admin |
+| Hành động | Leader | Member |
+| --- | --- | --- |
+| Xem session và điểm của mình | Có | Có (qua `tl open`) |
+| Xem session của người khác | Có, mọi project (ghi audit) | Không |
+| Xem leaderboard | Có | Khi leader bật chế độ công khai |
+| Chấm bằng LLM | Có | Session của mình, nếu leader cho phép |
+| Quản lý rule | Có | Không |
+| Tạo project, repo pattern, link mời | Có | Không |
+| Quản lý thành viên: thu hồi thiết bị, gộp, xóa | Có | Thu hồi thiết bị của chính mình |
+| Thêm leader khác (nhập email + mật khẩu tạm, hoặc nâng một member lên leader rồi đặt email + mật khẩu) | Có | Không |
+| Cấu hình LLM key, retention, pattern redaction | Có | Không |
+| Xóa toàn bộ dữ liệu của một người | Có | Yêu cầu leader |
 
-Một session chỉ thuộc một project. Nếu một repo khớp pattern của nhiều project, lấy project có pattern cụ thể hơn; bằng nhau thì admin phải sửa pattern (server cảnh báo khi lưu).
+Server luôn phải còn ít nhất một leader: không cho xóa hay hạ quyền leader cuối cùng.
+
+Một session chỉ thuộc một project. Nếu một repo khớp pattern của nhiều project, lấy project có pattern cụ thể hơn; bằng nhau thì leader phải sửa pattern (server cảnh báo khi lưu).
 
 ### 11.2 Retention
 
-- Nội dung thô (`turns`, `llm_reviews`, `notes`): mặc định 90 ngày, admin chỉnh từ 7 tới 730 ngày hoặc vô hạn.
+- Nội dung thô (`turns`, `llm_reviews`, `notes`): mặc định 90 ngày, leader chỉnh từ 7 tới 730 ngày hoặc vô hạn.
 - Metadata session, finding, điểm và `user_weekly_stats`: giữ lâu dài để xem xu hướng.
 - Job chạy hằng đêm: drop partition `turns` quá hạn, xóa bản ghi liên quan.
 - Audit log giữ ít nhất 1 năm.
@@ -384,9 +425,9 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 
 - `docker compose up -d` với 4 container: `api` (NestJS, kèm worker pg-boss), `web` (Next.js), `postgres`, `caddy` (reverse proxy, tự cấp HTTPS Let's Encrypt).
 - Cấu hình qua `.env`: `TEAMLENS_PUBLIC_URL`, `DATABASE_URL`, `TEAMLENS_SECRET_KEY`, SMTP (tùy chọn, để gửi invite qua email).
-- Lần chạy đầu: trang `/setup` tạo tài khoản admin đầu tiên.
+- Lần chạy đầu: wizard `/setup` tạo tài khoản leader đầu tiên, project đầu tiên và repo pattern, rồi hiện link mời + câu lệnh cài cho thành viên (mục 7.1).
 - Cấu hình tối thiểu ước tính cho team 20 người: VPS 2 vCPU, 4 GB RAM, 40 GB SSD (cần đo lại khi có dữ liệu thật).
-- Server phục vụ `GET /install.ps1`: script tải `tl.exe` từ GitHub Releases, kiểm tra SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm vào PATH của user, rồi chạy `tl join` với invite.
+- Server phục vụ `GET /install.ps1?code=<code>`: script tải `tl.exe` từ GitHub Releases, kiểm tra SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm vào PATH của user, rồi chạy `tl join` với link mời tương ứng.
 - Backup: hướng dẫn `pg_dump` định kỳ trong tài liệu vận hành.
 
 ### 11.4 Repo và cách làm việc
@@ -406,7 +447,9 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 | --- | --- | --- |
 | Agent đổi định dạng log | Mất dữ liệu im lặng | Bỏ qua bản ghi lạ, báo lỗi parse qua heartbeat, cảnh báo trên dashboard, test snapshot theo phiên bản, CLI tự cập nhật |
 | Server bị xâm nhập | Lộ mã nguồn và prompt của cả team | Che secret trên máy, mã hóa LLM key, HTTPS bắt buộc, retention ngắn mặc định, hướng dẫn hardening |
-| Che secret bỏ sót | Secret nằm trong DB | Pattern cập nhật được từ server; admin có công cụ quét lại và xóa secret trong dữ liệu đã lưu |
+| Che secret bỏ sót | Secret nằm trong DB | Pattern cập nhật được từ server; leader có công cụ quét lại và xóa secret trong dữ liệu đã lưu |
+| Link mời chung bị lộ | Người lạ tham gia và gửi dữ liệu rác | Link hết hạn 7 ngày, giới hạn lượt dùng, thu hồi được; người lạ không xem được dữ liệu của ai khác; người mới hiện ngay trên trang Thành viên để xóa |
+| Một người có nhiều user (máy thứ hai, cài lại Windows) | Điểm và lịch sử bị chia đôi | Leader gộp user trên trang Thành viên (mục 7.1) |
 | Leaderboard bị lách số | Điểm không phản ánh kỹ năng thật | Ngưỡng tối thiểu 5 session, công tắc tắt theo project, phase 3 gắn với kết quả PR/issue |
 | Pháp lý (GDPR, Nghị định 13/2023/NĐ-CP) | Tổ chức dùng tool vi phạm quy định dữ liệu cá nhân | Đồng ý rõ ràng có phiên bản, audit log, xóa theo yêu cầu, tài liệu PRIVACY.md cho người triển khai |
 | Session rất lớn (hàng trăm MB) | Daemon tốn RAM, request quá lớn | Đọc dạng stream, chia batch 10 MB, cắt dòng vượt 10 MB |
@@ -422,6 +465,8 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 - [x] ORM: Drizzle.
 - [x] Subagent Claude Code gửi thành session con; rule chất lượng prompt và leaderboard chỉ tính session gốc.
 - [x] WSL ở phase 2, Remote-SSH và Dev Container ở phase 3; MVP cảnh báo trong `tl status`.
+- [x] Gộp Admin vào Leader: chỉ còn hai vai trò toàn server, leader làm mọi thứ (mục 11.1).
+- [x] Thành viên tham gia bằng một lệnh `tl join <link mời>`: link chung cho cả nhóm, mã mời đổi thẳng lấy device token, bỏ device login qua trình duyệt (`device_codes`, `/device`); member không có email/mật khẩu, vào dashboard bằng `tl open`; user trùng do máy thứ hai hoặc cài lại máy thì leader gộp (mục 7.1).
 
 Còn mở:
 
@@ -430,8 +475,8 @@ Còn mở:
 
 ### 12.3 Tiêu chí hoàn thành MVP
 
-- [ ] Admin cài server bằng `docker compose` trên VPS mới trong dưới 15 phút.
-- [ ] Thành viên cài CLI và hoàn tất đồng ý bằng một lệnh PowerShell từ invite.
+- [ ] Leader cài server bằng `docker compose` trên VPS mới và có link mời trong dưới 15 phút.
+- [ ] Thành viên cài CLI, đồng ý và bắt đầu gửi bằng một lệnh, không cần mở trình duyệt.
 - [ ] Session Claude Code và Codex trong repo đã đăng ký xuất hiện trên dashboard trong vòng 5 phút sau khi ổn định.
 - [ ] Session ngoài repo đăng ký không bao giờ rời máy (có test tự động).
 - [ ] Bộ test secret mẫu (ít nhất 30 loại) bị che 100% trước khi gửi.

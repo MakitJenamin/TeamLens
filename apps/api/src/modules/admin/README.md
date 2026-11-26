@@ -1,1 +1,1 @@
-Module rỗng, sẽ làm ở task M4.6 (cài đặt server: pattern redaction, retention), M4.5 (trang "Của tôi", audit cho admin) và M5.6 (xóa dữ liệu của một người).
+Module rỗng, sẽ làm ở task M4.6 (cài đặt server: pattern redaction, retention), M4.5 (trang "Của tôi", audit cho leader) và M5.6 (xóa dữ liệu của một người). Từ Mốc 1.5 không còn vai trò admin: mọi route ở đây chỉ dành cho leader.

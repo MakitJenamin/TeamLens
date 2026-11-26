@@ -27,7 +27,9 @@ pnpm lint && pnpm typecheck && pnpm test
 cd cli && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`.
+Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`. Từ Mốc 1.5 (task J.2) chỉ còn `leader@teamlens.local` có mật khẩu; member không có email/mật khẩu, seed in device token ra console.
+
+**Mô hình danh tính đã chốt (SPEC 7.1, 11.1, áp dụng từ Mốc 1.5):** chỉ hai vai trò toàn server, `leader` (làm mọi thứ) và `member`; không còn admin. Thành viên tham gia bằng đúng một lệnh `tl join <link mời>` (link chung cho cả nhóm), mã mời đổi thẳng lấy device token, không qua trình duyệt; member vào dashboard bằng `tl open`. User trùng (máy thứ hai, cài lại Windows) do leader gộp. Code mới không thêm phụ thuộc vào `is_admin`, `project_members.role` hay device login (`device_codes`, `/device`).
 
 ## 3. Vùng sở hữu (quan trọng nhất)
 
@@ -44,7 +46,7 @@ Mỗi người sở hữu trọn một nhóm tính năng từ CLI tới DB tới
 **Điểm chạm giữa hai vùng** (chốt bằng contract, không sửa code của nhau):
 - Trang xem session (Người 1) gọi API findings (Người 2, `GET /api/v1/sessions/{sessionId}/findings`).
 - Pipeline gửi của CLI (Người 1) hỏi module `consent` (Người 2) trước khi gửi.
-- `tl join` (Người 2) dùng lại `login` và `config` của vùng nền.
+- `tl join` (Người 2) dùng lại HTTP client, lưu token và `config` của vùng nền; `tl open` và gộp user (Người 1, J.6 và J.8) dùng device token và bảng do `tl join` tạo ra.
 
 Luồng chính và code của từng khúc: [docs/FLOW.md](docs/FLOW.md). Hết mỗi mốc, mỗi người cập nhật phần ghi chú khúc của mình trong file đó.
 
