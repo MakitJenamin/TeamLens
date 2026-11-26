@@ -12,7 +12,11 @@ use regex::{Captures, Regex};
 use serde_json::Value;
 use tl_core::paths::PathContext;
 use tl_core::redact::{merge_counts, RedactionCount, Redactor};
-use tl_core::session::{redactions_from_counts, Diff, NormalizedSession, SessionEnvelope, Turn};
+use tl_core::sensitive::command_reads_sensitive_file;
+pub use tl_core::sensitive::is_sensitive_path;
+use tl_core::session::{
+    redactions_from_counts, Diff, NormalizedSession, SessionEnvelope, Turn, TurnKind,
+};
 use tl_core::truncate::{truncate_diff, truncate_output, truncate_tool_input, TruncateLimits};
 
 use super::instructions::instruction_files;
@@ -106,6 +110,7 @@ pub fn prepare_session(
         identity: &identity,
         limits: &opts.limits,
         counts: Vec::new(),
+        pending_calls: Vec::new(),
     };
     let turns = turns.into_iter().map(|t| cleaner.turn(t)).collect();
     SessionEnvelope { session, turns }
@@ -231,6 +236,10 @@ struct Cleaner<'a> {
     identity: &'a Identity,
     limits: &'a TruncateLimits,
     counts: Vec<RedactionCount>,
+    /// Lượt gọi tool chưa thấy kết quả: (tên tool, có đọc file nhạy cảm không), theo
+    /// thứ tự xuất hiện. Kết quả tool (`tool_result`) là turn riêng không có input, nên
+    /// ghép với lượt gọi cùng tên còn chờ sớm nhất để biết có phải bỏ output không.
+    pending_calls: Vec<(String, bool)>,
 }
 
 impl Cleaner<'_> {
@@ -259,7 +268,22 @@ impl Cleaner<'_> {
                 count: r.count,
             }));
 
+        // Ghi/sửa file nhạy cảm (input và diff bị bỏ); đọc file nhạy cảm (output bị bỏ).
         let sensitive = touches_sensitive_file(&t);
+        let reads_sensitive = sensitive || reads_sensitive_file(&t);
+        let tool_name = t.tool.as_ref().map(|tool| tool.name.clone());
+        let output_sensitive = match (t.kind, tool_name) {
+            (TurnKind::ToolCall, Some(name)) => {
+                self.pending_calls.push((name, reads_sensitive));
+                reads_sensitive
+            }
+            (TurnKind::ToolResult, Some(name)) => {
+                let call = self.pending_calls.iter().position(|(n, _)| *n == name);
+                let from_call = call.is_some_and(|i| self.pending_calls.remove(i).1);
+                from_call || reads_sensitive
+            }
+            _ => reads_sensitive,
+        };
 
         if let Some(text) = t.text.take() {
             t.text = Some(self.text(&text));
@@ -270,7 +294,7 @@ impl Cleaner<'_> {
             }
         }
         if let Some(output) = t.output.as_mut() {
-            let cleaned = if sensitive {
+            let cleaned = if output_sensitive {
                 self.sensitive()
             } else {
                 self.text(&output.text)
@@ -357,14 +381,25 @@ fn touches_sensitive_file(t: &Turn) -> bool {
     from_input || t.diff.as_ref().is_some_and(|d| is_sensitive_path(&d.path))
 }
 
-/// `.env`, `.env.local`, `server.pem`, `id.key`... (không phân biệt hoa thường).
-pub fn is_sensitive_path(path: &str) -> bool {
-    let name = path
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(path)
-        .to_ascii_lowercase();
-    name.starts_with(".env") || name.ends_with(".pem") || name.ends_with(".key")
+/// Turn chạy lệnh shell in nội dung file nhạy cảm (`cat .env`, `Get-Content x.pem`...).
+/// Claude Code: `Bash`/`PowerShell` với `command` là chuỗi; Codex: `command` là mảng
+/// (`["bash", "-lc", "..."]`) hoặc `cmd` là chuỗi.
+fn reads_sensitive_file(t: &Turn) -> bool {
+    let Some(input) = t.tool.as_ref().and_then(|tool| tool.input.as_ref()) else {
+        return false;
+    };
+    ["command", "cmd", "script"].iter().any(|key| {
+        let command = match input.get(*key) {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Array(parts)) => parts
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => return false,
+        };
+        command_reads_sensitive_file(&command)
+    })
 }
 
 #[cfg(test)]
@@ -555,5 +590,174 @@ mod tests {
         for p in ["src/env.rs", "keys.rs", "README.md"] {
             assert!(!is_sensitive_path(p), "{p}");
         }
+    }
+
+    fn call(seq: u32, name: &str, input: Value) -> Turn {
+        let ts = Utc.with_ymd_and_hms(2026, 11, 26, 9, 0, 0).unwrap();
+        let mut t = Turn::new(seq, Role::Assistant, TurnKind::ToolCall, ts);
+        t.tool = Some(Tool {
+            name: name.into(),
+            input: input.as_object().cloned(),
+            status: Some(ToolStatus::Ok),
+        });
+        t
+    }
+
+    fn result(seq: u32, name: &str, text: &str) -> Turn {
+        let ts = Utc.with_ymd_and_hms(2026, 11, 26, 9, 0, 0).unwrap();
+        let mut t = Turn::new(seq, Role::User, TurnKind::ToolResult, ts);
+        t.tool = Some(Tool {
+            name: name.into(),
+            input: None,
+            status: Some(ToolStatus::Ok),
+        });
+        t.output = Some(Output {
+            text: text.into(),
+            truncated: false,
+            original_bytes: None,
+        });
+        t
+    }
+
+    fn run(turns: Vec<Turn>) -> SessionEnvelope {
+        let mut ns = session();
+        ns.turns = turns;
+        let opts = PrepareOptions {
+            home_dir: Some(r"C:\Users\alice".into()),
+            user_name: Some("alice".into()),
+            host_name: None,
+            limits: TruncateLimits::default(),
+        };
+        prepare_session(ns, &scope(), Redactor::shared(), &opts, false)
+    }
+
+    fn output(t: &Turn) -> &str {
+        &t.output.as_ref().unwrap().text
+    }
+
+    const ENV_BODY: &str = "DB_HOST=localhost\nFEATURE_FLAG=on\n";
+
+    #[test]
+    fn bo_output_khi_doc_file_nhay_cam() {
+        let env = run(vec![
+            // Read của Claude Code: kết quả là turn riêng, không có input.
+            call(
+                0,
+                "Read",
+                json!({ "file_path": format!("{ROOT}\\apps\\api\\.env") }),
+            ),
+            result(1, "Read", ENV_BODY),
+            // Lệnh shell đọc file.
+            call(
+                2,
+                "Bash",
+                json!({ "command": "cat apps/api/.env.local | grep DB" }),
+            ),
+            result(3, "Bash", ENV_BODY),
+            call(
+                4,
+                "PowerShell",
+                json!({ "command": "Get-Content certs\\server.pem" }),
+            ),
+            result(5, "PowerShell", "-----BEGIN CERTIFICATE-----"),
+            // Codex: command là mảng.
+            call(
+                6,
+                "shell",
+                json!({ "command": ["bash", "-lc", "head -5 .env"] }),
+            ),
+            result(7, "shell", ENV_BODY),
+            // Lệnh thường: giữ output.
+            call(8, "Bash", json!({ "command": "cat README.md" })),
+            result(9, "Bash", "# Shop"),
+        ]);
+        let t = &env.turns;
+        for i in [1, 3, 5, 7] {
+            assert_eq!(output(&t[i]), "[REDACTED:sensitive_file]", "turn {i}");
+            assert_eq!(t[i].redactions[0].kind, SENSITIVE_FILE_KIND);
+            assert_eq!(t[i].redactions[0].count, 1);
+        }
+        assert_eq!(output(&t[9]), "# Shop");
+        assert!(t[9].redactions.is_empty());
+        // Câu lệnh vẫn giữ (đã qua bộ che thường).
+        let cmd = &t[2].tool.as_ref().unwrap().input.as_ref().unwrap()["command"];
+        assert_eq!(cmd, "cat apps/api/.env.local | grep DB");
+        let json = serde_json::to_string(&env).unwrap();
+        assert!(!json.contains("FEATURE_FLAG"));
+    }
+
+    #[test]
+    fn ghep_ket_qua_voi_luot_goi_song_song() {
+        // Hai lượt gọi Read song song rồi hai kết quả theo đúng thứ tự.
+        let env = run(vec![
+            call(0, "Read", json!({ "file_path": "README.md" })),
+            call(1, "Read", json!({ "file_path": ".env" })),
+            result(2, "Read", "# Shop"),
+            result(3, "Read", ENV_BODY),
+        ]);
+        assert_eq!(output(&env.turns[2]), "# Shop");
+        assert_eq!(output(&env.turns[3]), "[REDACTED:sensitive_file]");
+    }
+
+    #[test]
+    fn giu_file_env_mau() {
+        // Quyết định M2.1: `.env.example`/`.env.sample` được giữ, vẫn qua bộ che thường.
+        let key = format!("{}{}", "ghp_", "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8");
+        let body = format!("DB_HOST=localhost\nGITHUB_TOKEN={key}\n");
+        let env = run(vec![
+            call(0, "Read", json!({ "file_path": ".env.example" })),
+            result(1, "Read", &body),
+            call(2, "Bash", json!({ "command": "cat .env.sample" })),
+            result(3, "Bash", "DB_HOST=localhost"),
+        ]);
+        let out = output(&env.turns[1]);
+        assert!(out.contains("DB_HOST=localhost"));
+        assert!(out.contains("[REDACTED:github_token]"));
+        assert!(!out.contains(&key));
+        assert_eq!(output(&env.turns[3]), "DB_HOST=localhost");
+    }
+
+    #[test]
+    fn che_secret_o_moi_vi_tri() {
+        let ts = Utc.with_ymd_and_hms(2026, 11, 26, 9, 0, 0).unwrap();
+        let aws = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
+        let gl = format!("{}{}", "glpat-", "Ab12Cd34Ef56Gh78Ij90");
+        let hf = format!("{}{}", "hf_", "AbCdEfGhIjKlMnOpQrStUvWxYz01234567");
+        let npm = format!("{}{}", "npm_", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789");
+        let pg = "postgres://app:Sup3rS3cret@db:5432/app";
+
+        let mut prompt = Turn::new(0, Role::User, TurnKind::Prompt, ts);
+        prompt.text = Some(format!("dùng khóa {aws} nhé"));
+        let mut reply = Turn::new(1, Role::Assistant, TurnKind::Reply, ts);
+        reply.text = Some(format!("Đã thêm token {gl} vào CI"));
+        let mut edit = call(
+            2,
+            "Edit",
+            json!({ "file_path": "src/db.ts", "new_string": pg }),
+        );
+        edit.diff = Some(Diff {
+            path: "src/db.ts".into(),
+            patch: format!("+const t = \"{npm}\";\n"),
+            added: 1,
+            removed: 0,
+        });
+        let res = result(3, "Edit", &format!("ok {hf}"));
+
+        let env = run(vec![prompt, reply, edit, res]);
+        let json = serde_json::to_string(&env).unwrap();
+        for secret in [aws.as_str(), &gl, &hf, &npm, "Sup3rS3cret"] {
+            assert!(!json.contains(secret), "lọt {secret}");
+        }
+        let kinds = |i: usize| -> Vec<String> {
+            env.turns[i]
+                .redactions
+                .iter()
+                .map(|r| r.kind.clone())
+                .collect()
+        };
+        assert_eq!(kinds(0), ["aws_access_key"]);
+        assert_eq!(kinds(1), ["gitlab_pat"]);
+        assert_eq!(kinds(2), ["npm_token", "url_password"]);
+        assert_eq!(kinds(3), ["huggingface_token"]);
     }
 }

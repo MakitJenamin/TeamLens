@@ -10,9 +10,11 @@
 //! | [`redact`] | M1.5, M2.1 |
 //! | [`truncate`] | M1.5 |
 //! | [`paths`] | M1.5 |
+//! | [`sensitive`] | M2.1 |
 
 pub mod paths;
 pub mod redact;
 pub mod scope;
+pub mod sensitive;
 pub mod session;
 pub mod truncate;
