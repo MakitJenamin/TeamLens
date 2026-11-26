@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import {
@@ -15,6 +24,7 @@ import { LeaderOnly } from '../access/access.guards.js';
 import { isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
 import { normalizeEmail, toAuthUser } from '../auth/auth.service.js';
+import { type MergeResult, UserMergeService } from './user-merge.service.js';
 
 const passwordSchema = z
   .string()
@@ -33,6 +43,10 @@ const updateRoleSchema = z.object({
   password: passwordSchema.optional(),
 });
 
+const mergeSchema = z.object({
+  intoUserId: z.uuid('intoUserId phải là UUID'),
+});
+
 const emailTaken = () =>
   new ApiError(409, 'email_taken', 'Email đã được dùng cho tài khoản khác');
 
@@ -43,7 +57,19 @@ export class UsersController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly merger: UserMergeService,
   ) {}
+
+  /** Gộp user trùng `userId` vào `intoUserId` rồi xóa `userId` (task J.8). */
+  @Post(':userId/merge')
+  @HttpCode(200)
+  merge(
+    @CurrentUser() actor: AuthUser,
+    @Param('userId') userId: string,
+    @Body({ schema: mergeSchema }) body: z.infer<typeof mergeSchema>,
+  ): Promise<MergeResult> {
+    return this.merger.merge(actor, userId, body.intoUserId);
+  }
 
   @Get()
   async list(): Promise<AuthUser[]> {
@@ -123,9 +149,7 @@ export class UsersController {
 
         const patch: Partial<typeof users.$inferInsert> = { role: body.role };
         if (body.role === 'leader') {
-          const email = body.email
-            ? normalizeEmail(body.email)
-            : target.email;
+          const email = body.email ? normalizeEmail(body.email) : target.email;
           const hash = passwordHash ?? target.passwordHash;
           if (!email || !hash) {
             throw new ApiError(
