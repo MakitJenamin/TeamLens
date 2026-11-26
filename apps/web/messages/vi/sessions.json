@@ -1,11 +1,119 @@
 {
   "list": {
     "title": "Session",
-    "description": "Danh sách session của project, lọc theo thành viên, agent và khoảng ngày; leader thấy cả team, member chỉ thấy của mình."
+    "description": "Session làm việc với AI agent trong project, mới nhất trước. Leader thấy cả team, member chỉ thấy của mình.",
+    "filters": {
+      "agent": "Agent",
+      "user": "Thành viên",
+      "allAgents": "Mọi agent",
+      "allUsers": "Mọi thành viên"
+    },
+    "columns": {
+      "user": "Người",
+      "agent": "Agent",
+      "model": "Model",
+      "repo": "Repo / nhánh",
+      "startedAt": "Bắt đầu",
+      "duration": "Thời lượng",
+      "turns": "Turn",
+      "tokens": "Token"
+    },
+    "untitled": "(chưa có prompt)",
+    "running": "Đang chạy",
+    "loadMore": "Tải thêm",
+    "loadingMore": "Đang tải...",
+    "emptyTitle": "Chưa có session nào",
+    "emptyDescription": "Session sẽ hiện ở đây sau khi CLI gửi lên (tl sync). Nếu đang lọc, thử bỏ bộ lọc.",
+    "errorTitle": "Không tải được danh sách session",
+    "tokensDetail": "Input {input} · output {output} · cache đọc {cacheRead} · cache ghi {cacheWrite}"
+  },
+  "agents": {
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "copilot_vscode": "Copilot (VS Code)",
+    "antigravity": "Antigravity"
+  },
+  "permissionModes": {
+    "default": "Mặc định (hỏi trước)",
+    "accept_edits": "Tự chấp nhận sửa file",
+    "plan": "Chỉ lập kế hoạch",
+    "bypass": "Bỏ qua mọi xác nhận",
+    "unknown": "Không xác định"
+  },
+  "duration": {
+    "seconds": "{s} giây",
+    "minutes": "{m} phút",
+    "hours": "{h} giờ {m} phút"
   },
   "detail": {
     "title": "Xem lại session",
-    "description": "Dòng hội thoại: prompt, câu trả lời, tool call thu gọn, diff tô màu, đánh dấu turn dính finding; nút \"Chấm bằng LLM\"; ghi chú của leader theo turn; tìm kiếm trong session.",
+    "description": "Dòng hội thoại của session: prompt, câu trả lời, tool call và diff.",
+    "back": "Danh sách session",
+    "untitled": "Session không có prompt",
+    "meta": {
+      "user": "Người",
+      "agent": "Agent",
+      "model": "Model",
+      "repo": "Repo",
+      "branch": "Nhánh",
+      "cwd": "Thư mục",
+      "cwdRoot": "(gốc repo)",
+      "startedAt": "Bắt đầu",
+      "duration": "Thời lượng",
+      "turns": "Số turn",
+      "tokens": "Token",
+      "device": "Thiết bị",
+      "permissionMode": "Chế độ quyền",
+      "instructionFiles": "File hướng dẫn",
+      "noInstructionFiles": "Không có",
+      "bytes": "{bytes} byte",
+      "parent": "Session cha",
+      "children": "Session con (subagent)"
+    },
+    "openParent": "Mở session cha",
+    "openChild": "Session con {index}",
+    "timeline": "Dòng thời gian",
+    "noTurns": "Session này chưa có turn nào.",
+    "roles": {
+      "user": "Người dùng",
+      "assistant": "Agent",
+      "system": "Hệ thống"
+    },
+    "kinds": {
+      "prompt": "Prompt",
+      "reply": "Trả lời",
+      "tool_call": "Gọi tool",
+      "tool_result": "Kết quả tool",
+      "compaction": "Tóm tắt ngữ cảnh"
+    },
+    "interrupted": "Bị ngắt",
+    "toolError": "Lỗi",
+    "showDetails": "Xem chi tiết",
+    "hideDetails": "Thu gọn",
+    "input": "Input",
+    "output": "Output",
+    "truncated": "Output đã bị cắt (giữ phần đầu và phần cuối)",
+    "truncatedBytes": "Output đã bị cắt, bản gốc {bytes} byte (giữ phần đầu và phần cuối)",
+    "diffStats": "+{added} −{removed}",
+    "redactions": "Đã che {count} secret",
+    "attachments": "{count} tệp đính kèm",
+    "reasoningEffort": "Suy luận: {effort}",
+    "errorTitle": "Không mở được session",
+    "forbidden": "Bạn không có quyền xem session này.",
+    "notFound": "Không tìm thấy session. Có thể session đã bị xóa hoặc đường dẫn sai.",
     "sessionId": "Mã session: {id}"
+  },
+  "findings": {
+    "title": "Finding",
+    "empty": "Không có finding nào cho session này.",
+    "turn": "Turn {seq}",
+    "severity": {
+      "info": "Thông tin",
+      "low": "Thấp",
+      "medium": "Trung bình",
+      "high": "Cao",
+      "critical": "Nghiêm trọng"
+    },
+    "flagged": "Có finding"
   }
 }
