@@ -95,6 +95,12 @@
         "parent_source_id": {
           "oneOf": [{ "$ref": "#/$defs/SourceId" }, { "type": "null" }],
           "description": "source_id của session cha khi đây là session con (subagent); null với session gốc."
+        },
+        "permission_mode": { "$ref": "#/$defs/PermissionMode" },
+        "instruction_files": {
+          "type": "array",
+          "description": "File hướng dẫn cho agent tìm thấy ở gốc repo (`CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/CLAUDE.md`). Chỉ gửi đường dẫn tương đối và kích thước, KHÔNG gửi nội dung. Thiếu trường: CLI không thu thập; mảng rỗng: không có file nào.",
+          "items": { "$ref": "#/$defs/InstructionFile" }
         }
       }
     },
@@ -103,6 +109,32 @@
       "type": "string",
       "pattern": "^[a-z_]+:.+$",
       "maxLength": 512
+    },
+
+    "PermissionMode": {
+      "type": "string",
+      "enum": ["default", "accept_edits", "plan", "bypass", "unknown"],
+      "description": "Chế độ quyền của agent trong session: `default` (hỏi trước khi sửa file/chạy lệnh), `accept_edits` (tự chấp nhận sửa file), `plan` (chỉ lập kế hoạch), `bypass` (bỏ qua mọi xác nhận), `unknown` (không xác định được). Claude Code: `permissionMode`; Codex: `approval_policy` + `sandbox_policy`. Dùng cho rule `yolo-mode`."
+    },
+
+    "InstructionFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Đường dẫn tương đối với gốc repo, dùng `/`.",
+          "not": { "pattern": "^(/|\\\\|[A-Za-z]:|~)" },
+          "examples": ["CLAUDE.md"]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Kích thước file (byte)."
+        }
+      }
     },
 
     "Turn": {
@@ -140,6 +172,16 @@
         "redactions": {
           "type": "array",
           "items": { "$ref": "#/$defs/Redaction" }
+        },
+        "interrupted": {
+          "type": "boolean",
+          "description": "true khi người dùng ngắt lượt này (Claude Code: `[Request interrupted by user]`; Codex: event `turn_aborted`). Dùng cho rule `high-interruption`."
+        },
+        "reasoning_effort": {
+          "type": ["string", "null"],
+          "maxLength": 32,
+          "description": "Mức suy luận agent dùng cho lượt này (Codex: `turn_context.effort`, vd. `low`, `medium`, `high`); null khi agent không ghi (Claude Code).",
+          "examples": ["high"]
         }
       }
     },

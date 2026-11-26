@@ -69,6 +69,17 @@ const negatives = [
   ['diff path tuyệt đối', (b) => (b.sessions[0].turns[2].diff.path = 'D:\\code\\a.ts')],
   ['usage âm', (b) => (b.sessions[0].turns[1].usage.input = -5)],
   ['output thiếu truncated', (b) => delete b.sessions[0].turns[4].output.truncated],
+  ['permission_mode không hỗ trợ', (b) => (firstSession(b).permission_mode = 'yolo')],
+  ['permission_mode null', (b) => (firstSession(b).permission_mode = null)],
+  ['instruction_files không phải mảng', (b) => (firstSession(b).instruction_files = 'CLAUDE.md')],
+  ['instruction_files path tuyệt đối (Windows)', (b) => (firstSession(b).instruction_files[0].path = 'C:\\repo\\CLAUDE.md')],
+  ['instruction_files path tuyệt đối (POSIX)', (b) => (firstSession(b).instruction_files[0].path = '/home/a/repo/CLAUDE.md')],
+  ['instruction_files path rỗng', (b) => (firstSession(b).instruction_files[0].path = '')],
+  ['instruction_files thiếu bytes', (b) => delete firstSession(b).instruction_files[0].bytes],
+  ['instruction_files bytes âm', (b) => (firstSession(b).instruction_files[0].bytes = -1)],
+  ['instruction_files kèm nội dung', (b) => (firstSession(b).instruction_files[0].content = '# Hướng dẫn')],
+  ['interrupted không phải boolean', (b) => (b.sessions[0].turns[1].interrupted = 'yes')],
+  ['reasoning_effort không phải chuỗi', (b) => (b.sessions[0].turns[1].reasoning_effort = 3)],
 ];
 for (const [name, fn] of negatives) {
   if (validate(mutate(fn))) {
