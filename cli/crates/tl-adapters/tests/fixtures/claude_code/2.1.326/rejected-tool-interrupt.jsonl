@@ -1,0 +1,53 @@
+{"type":"custom-title","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"mode","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"session-owner","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"file-history-snapshot"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:37:44.602Z"}
+{"parentUuid":"05ac48ed-c5d0-43c3-b559-e62bcd97fdd9","isSidechain":false,"type":"user","message":{"role":"user","content":"<local-command-caveat>The command below was run directly in Claude Code, not sent to you as a request, and its output goes straight to the user. It's recorded here as context for later messages.</local-command-caveat>"},"isMeta":true,"uuid":"3c218894-a17a-4029-abde-36e9504aa391","timestamp":"2026-11-18T16:37:44.507Z","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"parentUuid":"3c218894-a17a-4029-abde-36e9504aa391","isSidechain":false,"type":"user","message":{"role":"user","content":"<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>"},"uuid":"ed1baee3-2558-4f08-8239-9574448a4327","timestamp":"2026-11-18T16:37:44.365Z","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"type":"system","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:37:44.502Z","subtype":"local_command"}
+{"type":"file-history-snapshot"}
+{"parentUuid":"57b41dd5-343b-479e-8409-b146d98e8f7f","isSidechain":false,"type":"user","message":{"role":"user","content":"(văn bản đã thay khi làm fixture #1)"},"uuid":"ca5520a0-256c-4472-a308-85128cd95aaf","timestamp":"2026-11-18T16:42:56.226Z","permissionMode":"auto","origin":{"kind":"human"},"promptSource":"typed","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.224Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.224Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:56.225Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.340Z"}
+{"type":"last-prompt","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"custom-title","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"mode","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"session-owner","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"atis-latch","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.548Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.548Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.549Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.552Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.553Z"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.555Z"}
+{"type":"api-request-shape","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.967Z"}
+{"type":"api-request-blob","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"api-request-blob","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"api-request","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:42:57.967Z"}
+{"type":"last-prompt","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"custom-title","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"mode","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"session-owner","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"atis-latch","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"tools-used","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"parentUuid":"cea808ac-9623-4de2-b363-24a4833c6b4a","isSidechain":false,"type":"assistant","message":{"model":"claude-opus-5-5","id":"msg_011ChAjCQiZRp3BxC8SRmw3U","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"SIG_FIXTURE"}],"stop_reason":"tool_use","usage":{"input_tokens":2,"cache_creation_input_tokens":23157,"cache_read_input_tokens":35044,"output_tokens":118}},"uuid":"48a1bd52-e607-4815-a012-61dd70ea49a1","timestamp":"2026-11-18T16:43:00.322Z","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"parentUuid":"48a1bd52-e607-4815-a012-61dd70ea49a1","isSidechain":false,"type":"assistant","message":{"model":"claude-opus-5-5","id":"msg_011ChAjCQiZRp3BxC8SRmw3U","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01DLk7Q6GPjQ7T9MLfm8ZPvS","name":"mcp__codegraph__codegraph_explore","input":{"query":"(input đã thay khi làm fixture #2)"}}],"stop_reason":"tool_use","usage":{"input_tokens":2,"cache_creation_input_tokens":23157,"cache_read_input_tokens":35044,"output_tokens":118}},"uuid":"47bc61bf-ad6b-412d-8a6e-142ff1826e11","timestamp":"2026-11-18T16:43:00.325Z","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"parentUuid":"47bc61bf-ad6b-412d-8a6e-142ff1826e11","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.","is_error":true,"tool_use_id":"toolu_01DLk7Q6GPjQ7T9MLfm8ZPvS"}]},"uuid":"a190cbcc-24b1-4584-85f8-1086f1ac9d71","timestamp":"2026-11-18T16:43:00.901Z","sourceToolAssistantUUID":"47bc61bf-ad6b-412d-8a6e-142ff1826e11","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"type":"attachment","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","timestamp":"2026-11-18T16:43:00.910Z"}
+{"parentUuid":"f7521268-6f06-4fb3-be7d-28d8ed4c2cdc","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]},"uuid":"1333d09f-468a-4d2a-be41-8f61069a404c","timestamp":"2026-11-18T16:43:00.912Z","interruptedMessageId":"msg_011ChAjCQiZRp3BxC8SRmw3U","userType":"external","entrypoint":"cli","cwd":"C:\\Users\\dev\\Documents\\demo-app","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8","version":"2.1.326","gitBranch":"main"}
+{"type":"last-prompt","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"custom-title","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"mode","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"session-owner","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"atis-latch","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"file-history-snapshot"}
+{"type":"cost-state","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
+{"type":"cost-state","sessionId":"69d67677-a42c-49fd-85ed-29807f489ff8"}
