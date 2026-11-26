@@ -24,6 +24,12 @@ pub enum ApiErrorCode {
     Unauthenticated,
     Forbidden,
     NotFound,
+    InviteNotFound,
+    InviteExpired,
+    InviteUsedUp,
+    InviteRevoked,
+    ConsentOutdated,
+    RateLimited,
     /// Mã khác chưa có biến thể riêng.
     Other(String),
 }
@@ -39,6 +45,12 @@ impl ApiErrorCode {
             "unauthenticated" => Self::Unauthenticated,
             "forbidden" => Self::Forbidden,
             "not_found" => Self::NotFound,
+            "invite_not_found" => Self::InviteNotFound,
+            "invite_expired" => Self::InviteExpired,
+            "invite_used_up" => Self::InviteUsedUp,
+            "invite_revoked" => Self::InviteRevoked,
+            "consent_outdated" => Self::ConsentOutdated,
+            "rate_limited" => Self::RateLimited,
             other => Self::Other(other.to_owned()),
         }
     }
@@ -53,6 +65,12 @@ impl ApiErrorCode {
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
             Self::NotFound => "not_found",
+            Self::InviteNotFound => "invite_not_found",
+            Self::InviteExpired => "invite_expired",
+            Self::InviteUsedUp => "invite_used_up",
+            Self::InviteRevoked => "invite_revoked",
+            Self::ConsentOutdated => "consent_outdated",
+            Self::RateLimited => "rate_limited",
             Self::Other(s) => s,
         }
     }
@@ -150,26 +168,22 @@ impl ApiClient {
         &self.base_url
     }
 
-    /// `POST /agent/v1/device/code`.
-    pub async fn device_code(
-        &self,
-        body: &DeviceCodeRequest,
-    ) -> Result<DeviceCodeResponse, ApiError> {
-        let req = self
-            .request(Method::POST, "/agent/v1/device/code")
-            .json(body);
+    /// `GET /agent/v1/invites/{code}`: xem trước link mời (công khai).
+    pub async fn preview_invite(&self, code: &str) -> Result<InvitePreview, ApiError> {
+        let req = self.request(Method::GET, &format!("/agent/v1/invites/{code}"));
         self.send_json(req).await
     }
 
-    /// `POST /agent/v1/device/token`. Đang chờ duyệt thì trả
-    /// `ApiError::Api { code: AuthorizationPending, .. }`.
-    pub async fn device_token(&self, device_code: &str) -> Result<DeviceTokenResponse, ApiError> {
-        let body = DeviceTokenRequest {
-            device_code: device_code.to_owned(),
-        };
-        let req = self
-            .request(Method::POST, "/agent/v1/device/token")
-            .json(&body);
+    /// `POST /agent/v1/join`: đổi mã mời + bản đồng ý lấy device token. Client có token
+    /// (máy đã tham gia) thì server chỉ thêm vào project, không trả token mới.
+    pub async fn join(&self, body: &JoinRequest) -> Result<JoinResult, ApiError> {
+        let req = self.request(Method::POST, "/agent/v1/join").json(body);
+        self.send_json(req).await
+    }
+
+    /// `POST /agent/v1/web-login`: link đăng nhập dashboard một lần cho `tl open`.
+    pub async fn web_login(&self) -> Result<WebLoginResponse, ApiError> {
+        let req = self.request(Method::POST, "/agent/v1/web-login");
         self.send_json(req).await
     }
 
@@ -406,6 +420,12 @@ mod tests {
             "unauthenticated",
             "forbidden",
             "not_found",
+            "invite_not_found",
+            "invite_expired",
+            "invite_used_up",
+            "invite_revoked",
+            "consent_outdated",
+            "rate_limited",
             "xyz",
         ] {
             assert_eq!(ApiErrorCode::parse(code).as_str(), code);

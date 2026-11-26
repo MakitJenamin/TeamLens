@@ -3,8 +3,8 @@
 pub mod consent;
 pub mod daemon;
 pub mod join;
-pub mod login;
 pub mod logout;
+pub mod open;
 pub mod pause;
 pub mod preview;
 pub mod resume;
@@ -25,13 +25,13 @@ pub async fn dispatch(
     out: &mut dyn Write,
 ) -> Result<(), AppError> {
     match command {
-        Command::Join(args) => join::run(args),
         Command::Pause(args) => pause::run(args),
         Command::Resume(args) => resume::run(args),
         Command::Consent(args) => consent::run(args),
         Command::Daemon(args) => daemon::run(args),
         Command::Uninstall(args) => uninstall::run(args),
-        Command::Login(args) => login::run(&make_ctx()?, args, out).await.map(|_| ()),
+        Command::Join(args) => join::run(&make_ctx()?, args, out).await,
+        Command::Open(args) => open::run(&make_ctx()?, args, out).await.map(|_| ()),
         Command::Logout(args) => logout::run(&make_ctx()?, args, out).await,
         Command::Status(args) => status::run(&make_ctx()?, args, out).await,
         Command::Preview(args) => preview::run(&make_ctx()?, args, out).await,

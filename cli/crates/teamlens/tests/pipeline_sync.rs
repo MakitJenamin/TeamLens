@@ -19,6 +19,7 @@ use serde_json::{json, Value};
 use teamlens::commands::preview::{self, PreviewArgs};
 use teamlens::commands::sync::{self, SyncArgs};
 use teamlens::config::Config;
+use teamlens::consent::{self, ProjectConsent};
 use teamlens::context::AppContext;
 use teamlens::error::AppError;
 use teamlens::pipeline::prepare::PrepareOptions;
@@ -185,13 +186,33 @@ impl Env {
         }
     }
 
+    /// Context đã tham gia và đồng ý (có backfill) cho project `proj-acme`.
     fn ctx(&self, server: &str) -> AppContext {
+        self.ctx_with_consent(server, Some(true))
+    }
+
+    /// `backfill = None`: chưa đồng ý gì.
+    fn ctx_with_consent(&self, server: &str, backfill: Option<bool>) -> AppContext {
         let config_path = self.dir.path().join("teamlens/config.toml");
-        Config {
+        let mut config = Config {
             server_url: Some(server.to_owned()),
+            ..Default::default()
+        };
+        if let Some(backfill) = backfill {
+            consent::record(
+                &mut config,
+                server,
+                ProjectConsent {
+                    project_id: "proj-acme".into(),
+                    project_slug: "acme".into(),
+                    project_name: "Acme".into(),
+                    text_version: "2026-11-26".into(),
+                    backfill,
+                    accepted_at: chrono::Utc::now(),
+                },
+            );
         }
-        .save(&config_path)
-        .unwrap();
+        config.save(&config_path).unwrap();
         let creds = MemoryCredentialStore::new();
         creds.set_token(server, TOKEN).unwrap();
         AppContext {
@@ -573,7 +594,7 @@ async fn sync_401_nhac_dang_nhap() {
     let ctx = env.ctx(&server.uri());
     let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
     let e = r.unwrap_err();
-    assert!(e.hint().unwrap().contains("tl login"));
+    assert!(e.hint().unwrap().contains("tl join"));
 
     // whoami 401 cũng vậy.
     let server = MockServer::start().await;
@@ -588,7 +609,7 @@ async fn sync_401_nhac_dang_nhap() {
         .await;
     let ctx = env.ctx(&server.uri());
     let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
-    assert!(r.unwrap_err().hint().unwrap().contains("tl login"));
+    assert!(r.unwrap_err().hint().unwrap().contains("tl join"));
 }
 
 #[tokio::test]
@@ -612,5 +633,46 @@ async fn chua_dang_nhap_bao_loi_ro() {
     let ctx = env.ctx("http://127.0.0.1:9");
     ctx.credentials.delete_token("http://127.0.0.1:9").unwrap();
     let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
-    assert!(r.unwrap_err().hint().unwrap().contains("tl login"));
+    assert!(r.unwrap_err().hint().unwrap().contains("tl join"));
+}
+
+#[tokio::test]
+async fn sync_chua_dong_y_khong_goi_server() {
+    let env = Env::new();
+    // Không có mock nào: gọi server là lỗi kết nối, nên lỗi phải đến trước đó.
+    let ctx = env.ctx_with_consent("http://127.0.0.1:9", None);
+    let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
+    let e = r.unwrap_err();
+    assert!(e.to_string().contains("chưa đồng ý"), "{e}");
+    assert!(e.hint().unwrap().contains("tl join"));
+}
+
+#[tokio::test]
+async fn sync_dry_run_chua_dong_y_van_xem_duoc() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx_with_consent(&server.uri(), None);
+    let (r, text) = run_sync(&env, &ctx, true, 8 << 20).await;
+    r.unwrap();
+    assert!(text.contains("chưa đồng ý"), "{text}");
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn sync_khong_backfill_bo_session_cu() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    // Đồng ý lúc này, không backfill: session trong fixture đều cũ hơn.
+    let ctx = env.ctx_with_consent(&server.uri(), Some(false));
+    let (r, text) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    assert!(text.contains("Bỏ 1 session"), "{text}");
+    assert!(text.contains("Không có session nào"), "{text}");
+    assert_eq!(
+        ingest.calls.load(Ordering::SeqCst),
+        0,
+        "không được gửi session cũ"
+    );
 }

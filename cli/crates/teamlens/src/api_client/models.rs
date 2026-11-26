@@ -1,51 +1,128 @@
-//! Kiểu request/response của `/agent/v1` (JSON camelCase, khớp contract giai đoạn nền).
+//! Kiểu request/response của `/agent/v1` (JSON camelCase, viết tay khớp `packages/schema/openapi`).
 
 use serde::{Deserialize, Serialize};
 
-/// Body `POST /agent/v1/device/code`.
+/// Văn bản đồng ý của server (`ConsentText`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeviceCodeRequest {
+pub struct ConsentText {
+    /// Phiên bản văn bản; gửi lại đúng giá trị này khi `join`.
+    pub version: String,
+    pub text: String,
+}
+
+/// Project trong `InvitePreview`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InviteProject {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+}
+
+/// Trả về `200` của `GET /agent/v1/invites/{code}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvitePreview {
+    /// `TEAMLENS_PUBLIC_URL` của server.
+    pub server_url: String,
+    pub project: InviteProject,
+    /// Repo sẽ được thu thập; session ngoài các repo này không bao giờ rời máy.
+    pub repo_patterns: Vec<String>,
+    pub consent: ConsentText,
+    pub expires_at: String,
+}
+
+/// Phần đồng ý trong body `POST /agent/v1/join`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinConsent {
+    /// Phải bằng `consent.version` của server, sai thì `409 consent_outdated`.
+    pub text_version: String,
+    /// Có gửi cả session cũ trên máy không.
+    pub backfill: bool,
+}
+
+/// Body `POST /agent/v1/join`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinRequest {
+    pub code: String,
+    /// Tên hiển thị (server bỏ qua khi máy đã có token).
+    pub name: String,
     pub device_name: String,
     pub os: String,
     pub cli_version: String,
+    pub consent: JoinConsent,
 }
 
-/// Trả về của `POST /agent/v1/device/code`.
+// Mã mời là bí mật: không in ra log debug.
+impl std::fmt::Debug for JoinRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JoinRequest")
+            .field("code", &"<ẩn>")
+            .field("name", &self.name)
+            .field("device_name", &self.device_name)
+            .field("os", &self.os)
+            .field("cli_version", &self.cli_version)
+            .field("consent", &self.consent)
+            .finish()
+    }
+}
+
+/// Project trong `JoinResult`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeviceCodeResponse {
-    pub device_code: String,
-    pub user_code: String,
-    pub verification_uri: String,
-    pub verification_uri_complete: String,
-    /// Số giây mã còn hiệu lực (900).
-    pub expires_in: u64,
-    /// Số giây tối thiểu giữa hai lần poll (5).
-    pub interval: u64,
+pub struct JoinProject {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub repo_patterns: Vec<String>,
 }
 
-/// Body `POST /agent/v1/device/token`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceTokenRequest {
-    pub device_code: String,
-}
-
-/// Trả về 200 của `POST /agent/v1/device/token` (chỉ trả một lần).
+/// Trả về `201`/`200` của `POST /agent/v1/join`.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeviceTokenResponse {
-    pub access_token: String,
+pub struct JoinResult {
+    /// Device token `tld_...`; chỉ có khi máy mới tham gia (`201`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+    pub user_id: String,
     pub device_id: String,
+    /// Vai trò toàn server: `leader` hoặc `member`.
+    pub role: String,
+    pub project: JoinProject,
 }
 
 // Không in token ra log debug.
-impl std::fmt::Debug for DeviceTokenResponse {
+impl std::fmt::Debug for JoinResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DeviceTokenResponse")
-            .field("access_token", &"<ẩn>")
+        f.debug_struct("JoinResult")
+            .field("access_token", &self.access_token.as_ref().map(|_| "<ẩn>"))
+            .field("user_id", &self.user_id)
             .field("device_id", &self.device_id)
+            .field("role", &self.role)
+            .field("project", &self.project)
+            .finish()
+    }
+}
+
+/// Trả về `200` của `POST /agent/v1/web-login`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebLoginResponse {
+    /// `${TEAMLENS_PUBLIC_URL}/auth/cli?ticket=<ticket>`, dùng một lần.
+    pub url: String,
+    /// Số giây link còn hiệu lực (60).
+    pub expires_in: u64,
+}
+
+// Link chứa ticket đăng nhập: không in ra log debug.
+impl std::fmt::Debug for WebLoginResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebLoginResponse")
+            .field("url", &"<ẩn>")
+            .field("expires_in", &self.expires_in)
             .finish()
     }
 }

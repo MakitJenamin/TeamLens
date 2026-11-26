@@ -63,7 +63,7 @@ pub async fn connect(ctx: &AppContext) -> Result<Connected, AppError> {
     let not_logged_in = || {
         AppError::user(
             "Máy này chưa đăng nhập TeamLens.",
-            "Chạy `tl login --server <địa chỉ>` (hoặc `tl join <link mời>`) trước.",
+            "Chạy `tl join <link mời>` (link do leader gửi) trước.",
         )
     };
     let server_url = config.server_url.ok_or_else(not_logged_in)?;
@@ -80,7 +80,7 @@ pub async fn connect(ctx: &AppContext) -> Result<Connected, AppError> {
     })
 }
 
-/// 401 → lỗi kèm nhắc `tl login`.
+/// 401 → lỗi kèm nhắc `tl join`.
 fn login_hint(e: ApiError) -> AppError {
     if e.code().is_some_and(|c| {
         matches!(
@@ -91,7 +91,7 @@ fn login_hint(e: ApiError) -> AppError {
     {
         return AppError::user(
             "Token của máy này không còn hiệu lực (đã hết hạn hoặc bị thu hồi).",
-            "Chạy `tl login` để đăng nhập lại.",
+            "Chạy lại `tl join <link mời>` (xin leader link còn hạn) để tham gia lại.",
         );
     }
     AppError::Api(e)
@@ -226,7 +226,7 @@ fn ingest_app_error(e: IngestError) -> AppError {
             if e.code() == Some(&ApiErrorCode::Other("consent_required".into())) {
                 return AppError::user(
                     "Thiết bị này chưa đồng ý (hoặc đã rút đồng ý) chia sẻ dữ liệu.",
-                    "Chạy `tl consent` để xem và đồng ý.",
+                    "Chạy lại `tl join <link mời>` để xem và đồng ý.",
                 );
             }
             login_hint(e)
