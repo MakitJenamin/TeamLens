@@ -192,7 +192,7 @@ fn assert_valid(batch: &Value) {
 }
 
 #[tokio::test]
-async fn preview_session_codex_theo_source_id_uuid_va_duong_dan() {
+async fn preview_finds_codex_session_by_source_id_uuid_and_path() {
     let env = Env::new();
     let server = server().await;
     let ctx = env.ctx(&server.uri());
