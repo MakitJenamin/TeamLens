@@ -43,6 +43,13 @@
       "when": 1795716331524,
       "tag": "0005_drop_legacy_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795728674482,
+      "tag": "0006_device_last_heartbeat",
+      "breakpoints": true
     }
   ]
 }
