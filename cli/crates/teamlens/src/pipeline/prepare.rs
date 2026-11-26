@@ -17,6 +17,7 @@ use tl_core::truncate::{truncate_diff, truncate_output, truncate_tool_input, Tru
 
 use super::instructions::instruction_files;
 use super::scope::RepoScope;
+use crate::api_client::AgentRedactionPattern;
 
 /// Loại che dùng khi bỏ toàn bộ nội dung file nhạy cảm (`.env*`, `*.pem`, `*.key`).
 pub const SENSITIVE_FILE_KIND: &str = "sensitive_file";
@@ -30,8 +31,14 @@ pub struct PrepareOptions {
     pub user_name: Option<String>,
     /// Tên máy (`COMPUTERNAME`), thay bằng [`HOST_PLACEHOLDER`] (spec 6.3).
     pub host_name: Option<String>,
-    /// Ngưỡng cắt (mặc định spec 6.3; M2.2 nạp từ `GET /agent/v1/config`).
+    /// Ngưỡng cắt (mặc định spec 6.3; `tl sync`/`tl preview` nạp từ `GET /agent/v1/config`).
     pub limits: TruncateLimits,
+    /// Pattern che secret bổ sung từ `GET /agent/v1/config` (`redaction_patterns`).
+    ///
+    /// Chỗ móc cho M2.1: hiện **chưa** áp vào [`Redactor`] (prepare vẫn chỉ dùng bộ pattern có
+    /// sẵn); M2.1 biên dịch các pattern này (bỏ pattern lỗi) thành `Redactor` mở rộng và dùng
+    /// thay `Redactor::shared()` ở `commands/sync.rs`, `commands/preview.rs`.
+    pub server_redaction_patterns: Vec<AgentRedactionPattern>,
 }
 
 impl PrepareOptions {
@@ -56,6 +63,7 @@ impl PrepareOptions {
             user_name,
             host_name: var(&["COMPUTERNAME", "HOSTNAME"]),
             limits: TruncateLimits::default(),
+            server_redaction_patterns: Vec::new(),
         }
     }
 }
@@ -467,6 +475,7 @@ mod tests {
             user_name: Some("alice".into()),
             host_name: Some("MAY-ALICE".into()),
             limits: TruncateLimits::default(),
+            server_redaction_patterns: Vec::new(),
         };
         let env = prepare_session(session(), &scope(), Redactor::shared(), &opts, true);
         let s = &env.session;

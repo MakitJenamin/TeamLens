@@ -6,7 +6,8 @@
 //!   chỉ `<uuid>`).
 //! - Session ngoài phạm vi: chỉ báo "ngoài phạm vi, sẽ không gửi", không in nội dung.
 //!
-//! Chỉ gọi mạng `GET /agent/v1/whoami` (lấy repo pattern), không gửi gì. JSON ra
+//! Chỉ gọi mạng `GET /agent/v1/config` (repo pattern, ngưỡng cắt; mất mạng thì dùng cache),
+//! không gửi gì. JSON ra
 //! stdout (`out`), dòng ghi chú ra stderr để `tl preview > payload.json` vẫn là JSON sạch.
 //! `batch_id` sinh mới mỗi lần chạy nên khác với lần gửi thật.
 
@@ -22,7 +23,8 @@ use crate::context::AppContext;
 use crate::error::AppError;
 use crate::pipeline::batch::new_batch;
 use crate::pipeline::collect::{source_file, CollectStats, Pipeline, PreparedSession};
-use crate::pipeline::scope::{patterns_from_whoami, ScopeFilter};
+use crate::pipeline::scope::ScopeFilter;
+use crate::sync::agent_config;
 use crate::sync::{connect, Sources};
 
 #[derive(Debug, Args)]
@@ -45,11 +47,25 @@ pub async fn run_with(
     note: &mut dyn Write,
 ) -> Result<(), AppError> {
     let conn = connect(ctx).await?;
-    let mut filter = ScopeFilter::new(patterns_from_whoami(&conn.whoami));
+    let server_config = &conn.agent_config.config;
+    crate::commands::sync::print_config_source(note, &conn.agent_config.source);
+    // Preview không gửi nên không dừng, chỉ báo trước là `tl sync` sẽ dừng.
+    if let Err(block) =
+        agent_config::check_send(&ctx.load_config()?, server_config, crate::CLI_VERSION)
+    {
+        let e = block.to_error();
+        let _ = writeln!(
+            note,
+            "Lưu ý: {e} `tl sync` sẽ không gửi cho tới khi xử lý xong."
+        );
+    }
+    let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
+    let mut filter = ScopeFilter::new(agent_config::repo_patterns(server_config));
     let mut pipeline = Pipeline {
         filter: &mut filter,
+        // M2.1: dựng Redactor từ `prepare.server_redaction_patterns` thay cho bộ có sẵn.
         redactor: Redactor::shared(),
-        options: &sources.prepare,
+        options: &prepare,
         now: SystemTime::now(),
     };
     let adapters = sources.adapter_refs();

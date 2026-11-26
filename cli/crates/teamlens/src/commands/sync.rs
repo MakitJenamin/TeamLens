@@ -16,7 +16,8 @@ use crate::context::AppContext;
 use crate::error::AppError;
 use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
-use crate::pipeline::scope::{patterns_from_whoami, ScopeFilter};
+use crate::pipeline::scope::ScopeFilter;
+use crate::sync::agent_config::{self, ConfigSource};
 use crate::sync::{connect, consent_gate, dashboard_link, send_all, SendReport, Sources};
 
 /// Số link dashboard in tối đa sau khi gửi.
@@ -52,18 +53,31 @@ pub async fn run_with(
         ));
     }
     let conn = connect(ctx).await?;
+    let local = ctx.load_config()?;
+    let server_config = &conn.agent_config.config;
+    print_config_source(out, &conn.agent_config.source);
+    // Văn bản đồng ý đổi phiên bản hoặc tl quá cũ: không quét, không gửi gì.
+    if let Err(block) = agent_config::check_send(&local, server_config, crate::CLI_VERSION) {
+        if !args.dry_run {
+            return Err(block.to_error());
+        }
+        let e = block.to_error();
+        let _ = writeln!(out, "Lưu ý: {e} Gửi thật sẽ bị dừng.");
+    }
 
-    let mut filter = ScopeFilter::new(patterns_from_whoami(&conn.whoami));
+    let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
+    let mut filter = ScopeFilter::new(agent_config::repo_patterns(server_config));
     let mut pipeline = Pipeline {
         filter: &mut filter,
+        // M2.1: dựng Redactor từ `prepare.server_redaction_patterns` thay cho bộ có sẵn.
         redactor: Redactor::shared(),
-        options: &sources.prepare,
+        options: &prepare,
         now: SystemTime::now(),
     };
     let (mut prepared, stats) = pipeline.collect(&sources.adapter_refs());
 
     // Chỉ gửi session của project đã đồng ý; không backfill thì bỏ session cũ.
-    let consent = consent::current(&ctx.load_config()?).cloned();
+    let consent = consent::current(&local).cloned();
     let before = prepared.len();
     if let Some(state) = &consent {
         prepared.retain(|p| state.allows_session(&p.project_id, p.last_activity));
@@ -111,6 +125,17 @@ pub async fn run_with(
             }
             Err(err)
         }
+    }
+}
+
+/// Báo khi đang dùng config cache (mất mạng lúc tải).
+pub(crate) fn print_config_source(out: &mut dyn Write, source: &ConfigSource) {
+    if let ConfigSource::Cache { fetched_at } = source {
+        let _ = writeln!(
+            out,
+            "Không tải được cấu hình từ server, dùng bản đã lưu lúc {} (UTC).",
+            fetched_at.format("%Y-%m-%d %H:%M")
+        );
     }
 }
 

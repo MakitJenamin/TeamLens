@@ -51,6 +51,7 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
   - File log sửa trong 2 phút gần nhất coi là còn đang ghi → `ended_at = null`.
   - Gửi (`sync/mod.rs::send_all`): 413 → chia đôi (theo session, rồi theo turn) và gửi lại; 429 → chờ `Retry-After` (tối đa 120 s) rồi thử lại một lần cùng `batch_id`; 401/403/426/lỗi mạng → dừng, exit 1 kèm gợi ý.
   - Chưa có hàng đợi/offset: mỗi `tl sync` gửi lại toàn bộ session trong phạm vi (server idempotent). M2.3 đọc tăng dần, M3.1 thay bằng hàng đợi `state.db`. Điểm móc consent: `sync/consent_gate.rs::may_send()` (luôn `true`, chờ module `consent` của M3.7).
+  - Mốc 2 (M2.2): `tl sync`/`tl preview` không gọi `whoami` nữa mà tải `GET /agent/v1/config` (`sync/agent_config.rs`, gọi trong `sync::connect`): repo pattern cho `ScopeFilter`, ngưỡng cắt vào `PrepareOptions.limits`, `redaction_patterns` vào `PrepareOptions.server_redaction_patterns` (M2.1 nối vào `Redactor`). Bản gần nhất cache ở `<thư mục dữ liệu>/agent_config.json` (kèm `server_url`), dùng khi lỗi mạng hoặc HTTP 5xx. Trước khi quét: `min_cli_version` lớn hơn bản đang chạy, hoặc không project nào trong `[consent]` đồng ý đúng `consent_text_version` → dừng, exit 1, không gửi gì (`--dry-run`/`preview` chỉ in lưu ý). API: `apps/api/src/modules/agent/agent-config.*`, đọc `settings` (`redaction_patterns`, `truncation`) và env `MIN_CLI_VERSION`.
 
 ## ⑦ Ingest — Người 1, mốc 1 (M1.6)
 
