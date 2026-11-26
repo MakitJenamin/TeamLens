@@ -39,6 +39,7 @@ const sessionRow = {
   cacheReadTokens: 3,
   cacheWriteTokens: 4,
   parentSessionId: null,
+  childCount: 1,
   permissionMode: 'weird',
   model: null,
   title: null,
@@ -127,7 +128,16 @@ describe('SessionsService', () => {
 
     it('leader xem session của người khác ghi audit session.view', async () => {
       const leader = user(LEADER, true);
-      const s = service([[sessionRow], [{ id: 'child' }], []]);
+      const child = {
+        id: 'child',
+        sourceId: 'claude_code:x:a1',
+        agent: 'claude_code',
+        startedAt: new Date('2026-11-20T08:01:00Z'),
+        endedAt: null,
+        turnCount: 2,
+        title: 'việc con',
+      };
+      const s = service([[sessionRow], [child], []]);
       canView.mockReturnValue(true);
       const detail = await s.get(leader, SESSION);
       expect(canView).toHaveBeenCalledWith(leader, OWNER);
@@ -138,6 +148,18 @@ describe('SessionsService', () => {
         SESSION,
       );
       expect(detail.childSessionIds).toEqual(['child']);
+      expect(detail.childCount).toBe(1);
+      expect(detail.children).toEqual([
+        {
+          id: 'child',
+          sourceId: 'claude_code:x:a1',
+          agent: 'claude_code',
+          title: 'việc con',
+          startedAt: '2026-11-20T08:01:00.000Z',
+          endedAt: null,
+          turnCount: 2,
+        },
+      ]);
     });
   });
 
