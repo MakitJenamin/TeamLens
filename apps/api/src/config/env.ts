@@ -19,6 +19,11 @@ export const envSchema = z.object({
       'TEAMLENS_SECRET_KEY phải là 32 byte mã hóa base64',
     ),
   PORT: z.coerce.number().int().positive().default(3001),
+  /** Phiên bản `tl` tối thiểu trả trong `GET /agent/v1/config`; CLI cũ hơn ngừng gửi. */
+  MIN_CLI_VERSION: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/, 'MIN_CLI_VERSION phải có dạng x.y.z, ví dụ 0.1.0')
+    .default('0.1.0'),
 });
 
 export type Env = z.infer<typeof envSchema>;

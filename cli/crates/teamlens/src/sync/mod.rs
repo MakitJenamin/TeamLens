@@ -5,6 +5,7 @@
 //! phạm vi (server idempotent theo `batch_id`, upsert theo `source_id`/`seq`).
 //! M3.1 thêm hàng đợi SQLite + retry, M3.2 daemon gọi lại phần gửi ở đây.
 
+pub mod agent_config;
 pub mod consent_gate;
 
 use std::time::Duration;
@@ -14,7 +15,7 @@ use tl_adapters::Adapter;
 use tl_core::session::SessionEnvelope;
 
 use crate::api_client::{
-    ApiClient, ApiError, ApiErrorCode, IngestAccepted, IngestError, IngestRejected, WhoamiResponse,
+    ApiClient, ApiError, ApiErrorCode, IngestAccepted, IngestError, IngestRejected,
 };
 use crate::context::AppContext;
 use crate::error::AppError;
@@ -50,14 +51,17 @@ impl Sources {
     }
 }
 
-/// Đã đăng nhập: client có token, địa chỉ server và kết quả `whoami`.
+/// Đã đăng nhập: client có token, địa chỉ server và cấu hình từ server (M2.2).
 pub struct Connected {
     pub server_url: String,
     pub client: ApiClient,
-    pub whoami: WhoamiResponse,
+    /// Config từ `GET /agent/v1/config` (hoặc bản cache khi mất mạng).
+    pub agent_config: agent_config::LoadedConfig,
 }
 
-/// Đọc config + token rồi gọi `whoami` (lấy repo pattern). Lỗi có gợi ý tiếng Việt.
+/// Đọc config + token rồi tải `GET /agent/v1/config` (repo pattern, ngưỡng cắt, phiên bản).
+/// Mất mạng thì dùng bản cache gần nhất của cùng server; không có cache thì lỗi.
+/// Lỗi có gợi ý tiếng Việt.
 pub async fn connect(ctx: &AppContext) -> Result<Connected, AppError> {
     let config = ctx.load_config()?;
     let not_logged_in = || {
@@ -72,11 +76,13 @@ pub async fn connect(ctx: &AppContext) -> Result<Connected, AppError> {
         .get_token(&server_url)?
         .ok_or_else(not_logged_in)?;
     let client = ApiClient::new(&server_url, Some(token))?;
-    let whoami = client.whoami().await.map_err(login_hint)?;
+    let agent_config = agent_config::load(ctx, &client, &server_url)
+        .await
+        .map_err(login_hint)?;
     Ok(Connected {
         server_url,
         client,
-        whoami,
+        agent_config,
     })
 }
 

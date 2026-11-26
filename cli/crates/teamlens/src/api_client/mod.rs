@@ -186,6 +186,12 @@ impl ApiClient {
         self.send_json(req).await
     }
 
+    /// `GET /agent/v1/config`: cấu hình cho CLI (phạm vi repo, che secret, ngưỡng cắt, phiên bản).
+    pub async fn get_config(&self) -> Result<AgentConfig, ApiError> {
+        let req = self.request(Method::GET, "/agent/v1/config");
+        self.send_json(req).await
+    }
+
     /// `POST /agent/v1/logout`: thu hồi token của chính máy này.
     pub async fn logout(&self) -> Result<(), ApiError> {
         let req = self.request(Method::POST, "/agent/v1/logout");

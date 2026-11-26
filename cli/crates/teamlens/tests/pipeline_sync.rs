@@ -182,6 +182,7 @@ impl Env {
                 user_name: Some("dev".into()),
                 host_name: Some("MAY-TEST".into()),
                 limits: Default::default(),
+                server_redaction_patterns: Vec::new(),
             },
         }
     }
@@ -206,7 +207,7 @@ impl Env {
                     project_id: "proj-acme".into(),
                     project_slug: "acme".into(),
                     project_name: "Acme".into(),
-                    text_version: "2026-11-26".into(),
+                    text_version: CONSENT_VERSION.into(),
                     backfill,
                     accepted_at: chrono::Utc::now(),
                 },
@@ -224,24 +225,34 @@ impl Env {
     }
 }
 
-fn whoami_body() -> Value {
+/// Phiên bản văn bản đồng ý mà context test đã đồng ý.
+const CONSENT_VERSION: &str = "2026-11-26";
+
+/// Body `GET /agent/v1/config` (snake_case).
+fn config_body(consent_text_version: &str, min_cli_version: &str) -> Value {
     json!({
-        "user": { "id": "u1", "email": "member@example.invalid", "name": "Member" },
-        "device": { "id": "d1", "name": "MAY-TEST" },
-        "projects": [
-            { "id": "proj-acme", "name": "Acme", "slug": "acme",
-              "repoPatterns": ["github.com/acme/*"] }
-        ]
+        "repo_patterns": [{ "project_id": "proj-acme", "pattern": "github.com/acme/*" }],
+        "redaction_patterns": [{ "id": "acme_internal_token", "regex": "acme_[A-Za-z0-9]{32}" }],
+        "truncation": {
+            "tool_input_bytes": 4096, "output_head_bytes": 2048, "output_tail_bytes": 1024,
+            "diff_bytes": 262144, "thinking_bytes": 8192
+        },
+        "consent_text_version": consent_text_version,
+        "min_cli_version": min_cli_version
     })
 }
 
-async fn mock_whoami(server: &MockServer) {
+async fn mock_config_body(server: &MockServer, body: Value) {
     Mock::given(method("GET"))
-        .and(path("/agent/v1/whoami"))
+        .and(path("/agent/v1/config"))
         .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(whoami_body()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(body))
         .mount(server)
         .await;
+}
+
+async fn mock_config(server: &MockServer) {
+    mock_config_body(server, config_body(CONSENT_VERSION, "0.1.0")).await;
 }
 
 /// Giải nén body ingest, ghi lại, trả lần lượt các phản hồi cho trước rồi 202.
@@ -304,7 +315,7 @@ impl Respond for Ingest {
 
 async fn server_with(ingest: Ingest) -> MockServer {
     let server = MockServer::start().await;
-    mock_whoami(&server).await;
+    mock_config(&server).await;
     Mock::given(method("POST"))
         .and(path("/agent/v1/ingest"))
         .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
@@ -596,10 +607,10 @@ async fn sync_401_nhac_dang_nhap() {
     let e = r.unwrap_err();
     assert!(e.hint().unwrap().contains("tl join"));
 
-    // whoami 401 cũng vậy.
+    // config 401 cũng vậy.
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/agent/v1/whoami"))
+        .and(path("/agent/v1/config"))
         .respond_with(
             ResponseTemplate::new(401).set_body_json(
                 json!({ "error": "invalid_token", "message": "Token không hợp lệ" }),
@@ -675,4 +686,142 @@ async fn sync_khong_backfill_bo_session_cu() {
         0,
         "không được gửi session cũ"
     );
+}
+
+/// Server chỉ có `GET /agent/v1/config` với body cho trước và ingest ghi lại.
+async fn server_with_config(ingest: Ingest, body: Value) -> MockServer {
+    let server = MockServer::start().await;
+    mock_config_body(&server, body).await;
+    Mock::given(method("POST"))
+        .and(path("/agent/v1/ingest"))
+        .respond_with(ingest)
+        .mount(&server)
+        .await;
+    server
+}
+
+#[tokio::test]
+async fn sync_lech_phien_ban_dong_y_khong_gui() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with_config(ingest.clone(), config_body("2026-12-01", "0.1.0")).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
+    let e = r.unwrap_err();
+    assert_ne!(e.exit_code(), 0);
+    assert!(e.to_string().contains("2026-12-01"), "{e}");
+    assert!(e.to_string().contains(CONSENT_VERSION), "{e}");
+    assert!(e.hint().unwrap().contains("tl join"), "{:?}", e.hint());
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0, "không được gửi gì");
+
+    // --dry-run vẫn xem được, kèm lưu ý.
+    let (r, out) = run_sync(&env, &ctx, true, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("Văn bản đồng ý"), "{out}");
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn sync_cli_cu_hon_min_version_khong_gui() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with_config(ingest.clone(), config_body(CONSENT_VERSION, "9.9.9")).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
+    let e = r.unwrap_err();
+    assert_ne!(e.exit_code(), 0);
+    assert!(e.to_string().contains("9.9.9"), "{e}");
+    assert!(e.hint().unwrap().contains("Cập nhật tl"), "{:?}", e.hint());
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0, "không được gửi gì");
+}
+
+#[tokio::test]
+async fn sync_ap_nguong_cat_tu_config() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let mut body = config_body(CONSENT_VERSION, "0.1.0");
+    body["truncation"]["output_head_bytes"] = json!(100);
+    body["truncation"]["output_tail_bytes"] = json!(50);
+    let server = server_with_config(ingest.clone(), body).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, _) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    let bodies = ingest.bodies.lock().unwrap();
+    let turns = bodies[0]["sessions"][0]["turns"].as_array().unwrap();
+    let long = turns
+        .iter()
+        .find_map(|t| t.get("output").filter(|o| o["truncated"] == true))
+        .expect("phải có output bị cắt");
+    assert!(
+        long["text"].as_str().unwrap().len() < 300,
+        "ngưỡng 100 + 50 byte từ config"
+    );
+}
+
+#[tokio::test]
+async fn mat_mang_dung_config_cache() {
+    let env = Env::new();
+    // Lần 1: server sống, config được cache.
+    let server = server_with(Ingest::new(vec![])).await;
+    let uri = server.uri();
+    let ctx = env.ctx(&uri);
+    let (r, _) = run_preview(&env, &ctx, None).await;
+    r.unwrap();
+    let cache = ctx.config_path.parent().unwrap().join("agent_config.json");
+    assert!(cache.is_file(), "phải ghi cache");
+    // Lần 2: server ở địa chỉ khác đã tắt (wiremock giữ server trong pool nên không tắt
+    // được server cũ); chép cache sang địa chỉ đó → preview vẫn chạy bằng cache.
+    let dead = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        format!("http://{}", listener.local_addr().unwrap())
+    };
+    let ctx = env.ctx(&dead);
+    let mut cached: Value = serde_json::from_str(&fs::read_to_string(&cache).unwrap()).unwrap();
+    assert_eq!(cached["server_url"], uri.as_str());
+    cached["server_url"] = json!(dead);
+    fs::write(&cache, serde_json::to_string(&cached).unwrap()).unwrap();
+
+    let mut out = Vec::new();
+    let mut note = Vec::new();
+    let r = preview::run_with(
+        &ctx,
+        PreviewArgs { session: None },
+        &env.sources(),
+        &mut out,
+        &mut note,
+    )
+    .await;
+    r.unwrap();
+    let note = String::from_utf8(note).unwrap();
+    assert!(note.contains("dùng bản đã lưu"), "{note}");
+    let batch: Value = serde_json::from_slice(&out).expect("preview vẫn in JSON");
+    assert_eq!(batch["sessions"].as_array().unwrap().len(), 1);
+
+    // Server trả 5xx (proxy báo API tắt) → cũng dùng cache.
+    let down = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/agent/v1/config"))
+        .respond_with(ResponseTemplate::new(502))
+        .mount(&down)
+        .await;
+    let ctx_down = env.ctx(&down.uri());
+    cached["server_url"] = json!(down.uri());
+    fs::write(&cache, serde_json::to_string(&cached).unwrap()).unwrap();
+    let mut note = Vec::new();
+    preview::run_with(
+        &ctx_down,
+        PreviewArgs { session: None },
+        &env.sources(),
+        &mut Vec::new(),
+        &mut note,
+    )
+    .await
+    .unwrap();
+    assert!(String::from_utf8(note).unwrap().contains("dùng bản đã lưu"));
+
+    // Không có cache → lỗi kết nối như cũ (`env.ctx` ghi lại config.toml trỏ về `dead`).
+    let ctx = env.ctx(&dead);
+    std::fs::remove_file(&cache).unwrap();
+    let (r, _) = run_preview(&env, &ctx, None).await;
+    assert!(r.unwrap_err().to_string().contains("Không kết nối được"));
 }

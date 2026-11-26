@@ -1,4 +1,4 @@
-//! Kiểu request/response của `/agent/v1` (JSON camelCase, viết tay khớp `packages/schema/openapi`).
+//! Kiểu request/response của `/agent/v1` (JSON camelCase, riêng `AgentConfig` snake_case; viết tay khớp `packages/schema/openapi`).
 
 use serde::{Deserialize, Serialize};
 
@@ -226,4 +226,72 @@ pub struct UnsupportedSchemaVersionBody {
     pub min_cli_version: Option<String>,
     #[serde(default)]
     pub supported_schema_versions: Vec<u32>,
+}
+
+/// Trả về `200` của `GET /agent/v1/config` (M2.2). **JSON snake_case** (khác các REST khác).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentConfig {
+    /// Repo pattern của mọi project user là thành viên.
+    pub repo_patterns: Vec<AgentRepoPattern>,
+    /// Pattern che secret bổ sung do leader cấu hình (M2.1 nối vào `Redactor`).
+    #[serde(default)]
+    pub redaction_patterns: Vec<AgentRedactionPattern>,
+    /// Ngưỡng cắt; trường thiếu dùng mặc định spec 6.3.
+    #[serde(default)]
+    pub truncation: AgentTruncation,
+    /// Phiên bản văn bản đồng ý hiện hành.
+    pub consent_text_version: String,
+    /// Phiên bản `tl` tối thiểu (`x.y.z`).
+    pub min_cli_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentRepoPattern {
+    pub project_id: String,
+    pub pattern: String,
+}
+
+/// Pattern che secret của server: đoạn khớp `regex` (cú pháp crate `regex`) thay bằng
+/// `[REDACTED:<id>]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentRedactionPattern {
+    pub id: String,
+    pub regex: String,
+}
+
+/// Ngưỡng cắt (byte UTF-8) trong `GET /agent/v1/config`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentTruncation {
+    pub tool_input_bytes: u64,
+    pub output_head_bytes: u64,
+    pub output_tail_bytes: u64,
+    pub diff_bytes: u64,
+    pub thinking_bytes: u64,
+}
+
+impl Default for AgentTruncation {
+    fn default() -> Self {
+        let d = tl_core::truncate::TruncateLimits::default();
+        Self {
+            tool_input_bytes: d.tool_input_max as u64,
+            output_head_bytes: d.output_head as u64,
+            output_tail_bytes: d.output_tail as u64,
+            diff_bytes: d.diff_max as u64,
+            thinking_bytes: d.thinking_max as u64,
+        }
+    }
+}
+
+impl From<AgentTruncation> for tl_core::truncate::TruncateLimits {
+    fn from(t: AgentTruncation) -> Self {
+        let size = |v: u64| usize::try_from(v).unwrap_or(usize::MAX);
+        Self {
+            output_head: size(t.output_head_bytes),
+            output_tail: size(t.output_tail_bytes),
+            thinking_max: size(t.thinking_bytes),
+            tool_input_max: size(t.tool_input_bytes),
+            diff_max: size(t.diff_bytes),
+        }
+    }
 }
