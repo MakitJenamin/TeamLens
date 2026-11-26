@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
-/** Module rỗng, đã đăng ký sẵn trong AppModule. Xem README.md. */
-@Module({})
+import { FindingsController } from './findings.controller.js';
+import { RulesWorker } from './rules.worker.js';
+
+@Module({ controllers: [FindingsController], providers: [RulesWorker] })
 export class RulesModule {}
