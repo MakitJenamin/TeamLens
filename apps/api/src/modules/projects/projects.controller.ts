@@ -9,10 +9,8 @@ import {
   Post,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { forbidden } from '../../common/api-error.js';
 import { type AuthUser, CurrentUser } from '../../common/auth-context.js';
-import { PROJECT_ROLES } from '../../db/schema/index.js';
-import { ProjectRoles } from '../access/project-roles.guard.js';
+import { LeaderOnly, ProjectAccess } from '../access/access.guards.js';
 import { ProjectsService } from './projects.service.js';
 
 const createProjectSchema = z.object({
@@ -31,14 +29,7 @@ const updateProjectSchema = z.object({
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 
-const roleSchema = z.enum(PROJECT_ROLES, 'Vai trò phải là leader hoặc member');
-
-const addMemberSchema = z.object({
-  email: z.string().trim().min(1).max(254),
-  role: roleSchema,
-});
-
-const updateMemberSchema = z.object({ role: roleSchema });
+const addMemberSchema = z.object({ userId: z.uuid('userId phải là UUID') });
 
 const addRepoSchema = z.object({ remotePattern: z.string().max(300) });
 
@@ -52,23 +43,23 @@ export class ProjectsController {
   }
 
   @Post()
+  @LeaderOnly()
   create(
     @CurrentUser() user: AuthUser,
     @Body({ schema: createProjectSchema })
     body: z.infer<typeof createProjectSchema>,
   ) {
-    if (!user.isAdmin) throw forbidden();
     return this.projects.create(user, body);
   }
 
   @Get(':projectId')
-  @ProjectRoles('leader', 'member')
+  @ProjectAccess()
   get(@Param('projectId') projectId: string) {
     return this.projects.get(projectId);
   }
 
   @Patch(':projectId')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   update(
     @Param('projectId') projectId: string,
     @Body({ schema: updateProjectSchema })
@@ -78,35 +69,23 @@ export class ProjectsController {
   }
 
   @Get(':projectId/members')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   listMembers(@Param('projectId') projectId: string) {
     return this.projects.listMembers(projectId);
   }
 
   @Post(':projectId/members')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   addMember(
     @CurrentUser() user: AuthUser,
     @Param('projectId') projectId: string,
     @Body({ schema: addMemberSchema }) body: z.infer<typeof addMemberSchema>,
   ) {
-    return this.projects.addMember(user, projectId, body);
-  }
-
-  @Patch(':projectId/members/:userId')
-  @ProjectRoles('leader')
-  updateMember(
-    @CurrentUser() user: AuthUser,
-    @Param('projectId') projectId: string,
-    @Param('userId') userId: string,
-    @Body({ schema: updateMemberSchema })
-    body: z.infer<typeof updateMemberSchema>,
-  ) {
-    return this.projects.updateMemberRole(user, projectId, userId, body.role);
+    return this.projects.addMember(user, projectId, body.userId);
   }
 
   @Delete(':projectId/members/:userId')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   @HttpCode(204)
   async removeMember(
     @CurrentUser() user: AuthUser,
@@ -117,13 +96,13 @@ export class ProjectsController {
   }
 
   @Get(':projectId/repos')
-  @ProjectRoles('leader', 'member')
+  @ProjectAccess()
   listRepos(@Param('projectId') projectId: string) {
     return this.projects.listRepos(projectId);
   }
 
   @Post(':projectId/repos')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   addRepo(
     @CurrentUser() user: AuthUser,
     @Param('projectId') projectId: string,
@@ -133,7 +112,7 @@ export class ProjectsController {
   }
 
   @Delete(':projectId/repos/:repoId')
-  @ProjectRoles('leader')
+  @LeaderOnly()
   @HttpCode(204)
   async removeRepo(
     @CurrentUser() user: AuthUser,

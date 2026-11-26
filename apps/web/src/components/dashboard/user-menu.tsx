@@ -18,8 +18,8 @@ import { useRouter } from "@/i18n/navigation";
 import { useLogout } from "@/lib/api/hooks";
 import type { User } from "@/lib/api/types";
 
-export function initials(name: string, email: string): string {
-  const source = name.trim() || email;
+export function initials(name: string, email: string | null): string {
+  const source = name.trim() || email || "?";
   const parts = source.split(/\s+/).filter(Boolean);
   const letters =
     parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : source.slice(0, 2);
@@ -67,7 +67,7 @@ export function UserMenu({ user }: { user: User }) {
               <DropdownMenuLabel className="font-normal">
                 <span className="block truncate font-medium">{user.name}</span>
                 <span className="text-muted-foreground block truncate text-xs">{user.email}</span>
-                {user.isAdmin && <span className="text-muted-foreground text-xs">{t("roles.admin")}</span>}
+                {user.role === "leader" && <span className="text-muted-foreground text-xs">{t("roles.leader")}</span>}
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

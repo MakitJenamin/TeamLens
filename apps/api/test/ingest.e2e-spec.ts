@@ -5,7 +5,12 @@ import { gzipSync } from 'node:zlib';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { createTestApp, querySql, resetDatabase } from './helpers.js';
+import {
+  createTestApp,
+  insertUser,
+  querySql,
+  resetDatabase,
+} from './helpers.js';
 
 const PASSWORD = 'teamlens123';
 const require = createRequire(import.meta.url);
@@ -47,12 +52,16 @@ describe('POST /agent/v1/ingest (e2e)', () => {
       })
       .expect(201);
     const admin = await loginAs('admin@teamlens.local');
-    for (const email of ['member@teamlens.local', 'other@teamlens.local']) {
-      await admin
-        .post('/api/v1/users')
-        .send({ email, name: email, password: PASSWORD })
-        .expect(201);
-    }
+    const memberId = await insertUser({
+      email: 'member@teamlens.local',
+      name: 'member',
+      password: PASSWORD,
+    });
+    await insertUser({
+      email: 'other@teamlens.local',
+      name: 'other',
+      password: PASSWORD,
+    });
     // Project "Acme" có wildcard github.com/acme/* và gitlab.com/acme/*;
     // project "Shop web" có pattern cụ thể github.com/acme/shop-web → phải thắng wildcard.
     const acme = await admin
@@ -78,7 +87,7 @@ describe('POST /agent/v1/ingest (e2e)', () => {
     for (const projectId of [acmeProjectId, shopWebProjectId]) {
       await admin
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'member@teamlens.local', role: 'member' })
+        .send({ userId: memberId })
         .expect(201);
     }
     token = await deviceToken('member@teamlens.local');

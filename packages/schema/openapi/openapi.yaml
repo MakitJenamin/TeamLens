@@ -31,13 +31,13 @@ tags:
   - name: health
     description: Kiểm tra sống.
   - name: setup
-    description: Tạo admin đầu tiên.
+    description: Tạo leader đầu tiên.
   - name: auth
     description: Đăng nhập dashboard.
   - name: projects
     description: Project, thành viên, repo pattern.
   - name: users
-    description: Quản lý tài khoản (admin).
+    description: Quản lý tài khoản và vai trò (leader).
   - name: devices
     description: Duyệt device login và quản lý thiết bị (dashboard).
   - name: agent-auth
@@ -85,6 +85,8 @@ paths:
   # users.yaml
   /api/v1/users:
     $ref: './users.yaml#/paths/~1api~1v1~1users'
+  /api/v1/users/{userId}:
+    $ref: './users.yaml#/paths/~1api~1v1~1users~1{userId}'
 
   # devices.yaml
   /api/v1/device/approve:

@@ -137,18 +137,23 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [user, device, projects]
+                required: [user, role, device, projects]
                 additionalProperties: false
                 properties:
                   user:
-                    $ref: './common.yaml#/components/schemas/UserRef'
+                    allOf:
+                      - $ref: './common.yaml#/components/schemas/UserRef'
+                    description: User sở hữu thiết bị.
+                  role:
+                    $ref: './common.yaml#/components/schemas/Role'
                   device:
                     $ref: './common.yaml#/components/schemas/DeviceRef'
                   projects:
                     type: array
+                    description: Project user là thành viên (chỉ những project này được thu thập).
                     items:
                       type: object
-                      required: [id, name, slug, role, repoPatterns]
+                      required: [id, name, slug, repoPatterns]
                       additionalProperties: false
                       properties:
                         id:
@@ -157,8 +162,6 @@ paths:
                           type: string
                         slug:
                           $ref: './common.yaml#/components/schemas/ProjectSlug'
-                        role:
-                          $ref: './common.yaml#/components/schemas/Role'
                         repoPatterns:
                           type: array
                           items:

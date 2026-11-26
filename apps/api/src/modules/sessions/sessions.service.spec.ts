@@ -10,8 +10,13 @@ const OWNER = 'aaaaaaaa-0000-4000-8000-000000000003';
 const LEADER = 'aaaaaaaa-0000-4000-8000-000000000002';
 const OTHER = 'aaaaaaaa-0000-4000-8000-000000000004';
 
-function user(id: string, isAdmin = false): AuthUser {
-  return { id, email: `${id}@x.local`, name: id, isAdmin };
+function user(id: string, leader = false): AuthUser {
+  return {
+    id,
+    email: `${id}@x.local`,
+    name: id,
+    role: leader ? 'leader' : 'member',
+  };
 }
 
 const sessionRow = {
@@ -67,18 +72,18 @@ function fakeDb(results: unknown[][]): Database {
 
 describe('SessionsService', () => {
   let canView: ReturnType<typeof vi.fn>;
-  let hasRole: ReturnType<typeof vi.fn>;
+  let isLeader: ReturnType<typeof vi.fn>;
   let record: ReturnType<typeof vi.fn>;
 
   function service(results: unknown[][]) {
     canView = vi.fn();
-    hasRole = vi.fn();
+    isLeader = vi.fn();
     record = vi.fn();
     return new SessionsService(
       fakeDb(results),
       {
         canViewUserData: canView,
-        hasProjectRole: hasRole,
+        isLeader,
       } as unknown as AccessService,
       { record } as unknown as AuditService,
     );
@@ -99,7 +104,7 @@ describe('SessionsService', () => {
 
     it('không có quyền trả 403 và không ghi audit', async () => {
       const s = service([[sessionRow]]);
-      canView.mockResolvedValue(false);
+      canView.mockReturnValue(false);
       await expect(s.get(user(OTHER), SESSION)).rejects.toMatchObject({
         status: 403,
       });
@@ -108,7 +113,7 @@ describe('SessionsService', () => {
 
     it('tự xem session của mình không ghi audit', async () => {
       const s = service([[sessionRow], [], []]);
-      canView.mockResolvedValue(true);
+      canView.mockReturnValue(true);
       const detail = await s.get(user(OWNER), SESSION);
       expect(record).not.toHaveBeenCalled();
       expect(detail.permissionMode).toBeNull();
@@ -121,11 +126,11 @@ describe('SessionsService', () => {
     });
 
     it('leader xem session của người khác ghi audit session.view', async () => {
-      const leader = user(LEADER);
+      const leader = user(LEADER, true);
       const s = service([[sessionRow], [{ id: 'child' }], []]);
-      canView.mockResolvedValue(true);
+      canView.mockReturnValue(true);
       const detail = await s.get(leader, SESSION);
-      expect(canView).toHaveBeenCalledWith(leader, OWNER, PROJECT);
+      expect(canView).toHaveBeenCalledWith(leader, OWNER);
       expect(record).toHaveBeenCalledWith(
         leader.id,
         'session.view',
@@ -147,7 +152,7 @@ describe('SessionsService', () => {
 
     it('member lọc userId người khác trả 403', async () => {
       const s = service([[{ id: PROJECT }]]);
-      canView.mockResolvedValue(false);
+      canView.mockReturnValue(false);
       await expect(
         s.list(user(OWNER), PROJECT, { ...query, userId: OTHER }),
       ).rejects.toMatchObject({ status: 403 });
@@ -155,18 +160,18 @@ describe('SessionsService', () => {
 
     it('trả nextCursor khi còn trang sau', async () => {
       const s = service([[{ id: PROJECT }], [sessionRow, sessionRow]]);
-      hasRole.mockResolvedValue(true);
-      const page = await s.list(user(LEADER), PROJECT, query);
+      isLeader.mockReturnValue(true);
+      const page = await s.list(user(LEADER, true), PROJECT, query);
       expect(page.items).toHaveLength(1);
       expect(page.nextCursor).toEqual(expect.any(String));
     });
 
     it('trang cuối có nextCursor null', async () => {
       const s = service([[{ id: PROJECT }], [sessionRow]]);
-      hasRole.mockResolvedValue(false);
+      isLeader.mockReturnValue(false);
       const page = await s.list(user(OWNER), PROJECT, query);
       expect(page.nextCursor).toBeNull();
-      expect(hasRole).toHaveBeenCalledWith(user(OWNER), PROJECT, ['leader']);
+      expect(isLeader).toHaveBeenCalledWith(user(OWNER));
     });
   });
 });

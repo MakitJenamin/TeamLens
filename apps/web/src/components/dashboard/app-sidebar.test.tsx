@@ -18,8 +18,8 @@ vi.mock("@/i18n/navigation", () => ({
 }));
 
 const projects: ProjectSummary[] = [
-  { id: "p-1", name: "TeamLens", slug: "teamlens", role: "leader" },
-  { id: "p-2", name: "Demo", slug: "demo", role: "member" },
+  { id: "p-1", name: "TeamLens", slug: "teamlens", isMember: true },
+  { id: "p-2", name: "Demo", slug: "demo", isMember: true },
 ];
 
 function renderSidebar(user: User) {
@@ -32,7 +32,12 @@ function renderSidebar(user: User) {
   );
 }
 
-const member: User = { id: "u1", email: "member1@teamlens.local", name: "Member Một", isAdmin: false };
+const member: User = {
+  id: "u1",
+  email: "member1@teamlens.local",
+  name: "Member Một",
+  role: "member",
+};
 
 describe("AppSidebar", () => {
   it("có đủ link theo project đang chọn và đánh dấu link active", () => {
@@ -60,8 +65,8 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("link", { name: "Quản trị" })).not.toBeInTheDocument();
   });
 
-  it("hiện link Quản trị với admin", () => {
-    renderSidebar({ ...member, isAdmin: true });
+  it("hiện link Quản trị với leader", () => {
+    renderSidebar({ ...member, role: "leader" });
     expect(screen.getByRole("link", { name: "Quản trị" })).toHaveAttribute("href", "/admin");
   });
 });

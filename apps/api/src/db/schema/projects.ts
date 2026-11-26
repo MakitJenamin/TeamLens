@@ -13,7 +13,9 @@ import { users } from './users.js';
 
 const tz = { withTimezone: true } as const;
 
+/** @deprecated Vai trò theo project đã bỏ (dùng `users.role`); cột xóa ở J.10. */
 export const PROJECT_ROLES = ['leader', 'member'] as const;
+/** @deprecated Xem `PROJECT_ROLES`. */
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 /** Cấu hình riêng của project (bật leaderboard, ngưỡng cắt output...). */
@@ -52,7 +54,8 @@ export const projectMembers = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    role: text('role').$type<ProjectRole>().notNull(),
+    /** @deprecated Không đọc/ghi trong code mới; xóa ở J.10. */
+    role: text('role').$type<ProjectRole>().notNull().default('member'),
     createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   },
   (t) => [
@@ -61,18 +64,20 @@ export const projectMembers = pgTable(
   ],
 );
 
-/** Link mời vào project. Chỉ lưu SHA-256 của mã. */
+/** Link mời chung vào project (chỉ tạo member). Chỉ lưu SHA-256 của mã. */
 export const invites = pgTable('invites', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   codeHash: text('code_hash').notNull().unique(),
+  /** @deprecated Link mời chỉ tạo member; xóa ở J.10. */
   role: text('role').$type<ProjectRole>().notNull().default('member'),
   expiresAt: timestamp('expires_at', tz).notNull(),
   // null = không giới hạn số lần dùng.
   maxUses: integer('max_uses'),
   usedCount: integer('used_count').notNull().default(0),
+  revokedAt: timestamp('revoked_at', tz),
   createdBy: uuid('created_by').references(() => users.id, {
     onDelete: 'set null',
   }),

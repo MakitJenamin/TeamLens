@@ -48,8 +48,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Tạo admin đầu tiên và đăng nhập luôn
-         * @description Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `isAdmin = true`.
+         * Tạo leader đầu tiên và đăng nhập luôn
+         * @description Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `role = leader`.
          */
         post: operations["setup"];
         delete?: never;
@@ -121,11 +121,11 @@ export interface paths {
         };
         /**
          * Danh sách project của user hiện tại
-         * @description Admin thấy mọi project; `role` là `null` với project admin không là thành viên.
+         * @description Leader thấy mọi project; member chỉ thấy project mình tham gia.
          */
         get: operations["listProjects"];
         put?: never;
-        /** Tạo project (chỉ admin) */
+        /** Tạo project (leader) */
         post: operations["createProject"];
         delete?: never;
         options?: never;
@@ -142,14 +142,14 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Chi tiết project (thành viên hoặc admin) */
+        /** Chi tiết project (leader hoặc thành viên) */
         get: operations["getProject"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Sửa tên hoặc cấu hình project (leader hoặc admin) */
+        /** Sửa tên hoặc cấu hình project (leader) */
         patch: operations["updateProject"];
         trace?: never;
     };
@@ -162,10 +162,13 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Danh sách thành viên (leader hoặc admin) */
+        /** Danh sách thành viên (leader) */
         get: operations["listProjectMembers"];
         put?: never;
-        /** Thêm thành viên đã có tài khoản (leader hoặc admin) */
+        /**
+         * Thêm một user đã có vào project (leader)
+         * @description Thành viên mới thường tự vào qua link mời (`tl join`); endpoint này để leader thêm user có sẵn vào project khác.
+         */
         post: operations["addProjectMember"];
         delete?: never;
         options?: never;
@@ -186,12 +189,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Xóa thành viên khỏi project (leader hoặc admin) */
+        /** Xóa thành viên khỏi project (leader) */
         delete: operations["removeProjectMember"];
         options?: never;
         head?: never;
-        /** Đổi vai trò thành viên (leader hoặc admin) */
-        patch: operations["updateProjectMember"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/projects/{projectId}/repos": {
@@ -203,11 +205,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Danh sách repo pattern (thành viên hoặc admin) */
+        /** Danh sách repo pattern (leader hoặc thành viên) */
         get: operations["listProjectRepos"];
         put?: never;
         /**
-         * Thêm repo pattern (leader hoặc admin)
+         * Thêm repo pattern (leader)
          * @description `remotePattern` được chuẩn hóa trước khi lưu (chữ thường, bỏ scheme, `git@`, `.git`, `/` cuối;
          *     `host:org` thành `host/org`). Sau chuẩn hóa phải có dạng `host/org/repo` hoặc `host/org/*`.
          */
@@ -231,7 +233,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Xóa repo pattern (leader hoặc admin) */
+        /** Xóa repo pattern (leader) */
         delete: operations["removeProjectRepo"];
         options?: never;
         head?: never;
@@ -245,15 +247,38 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Danh sách user (chỉ admin) */
+        /** Danh sách user (leader) */
         get: operations["listUsers"];
         put?: never;
-        /** Tạo user (chỉ admin) */
-        post: operations["createUser"];
+        /** Thêm một leader mới (leader) */
+        post: operations["createLeader"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Đổi vai trò của user (leader)
+         * @description Nâng member lên leader thì phải kèm `email` và `password` nếu user chưa có (để đăng nhập dashboard).
+         *     Hạ leader xuống member thì giữ nguyên email/mật khẩu. Server luôn phải còn ít nhất một leader.
+         */
+        patch: operations["updateUserRole"];
         trace?: never;
     };
     "/api/v1/device/approve": {
@@ -304,7 +329,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Thu hồi token của một thiết bị (chủ thiết bị hoặc admin) */
+        /** Thu hồi token của một thiết bị (chủ thiết bị hoặc leader) */
         post: operations["revokeDevice"];
         delete?: never;
         options?: never;
@@ -438,7 +463,7 @@ export interface paths {
         /**
          * Danh sách session của project
          * @description Sắp xếp theo `startedAt` giảm dần (mới nhất trước), phân trang bằng cursor.
-         *     Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader và admin thấy mọi
+         *     Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader thấy mọi
          *     session trong project. Mặc định chỉ trả session gốc, ẩn session con (subagent).
          */
         get: operations["listProjectSessions"];
@@ -484,8 +509,7 @@ export interface paths {
         };
         /**
          * Danh sách nhận xét của một session
-         * @description Member xem session của mình, leader xem session thuộc project mình dẫn dắt,
-         *     admin xem mọi session. Ghi audit khi xem dữ liệu của người khác.
+         * @description Member xem session của mình, leader xem mọi session. Ghi audit khi xem dữ liệu của người khác.
          */
         get: operations["listSessionFindings"];
         put?: never;
@@ -519,29 +543,29 @@ export interface components {
          */
         Id: string;
         /**
-         * @description Vai trò trong project.
+         * @description Vai trò toàn server. Leader làm mọi thứ; member chỉ dữ liệu của mình (SPEC 11.1).
          * @enum {string}
          */
         Role: "leader" | "member";
         User: {
             id: components["schemas"]["Id"];
-            /** Format: email */
-            email: string;
+            /** @description Chỉ leader có email (đăng nhập dashboard); `null` với member. */
+            email: string | null;
             name: string;
-            isAdmin: boolean;
+            role: components["schemas"]["Role"];
         };
         /** @description Thông tin rút gọn của user (dùng cho CLI). */
         UserRef: {
             id: components["schemas"]["Id"];
-            /** Format: email */
-            email: string;
+            /** @description `null` với member (không có email). */
+            email: string | null;
             name: string;
         };
+        /** @description Project user hiện tại là thành viên. */
         Membership: {
             projectId: components["schemas"]["Id"];
             projectName: string;
             projectSlug: components["schemas"]["ProjectSlug"];
-            role: components["schemas"]["Role"];
         };
         /**
          * @description Chữ thường, số và dấu gạch ngang; 1–64 ký tự, không bắt đầu hay kết thúc bằng `-`.
@@ -556,8 +580,8 @@ export interface components {
             id: components["schemas"]["Id"];
             name: string;
             slug: components["schemas"]["ProjectSlug"];
-            /** @description Vai trò của user hiện tại; `null` khi admin không là thành viên. */
-            role: components["schemas"]["Role"] | null;
+            /** @description User hiện tại có là thành viên project không (leader thấy cả project mình không tham gia). */
+            isMember: boolean;
         };
         Project: {
             id: components["schemas"]["Id"];
@@ -585,8 +609,8 @@ export interface components {
         };
         Member: {
             userId: components["schemas"]["Id"];
-            /** Format: email */
-            email: string;
+            /** @description `null` với member (không có email). */
+            email: string | null;
             name: string;
             role: components["schemas"]["Role"];
         };
@@ -1130,7 +1154,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Đã tạo admin; cookie `tl_session` được đặt. */
+            /** @description Đã tạo leader; cookie `tl_session` được đặt. */
             201: {
                 headers: {
                     "Set-Cookie": components["headers"]["SetSessionCookie"];
@@ -1412,9 +1436,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** Format: email */
-                    email: string;
-                    role: components["schemas"]["Role"];
+                    userId: components["schemas"]["Id"];
                 };
             };
         };
@@ -1431,7 +1453,7 @@ export interface operations {
             400: components["responses"]["ValidationError"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
-            /** @description Không có user với email này (`error`: `user_not_found`), hoặc project không tồn tại (`not_found`). */
+            /** @description Không có user này (`error`: `user_not_found`), hoặc project không tồn tại (`not_found`). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1440,7 +1462,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "error": "user_not_found",
-                     *       "message": "Không tìm thấy người dùng với email này."
+                     *       "message": "Không tìm thấy người dùng."
                      *     }
                      */
                     "application/json": components["schemas"]["Error"];
@@ -1485,69 +1507,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`). */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": "last_leader",
-                     *       "message": "Project phải còn ít nhất một leader."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    updateProjectMember: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: components["parameters"]["ProjectId"];
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    role: components["schemas"]["Role"];
-                };
-            };
-        };
-        responses: {
-            /** @description Thành viên sau khi đổi vai trò. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Member"];
-                };
-            };
-            400: components["responses"]["ValidationError"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`). */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": "last_leader",
-                     *       "message": "Project phải còn ít nhất một leader."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
         };
     };
     listProjectRepos: {
@@ -1668,7 +1627,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    createUser: {
+    createLeader: {
         parameters: {
             query?: never;
             header?: never;
@@ -1682,13 +1641,11 @@ export interface operations {
                     email: string;
                     name: string;
                     password: string;
-                    /** @default false */
-                    isAdmin?: boolean;
                 };
             };
         };
         responses: {
-            /** @description User vừa tạo. */
+            /** @description Leader vừa tạo. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1710,6 +1667,64 @@ export interface operations {
                      * @example {
                      *       "error": "email_taken",
                      *       "message": "Email này đã có tài khoản."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateUserRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    role: components["schemas"]["Role"];
+                    /** Format: email */
+                    email?: string;
+                    password?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description User sau khi đổi vai trò. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Body sai (`validation_error`), hoặc nâng lên leader mà thiếu email/mật khẩu (`credentials_required`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Hạ leader cuối cùng (`last_leader`) hoặc email đã được dùng (`email_taken`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "last_leader",
+                     *       "message": "Server phải còn ít nhất một leader."
                      *     }
                      */
                     "application/json": components["schemas"]["Error"];
@@ -1948,13 +1963,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description User sở hữu thiết bị. */
                         user: components["schemas"]["UserRef"];
+                        role: components["schemas"]["Role"];
                         device: components["schemas"]["DeviceRef"];
+                        /** @description Project user là thành viên (chỉ những project này được thu thập). */
                         projects: {
                             id: components["schemas"]["Id"];
                             name: string;
                             slug: components["schemas"]["ProjectSlug"];
-                            role: components["schemas"]["Role"];
                             repoPatterns: components["schemas"]["RemotePattern"][];
                         }[];
                     };

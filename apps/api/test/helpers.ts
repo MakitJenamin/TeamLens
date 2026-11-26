@@ -42,3 +42,22 @@ export async function querySql<T extends Record<string, unknown>>(
     await sql.end();
   }
 }
+
+/**
+ * Tạo user thẳng trong DB (member thật vào bằng `tl join`; ở đây kèm email + mật khẩu
+ * để test đăng nhập dashboard). Trả id.
+ */
+export async function insertUser(input: {
+  email: string | null;
+  name: string;
+  role?: 'leader' | 'member';
+  password?: string;
+}): Promise<string> {
+  const { hashPassword } = await import('../src/common/passwords.js');
+  const hash = input.password ? await hashPassword(input.password) : null;
+  const [row] = await querySql<{ id: string }>(
+    'INSERT INTO users (email, name, role, password_hash) VALUES ($1, $2, $3, $4) RETURNING id',
+    [input.email, input.name, input.role ?? 'member', hash],
+  );
+  return row.id;
+}

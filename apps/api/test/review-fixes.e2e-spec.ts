@@ -2,7 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AuditService } from '../src/modules/access/audit.service.js';
-import { createTestApp, querySql, resetDatabase } from './helpers.js';
+import {
+  createTestApp,
+  insertUser,
+  querySql,
+  resetDatabase,
+} from './helpers.js';
 
 const PASSWORD = 'teamlens123';
 
@@ -28,27 +33,28 @@ describe('Sửa lỗi review PR #1 (e2e)', () => {
       })
       .expect(201);
     const admin = await loginAs('admin@teamlens.local');
-    for (const email of ['leader@teamlens.local', 'member@teamlens.local']) {
-      const res = await admin
-        .post('/api/v1/users')
-        .send({ email, name: email, password: PASSWORD })
-        .expect(201);
-      if (email.startsWith('leader')) leaderId = res.body.id;
-      else memberId = res.body.id;
-    }
+    leaderId = await insertUser({
+      email: 'leader@teamlens.local',
+      name: 'leader',
+      role: 'leader',
+      password: PASSWORD,
+    });
+    memberId = await insertUser({
+      email: 'member@teamlens.local',
+      name: 'member',
+      password: PASSWORD,
+    });
     const project = await admin
       .post('/api/v1/projects')
       .send({ name: 'P', slug: 'p' })
       .expect(201);
     projectId = project.body.id;
-    await admin
-      .post(`/api/v1/projects/${projectId}/members`)
-      .send({ email: 'leader@teamlens.local', role: 'leader' })
-      .expect(201);
-    await admin
-      .post(`/api/v1/projects/${projectId}/members`)
-      .send({ email: 'member@teamlens.local', role: 'member' })
-      .expect(201);
+    for (const userId of [leaderId, memberId]) {
+      await admin
+        .post(`/api/v1/projects/${projectId}/members`)
+        .send({ userId })
+        .expect(201);
+    }
   });
 
   afterAll(async () => {
@@ -156,51 +162,6 @@ describe('Sửa lỗi review PR #1 (e2e)', () => {
         `SELECT id FROM users WHERE email = 'rollback@teamlens.local'`,
       );
       expect(rows).toHaveLength(0);
-    });
-  });
-
-  describe('lỗi 4: không để project mất leader cuối cùng', () => {
-    it('hạ vai trò leader cuối → 409 last_leader', async () => {
-      const admin = await loginAs('admin@teamlens.local');
-      const res = await admin
-        .patch(`/api/v1/projects/${projectId}/members/${leaderId}`)
-        .send({ role: 'member' })
-        .expect(409);
-      expect(res.body.error).toBe('last_leader');
-    });
-
-    it('xóa leader cuối → 409 last_leader (kể cả leader tự rời)', async () => {
-      const leader = await loginAs('leader@teamlens.local');
-      const res = await leader
-        .delete(`/api/v1/projects/${projectId}/members/${leaderId}`)
-        .expect(409);
-      expect(res.body.error).toBe('last_leader');
-      const [row] = await querySql<{ role: string }>(
-        'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
-        [projectId, leaderId],
-      );
-      expect(row.role).toBe('leader');
-    });
-
-    it('khi còn leader khác thì hạ/xóa được', async () => {
-      const leader = await loginAs('leader@teamlens.local');
-      await leader
-        .patch(`/api/v1/projects/${projectId}/members/${memberId}`)
-        .send({ role: 'leader' })
-        .expect(200);
-      await leader
-        .patch(`/api/v1/projects/${projectId}/members/${leaderId}`)
-        .send({ role: 'member' })
-        .expect(200);
-      // Giờ member là leader duy nhất.
-      const admin = await loginAs('admin@teamlens.local');
-      const res = await admin
-        .delete(`/api/v1/projects/${projectId}/members/${memberId}`)
-        .expect(409);
-      expect(res.body.error).toBe('last_leader');
-      await admin
-        .delete(`/api/v1/projects/${projectId}/members/${leaderId}`)
-        .expect(204);
     });
   });
 

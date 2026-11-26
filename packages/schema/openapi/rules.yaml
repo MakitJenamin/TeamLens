@@ -8,8 +8,7 @@ paths:
       tags: [rules]
       summary: Danh sách nhận xét của một session
       description: |
-        Member xem session của mình, leader xem session thuộc project mình dẫn dắt,
-        admin xem mọi session. Ghi audit khi xem dữ liệu của người khác.
+        Member xem session của mình, leader xem mọi session. Ghi audit khi xem dữ liệu của người khác.
       security:
         - cookieAuth: []
       responses:

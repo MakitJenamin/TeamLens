@@ -27,14 +27,7 @@ export class FindingsController {
       .from(sessions)
       .where(eq(sessions.id, sessionId));
     if (!session) throw notFound('Không tìm thấy session');
-    if (
-      !(await this.access.canViewUserData(
-        user,
-        session.userId,
-        session.projectId,
-      ))
-    )
-      throw forbidden();
+    if (!this.access.canViewUserData(user, session.userId)) throw forbidden();
     if (user.id !== session.userId)
       await this.audit.record(user.id, 'session.view', 'session', sessionId);
     const items = await this.db

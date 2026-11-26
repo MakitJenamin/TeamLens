@@ -36,7 +36,7 @@ pub struct LoginArgs {
 pub struct LoginOutcome {
     pub server_url: String,
     pub device_id: String,
-    /// Email lấy từ `whoami`; `None` nếu gọi `whoami` thất bại.
+    /// Tên hiển thị lấy từ `whoami`; `None` nếu gọi `whoami` thất bại.
     pub email: Option<String>,
     /// Số lần đã gọi `/device/token`.
     pub polls: u32,
@@ -98,9 +98,9 @@ pub async fn run(
         Ok(me) => {
             say(
                 out,
-                &format!("Đã đăng nhập: {} trên {}", me.user.email, server_url),
+                &format!("Đã đăng nhập: {} trên {}", me.user.display(), server_url),
             );
-            Some(me.user.email)
+            Some(me.user.display())
         }
         Err(e) => {
             tracing::debug!(error = ?e, "whoami sau khi đăng nhập thất bại");

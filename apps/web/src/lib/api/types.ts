@@ -49,9 +49,9 @@ export type MeResponse = ResponseBody<"getMe", 200>;
 export type CreateProjectRequest = RequestBody<"createProject">;
 export type UpdateProjectRequest = RequestBody<"updateProject">;
 export type AddMemberRequest = RequestBody<"addProjectMember">;
-export type UpdateMemberRequest = RequestBody<"updateProjectMember">;
 export type CreateRepoRequest = RequestBody<"addProjectRepo">;
-export type CreateUserRequest = RequestBody<"createUser">;
+export type CreateLeaderRequest = RequestBody<"createLeader">;
+export type UpdateUserRoleRequest = RequestBody<"updateUserRole">;
 
 export type DeviceApproveRequest = RequestBody<"approveDevice">;
 export type DeviceApproveResponse = ResponseBody<"approveDevice", 200>;

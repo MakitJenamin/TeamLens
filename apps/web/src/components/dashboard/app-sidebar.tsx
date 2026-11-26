@@ -55,7 +55,7 @@ export function AppSidebar({ user, projects }: { user: User; projects: ProjectSu
   // Đang ở trang chung (/me, /admin) thì dùng project đầu tiên cho nhóm link project.
   // (giống trang chủ: ưu tiên project mình là thành viên).
   const currentProjectId =
-    params.projectId ?? (projects.find((p) => p.role !== null) ?? projects[0])?.id;
+    params.projectId ?? (projects.find((p) => p.isMember) ?? projects[0])?.id;
 
   return (
     <Sidebar collapsible="icon">
@@ -77,7 +77,7 @@ export function AppSidebar({ user, projects }: { user: User; projects: ProjectSu
         <SidebarGroup>
           <SidebarGroupLabel>{t("general")}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <NavLinks items={generalNavItems(user.isAdmin)} />
+            <NavLinks items={generalNavItems(user.role === "leader")} />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

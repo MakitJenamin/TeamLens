@@ -15,7 +15,6 @@ import {
   type Project,
   type ProjectDetail,
   type ProjectSummary,
-  type Role,
   type User,
 } from "@/lib/api/types";
 
@@ -88,17 +87,9 @@ function ActionForm({
   );
 }
 
-function RoleSelect({ initial = "member", label }: { initial?: Role; label: string }) {
-  const t = useTranslations("admin");
-  return (
-    <label className="grid gap-1 text-sm font-medium">
-      {label}
-      <select className={select} name="role" defaultValue={initial}>
-        <option value="member">{t("member")}</option>
-        <option value="leader">{t("leader")}</option>
-      </select>
-    </label>
-  );
+/** Vai trò toàn server: leader làm mọi thứ, member chỉ dữ liệu của mình (SPEC 11.1). */
+function roleLabel(t: ReturnType<typeof useTranslations<"admin">>, role: User["role"]) {
+  return role === "leader" ? t("leader") : t("member");
 }
 
 export function UserAdmin({ users }: { users: User[] }) {
@@ -106,17 +97,17 @@ export function UserAdmin({ users }: { users: User[] }) {
   return (
     <div className="space-y-5">
       <section className={panel}>
-        <h2 className="text-lg font-semibold">{t("createUser")}</h2>
+        <h2 className="text-lg font-semibold">{t("createLeader")}</h2>
+        <p className="text-sm text-muted-foreground">{t("createLeaderHint")}</p>
         <ActionForm
           reset
-          label={t("createUser")}
+          label={t("createLeader")}
           variant="default"
           submit={(data) =>
             api.post("/users", {
               name: value(data, "name"),
               email: value(data, "email"),
               password: String(data.get("password")),
-              isAdmin: data.has("isAdmin"),
             })
           }
         >
@@ -129,10 +120,6 @@ export function UserAdmin({ users }: { users: User[] }) {
             autoComplete="new-password"
             minLength={PASSWORD_MIN_LENGTH}
           />
-          <label className="flex h-8 items-center gap-2 text-sm">
-            <input type="checkbox" name="isAdmin" />
-            {t("adminRole")}
-          </label>
         </ActionForm>
       </section>
       <section className={panel}>
@@ -144,9 +131,44 @@ export function UserAdmin({ users }: { users: User[] }) {
             <li key={user.id} className={row}>
               <div className="min-w-0 break-words">
                 <strong>{user.name}</strong>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
+                <p className="text-sm text-muted-foreground">
+                  {roleLabel(t, user.role)}
+                  {user.email ? ` · ${user.email}` : ""}
+                </p>
               </div>
-              <span className="text-sm">{t(user.isAdmin ? "adminRole" : "userRole")}</span>
+              {user.role === "leader" ? (
+                <ActionForm
+                  label={t("makeMember")}
+                  confirm={t("confirmMakeMember", { name: user.name })}
+                  submit={() => api.patch(`/users/${user.id}`, { role: "member" })}
+                />
+              ) : (
+                <ActionForm
+                  label={t("makeLeader")}
+                  submit={(data) => {
+                    const email = value(data, "email");
+                    const password = String(data.get("password") ?? "");
+                    return api.patch(`/users/${user.id}`, {
+                      role: "leader",
+                      ...(email ? { email } : {}),
+                      ...(password ? { password } : {}),
+                    });
+                  }}
+                >
+                  {!user.email && (
+                    <>
+                      <Field name="email" label={t("email")} type="email" />
+                      <Field
+                        name="password"
+                        label={t("password")}
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={PASSWORD_MIN_LENGTH}
+                      />
+                    </>
+                  )}
+                </ActionForm>
+              )}
             </li>
           ))}
         </ul>
@@ -159,10 +181,12 @@ export function ProjectAdmin({
   projects,
   project,
   members,
+  users,
 }: {
   projects: ProjectSummary[];
   project: ProjectDetail | null;
   members: Member[];
+  users: User[];
 }) {
   const t = useTranslations("admin");
   const router = useRouter();
@@ -215,7 +239,7 @@ export function ProjectAdmin({
         </details>
       </aside>
       {project ? (
-        <ProjectSettings project={project} members={members} />
+        <ProjectSettings project={project} members={members} users={users} />
       ) : (
         <p className="text-muted-foreground">{t("noProjects")}</p>
       )}
@@ -223,9 +247,19 @@ export function ProjectAdmin({
   );
 }
 
-function ProjectSettings({ project, members }: { project: ProjectDetail; members: Member[] }) {
+function ProjectSettings({
+  project,
+  members,
+  users,
+}: {
+  project: ProjectDetail;
+  members: Member[];
+  users: User[];
+}) {
   const t = useTranslations("admin");
   const path = `/projects/${project.id}`;
+  const memberIds = new Set(members.map((m) => m.userId));
+  const candidates = users.filter((u) => !memberIds.has(u.id));
   return (
     <div className="min-w-0 space-y-5">
       <section className={panel}>
@@ -242,42 +276,43 @@ function ProjectSettings({ project, members }: { project: ProjectDetail; members
         <h2 className="text-lg font-semibold">
           {t("members")} ({members.length})
         </h2>
-        <ActionForm
-          reset
-          variant="default"
-          label={t("addMember")}
-          submit={(data) =>
-            api.post(path + "/members", { email: value(data, "email"), role: value(data, "role") })
-          }
-        >
-          <Field label={t("email")} name="email" type="email" />
-          <RoleSelect label={t("role")} />
-        </ActionForm>
+        <p className="text-sm text-muted-foreground">{t("membersHint")}</p>
+        {candidates.length > 0 && (
+          <ActionForm
+            reset
+            variant="default"
+            label={t("addMember")}
+            submit={(data) => api.post(path + "/members", { userId: value(data, "userId") })}
+          >
+            <label className="grid gap-1 text-sm font-medium">
+              {t("pickUser")}
+              <select className={select} name="userId" required>
+                {candidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({roleLabel(t, u.role)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </ActionForm>
+        )}
         {members.length === 0 && <p className="text-sm text-muted-foreground">{t("noMembers")}</p>}
         <ul>
           {members.map((m) => (
             <li className={row} key={m.userId}>
               <div className="min-w-0 break-words">
                 <strong>{m.name}</strong>
-                <p className="text-sm text-muted-foreground">{m.email}</p>
+                <p className="text-sm text-muted-foreground">
+                  {roleLabel(t, m.role)}
+                  {m.email ? ` · ${m.email}` : ""}
+                </p>
               </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <ActionForm
-                  key={m.role}
-                  label={t("saveRole")}
-                  submit={(data) =>
-                    api.patch(path + "/members/" + m.userId, { role: value(data, "role") })
-                  }
-                >
-                  <RoleSelect label={t("roleFor", { name: m.name })} initial={m.role} />
-                </ActionForm>
-                <ActionForm
-                  variant="destructive"
-                  label={t("remove")}
-                  confirm={t("confirmMember", { name: m.email })}
-                  submit={() => api.delete(path + "/members/" + m.userId)}
-                />
-              </div>
+              <ActionForm
+                variant="destructive"
+                label={t("remove")}
+                confirm={t("confirmMember", { name: m.name })}
+                submit={() => api.delete(path + "/members/" + m.userId)}
+              />
             </li>
           ))}
         </ul>

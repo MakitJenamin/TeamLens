@@ -1,7 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { createTestApp, querySql, resetDatabase } from './helpers.js';
+import {
+  createTestApp,
+  insertUser,
+  querySql,
+  resetDatabase,
+} from './helpers.js';
 
 const PASSWORD = 'teamlens123';
 
@@ -42,7 +47,7 @@ describe('TeamLens API (e2e)', () => {
       });
     });
 
-    it('setup tạo admin đầu tiên, đặt cookie', async () => {
+    it('setup tạo leader đầu tiên, đặt cookie', async () => {
       await request(server)
         .get('/api/v1/setup/status')
         .expect(200, { needsSetup: true });
@@ -64,7 +69,7 @@ describe('TeamLens API (e2e)', () => {
       expect(res.body.user).toMatchObject({
         email: 'admin@teamlens.local',
         name: 'Admin',
-        isAdmin: true,
+        role: 'leader',
       });
       const cookie = String(res.headers['set-cookie']);
       expect(cookie).toMatch(/tl_session=[\w-]{43};/);
@@ -104,7 +109,7 @@ describe('TeamLens API (e2e)', () => {
           id: expect.any(String),
           email: 'admin@teamlens.local',
           name: 'Admin',
-          isAdmin: true,
+          role: 'leader',
         },
         memberships: [],
       });
@@ -124,21 +129,36 @@ describe('TeamLens API (e2e)', () => {
   describe('project, thành viên, quyền', () => {
     let projectId: string;
     let memberId: string;
+    let member2Id: string;
+    let leaderId: string;
 
-    it('admin tạo user và project', async () => {
+    it('leader thêm leader khác và tạo project', async () => {
       const admin = await loginAs('admin@teamlens.local');
-      for (const [email, name] of [
-        ['leader@teamlens.local', 'Leader'],
-        ['member1@teamlens.local', 'Member 1'],
-        ['member2@teamlens.local', 'Member 2'],
-      ]) {
-        const res = await admin
-          .post('/api/v1/users')
-          .send({ email, name, password: PASSWORD })
-          .expect(201);
-        expect(res.body).toMatchObject({ email, name, isAdmin: false });
-        if (email === 'member1@teamlens.local') memberId = res.body.id;
-      }
+      const created = await admin
+        .post('/api/v1/users')
+        .send({
+          email: 'leader@teamlens.local',
+          name: 'Leader',
+          password: PASSWORD,
+        })
+        .expect(201);
+      expect(created.body).toEqual({
+        id: expect.any(String),
+        email: 'leader@teamlens.local',
+        name: 'Leader',
+        role: 'leader',
+      });
+      leaderId = created.body.id;
+      memberId = await insertUser({
+        email: 'member1@teamlens.local',
+        name: 'Member 1',
+        password: PASSWORD,
+      });
+      member2Id = await insertUser({
+        email: 'member2@teamlens.local',
+        name: 'Member 2',
+        password: PASSWORD,
+      });
       const dup = await admin
         .post('/api/v1/users')
         .send({
@@ -166,32 +186,41 @@ describe('TeamLens API (e2e)', () => {
         .expect(409);
       expect(slugTaken.body.error).toBe('slug_taken');
 
-      await admin
-        .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'leader@teamlens.local', role: 'leader' })
-        .expect(201);
-
+      // Người tạo project tự là thành viên; leader khác thấy project dù chưa tham gia.
       const list = await admin.get('/api/v1/projects').expect(200);
       expect(list.body).toEqual([
-        { id: projectId, name: 'TeamLens', slug: 'teamlens', role: null },
+        { id: projectId, name: 'TeamLens', slug: 'teamlens', isMember: true },
       ]);
+      const leader = await loginAs('leader@teamlens.local');
+      const leaderList = await leader.get('/api/v1/projects').expect(200);
+      expect(leaderList.body).toEqual([
+        { id: projectId, name: 'TeamLens', slug: 'teamlens', isMember: false },
+      ]);
+      await leader
+        .post(`/api/v1/projects/${projectId}/members`)
+        .send({ userId: leaderId })
+        .expect(201);
     });
 
-    it('user thường không tạo được project/user', async () => {
-      const leader = await loginAs('leader@teamlens.local');
-      const res = await leader
+    it('member không tạo được project/user', async () => {
+      const member = await loginAs('member1@teamlens.local');
+      const res = await member
         .post('/api/v1/projects')
         .send({ name: 'X', slug: 'x' })
         .expect(403);
       expect(res.body.error).toBe('forbidden');
-      await leader.get('/api/v1/users').expect(403);
+      await member.get('/api/v1/users').expect(403);
+      await member
+        .post('/api/v1/users')
+        .send({ email: 'x@teamlens.local', name: 'X', password: PASSWORD })
+        .expect(403);
     });
 
     it('leader thêm member, quản lý repo; ghi audit', async () => {
       const leader = await loginAs('leader@teamlens.local');
       const added = await leader
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'member1@teamlens.local', role: 'member' })
+        .send({ userId: memberId })
         .expect(201);
       expect(added.body).toEqual({
         userId: memberId,
@@ -201,12 +230,12 @@ describe('TeamLens API (e2e)', () => {
       });
       const again = await leader
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'member1@teamlens.local', role: 'member' })
+        .send({ userId: memberId })
         .expect(409);
       expect(again.body.error).toBe('already_member');
       const missing = await leader
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'khong-co@teamlens.local', role: 'member' })
+        .send({ userId: '00000000-0000-4000-8000-000000000000' })
         .expect(404);
       expect(missing.body.error).toBe('user_not_found');
 
@@ -232,9 +261,15 @@ describe('TeamLens API (e2e)', () => {
       const members = await leader
         .get(`/api/v1/projects/${projectId}/members`)
         .expect(200);
-      expect(members.body.map((m: { email: string }) => m.email)).toEqual([
-        'leader@teamlens.local',
-        'member1@teamlens.local',
+      expect(
+        members.body.map((m: { name: string; role: string }) => [
+          m.name,
+          m.role,
+        ]),
+      ).toEqual([
+        ['Admin', 'leader'],
+        ['Leader', 'leader'],
+        ['Member 1', 'member'],
       ]);
 
       const patched = await leader
@@ -260,7 +295,7 @@ describe('TeamLens API (e2e)', () => {
       const member = await loginAs('member1@teamlens.local');
       const res = await member
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: 'member2@teamlens.local', role: 'member' })
+        .send({ userId: member2Id })
         .expect(403);
       expect(res.body).toEqual({
         error: 'forbidden',
@@ -272,16 +307,11 @@ describe('TeamLens API (e2e)', () => {
 
       const me = await member.get('/api/v1/auth/me').expect(200);
       expect(me.body.memberships).toEqual([
-        {
-          projectId,
-          projectName: 'TeamLens',
-          projectSlug: 'teamlens',
-          role: 'member',
-        },
+        { projectId, projectName: 'TeamLens', projectSlug: 'teamlens' },
       ]);
       const list = await member.get('/api/v1/projects').expect(200);
       expect(list.body).toEqual([
-        { id: projectId, name: 'TeamLens', slug: 'teamlens', role: 'member' },
+        { id: projectId, name: 'TeamLens', slug: 'teamlens', isMember: true },
       ]);
     });
 
@@ -296,17 +326,65 @@ describe('TeamLens API (e2e)', () => {
       await admin.get('/api/v1/projects/khong-phai-uuid').expect(404);
     });
 
-    it('leader đổi vai trò và xóa thành viên', async () => {
+    it('leader đổi vai trò toàn server; không hạ được leader cuối cùng', async () => {
       const leader = await loginAs('leader@teamlens.local');
-      const changed = await leader
-        .patch(`/api/v1/projects/${projectId}/members/${memberId}`)
+      // member2 có sẵn email + mật khẩu nên nâng được ngay.
+      const raised = await leader
+        .patch(`/api/v1/users/${member2Id}`)
         .send({ role: 'leader' })
         .expect(200);
-      expect(changed.body.role).toBe('leader');
+      expect(raised.body.role).toBe('leader');
       await leader
-        .patch(`/api/v1/projects/${projectId}/members/${memberId}`)
+        .patch(`/api/v1/users/${member2Id}`)
         .send({ role: 'owner' })
         .expect(400);
+      await leader
+        .patch(`/api/v1/users/${member2Id}`)
+        .send({ role: 'member' })
+        .expect(200);
+      const noEmail = await insertUser({ email: null, name: 'Chưa có email' });
+      const missing = await leader
+        .patch(`/api/v1/users/${noEmail}`)
+        .send({ role: 'leader' })
+        .expect(400);
+      expect(missing.body.error).toBe('credentials_required');
+      const promoted = await leader
+        .patch(`/api/v1/users/${noEmail}`)
+        .send({
+          role: 'leader',
+          email: 'moi@teamlens.local',
+          password: PASSWORD,
+        })
+        .expect(200);
+      expect(promoted.body).toMatchObject({
+        email: 'moi@teamlens.local',
+        role: 'leader',
+      });
+      await loginAs('moi@teamlens.local');
+
+      // Hạ hết leader khác thì leader cuối cùng bị giữ lại.
+      const [{ id: adminId }] = await querySql<{ id: string }>(
+        `SELECT id FROM users WHERE email = 'admin@teamlens.local'`,
+      );
+      for (const id of [adminId, noEmail]) {
+        await leader
+          .patch(`/api/v1/users/${id}`)
+          .send({ role: 'member' })
+          .expect(200);
+      }
+      const last = await leader
+        .patch(`/api/v1/users/${leaderId}`)
+        .send({ role: 'member' })
+        .expect(409);
+      expect(last.body.error).toBe('last_leader');
+      await leader
+        .patch(`/api/v1/users/${adminId}`)
+        .send({ role: 'leader' })
+        .expect(200);
+    });
+
+    it('leader xóa thành viên khỏi project', async () => {
+      const leader = await loginAs('leader@teamlens.local');
       await leader
         .delete(`/api/v1/projects/${projectId}/members/${memberId}`)
         .expect(204);
@@ -317,7 +395,7 @@ describe('TeamLens API (e2e)', () => {
         'SELECT action FROM audit_log',
       );
       expect(actions.map((a) => a.action)).toEqual(
-        expect.arrayContaining(['member.role_change', 'member.remove']),
+        expect.arrayContaining(['user.role_change', 'member.remove']),
       );
     });
   });
@@ -422,6 +500,7 @@ describe('TeamLens API (e2e)', () => {
           email: 'member2@teamlens.local',
           name: 'Member 2',
         },
+        role: 'member',
         device: { id: approved.body.device.id, name: 'LAPTOP-01' },
         projects: [],
       });
@@ -467,7 +546,7 @@ describe('TeamLens API (e2e)', () => {
       await member.get('/agent/v1/whoami').expect(401);
     });
 
-    it('whoami trả project và repo pattern; revoke chỉ chủ thiết bị hoặc admin', async () => {
+    it('whoami trả vai trò, project và repo pattern; revoke chỉ chủ thiết bị hoặc leader', async () => {
       const code = await request(server)
         .post('/agent/v1/device/code')
         .send({ deviceName: 'PC-LEADER', os: 'windows', cliVersion: '0.1.0' })
@@ -486,12 +565,12 @@ describe('TeamLens API (e2e)', () => {
         .get('/agent/v1/whoami')
         .set('Authorization', `Bearer ${token.body.accessToken}`)
         .expect(200);
+      expect(whoami.body.role).toBe('leader');
       expect(whoami.body.projects).toEqual([
         {
           id: expect.any(String),
           name: 'TeamLens',
           slug: 'teamlens',
-          role: 'leader',
           repoPatterns: ['github.com/makitjenamin/teamlens'],
         },
       ]);

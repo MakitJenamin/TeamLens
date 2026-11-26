@@ -252,7 +252,7 @@ export class DeviceService {
       .orderBy(desc(devices.createdAt));
   }
 
-  /** Thu hồi thiết bị: token không còn dùng được. Chủ thiết bị hoặc admin. */
+  /** Thu hồi thiết bị: token không còn dùng được. Chủ thiết bị hoặc leader. */
   async revoke(actor: AuthUser, deviceId: string): Promise<void> {
     if (!isUuid(deviceId)) throw notFound('Không tìm thấy thiết bị');
     const [device] = await this.db
@@ -261,7 +261,7 @@ export class DeviceService {
       .where(eq(devices.id, deviceId))
       .limit(1);
     if (!device) throw notFound('Không tìm thấy thiết bị');
-    if (device.userId !== actor.id && !actor.isAdmin) throw forbidden();
+    if (device.userId !== actor.id && actor.role !== 'leader') throw forbidden();
     if (device.revokedAt) return;
     await this.db.transaction(async (tx) => {
       await tx
@@ -320,7 +320,6 @@ export class DeviceService {
         id: projects.id,
         name: projects.name,
         slug: projects.slug,
-        role: projectMembers.role,
       })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))
@@ -343,6 +342,7 @@ export class DeviceService {
       : [];
     return {
       user: { id: user.id, email: user.email, name: user.name },
+      role: user.role,
       device: { id: device.id, name: device.name },
       projects: memberships.map((project) => ({
         ...project,

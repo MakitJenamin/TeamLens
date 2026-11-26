@@ -1,7 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { createTestApp, querySql, resetDatabase } from './helpers.js';
+import {
+  createTestApp,
+  insertUser,
+  querySql,
+  resetDatabase,
+} from './helpers.js';
 
 const PASSWORD = 'teamlens123';
 const MISSING = '99999999-9999-4999-8999-999999999999';
@@ -37,12 +42,19 @@ describe('Sessions (e2e)', () => {
       .expect(201);
     const admin = await loginAs('admin@teamlens.local');
     for (const key of ['leader', 'member1', 'member2'] as const) {
-      const res = await admin
-        .post('/api/v1/users')
-        .send({ email: `${key}@teamlens.local`, name: key, password: PASSWORD })
-        .expect(201);
-      ids[key] = res.body.id;
+      ids[key] = await insertUser({
+        email: `${key}@teamlens.local`,
+        name: key,
+        role: key === 'leader' ? 'leader' : 'member',
+        password: PASSWORD,
+      });
     }
+    // Người ngoài: member không thuộc project P.
+    await insertUser({
+      email: 'outsider@teamlens.local',
+      name: 'outsider',
+      password: PASSWORD,
+    });
     projectId = (
       await admin
         .post('/api/v1/projects')
@@ -55,14 +67,10 @@ describe('Sessions (e2e)', () => {
         .send({ name: 'Q', slug: 'q' })
         .expect(201)
     ).body.id;
-    for (const [key, role] of [
-      ['leader', 'leader'],
-      ['member1', 'member'],
-      ['member2', 'member'],
-    ] as const) {
+    for (const key of ['leader', 'member1', 'member2'] as const) {
       await admin
         .post(`/api/v1/projects/${projectId}/members`)
-        .send({ email: `${key}@teamlens.local`, role })
+        .send({ userId: ids[key] })
         .expect(201);
     }
 
@@ -244,16 +252,21 @@ describe('Sessions (e2e)', () => {
       expect(res.body.items).toHaveLength(2);
     });
 
-    it('người không thuộc project bị 403, admin thấy tất cả', async () => {
+    it('member không thuộc project bị 403; leader vào mọi project', async () => {
       const admin = await loginAs('admin@teamlens.local');
       const res = await admin
         .get(`/api/v1/projects/${projectId}/sessions`)
         .expect(200);
       expect(res.body.items).toHaveLength(6);
+      const outsider = await loginAs('outsider@teamlens.local');
+      await outsider
+        .get(`/api/v1/projects/${projectId}/sessions`)
+        .expect(403);
+      // Leader không là thành viên project Q vẫn xem được (vai trò toàn server).
       const leader = await loginAs('leader@teamlens.local');
       await leader
         .get(`/api/v1/projects/${otherProjectId}/sessions`)
-        .expect(403);
+        .expect(200);
     });
 
     it('project không tồn tại trả 404', async () => {
@@ -348,12 +361,11 @@ describe('Sessions (e2e)', () => {
     });
 
     it('leader bị hạ xuống member thì không xem được nữa', async () => {
-      // Đổi thẳng trong DB: API chặn hạ leader cuối cùng của project.
       const setRole = (role: string) =>
-        querySql(
-          `UPDATE project_members SET role = $1 WHERE project_id = $2 AND user_id = $3`,
-          [role, projectId, ids.leader],
-        );
+        querySql(`UPDATE users SET role = $1 WHERE id = $2`, [
+          role,
+          ids.leader,
+        ]);
       await setRole('member');
       try {
         const leader = await loginAs('leader@teamlens.local');

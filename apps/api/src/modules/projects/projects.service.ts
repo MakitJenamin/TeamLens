@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   ApiError,
   isUniqueViolation,
@@ -10,16 +10,15 @@ import { normalizeRemotePattern } from '../../common/remote-pattern.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import {
-  type ProjectRole,
   type ProjectSettings,
   projectMembers,
   projectRepos,
   projects,
+  type UserRole,
   users,
 } from '../../db/schema/index.js';
 import { isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
-import { normalizeEmail } from '../auth/auth.service.js';
 
 export interface RepoDto {
   id: string;
@@ -41,17 +40,15 @@ export interface ProjectListItemDto {
   id: string;
   name: string;
   slug: string;
-  role: ProjectRole | null;
+  isMember: boolean;
 }
 
 export interface MemberDto {
   userId: string;
-  email: string;
+  email: string | null;
   name: string;
-  role: ProjectRole;
+  role: UserRole;
 }
-
-type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 const memberNotFound = () =>
   notFound('Không tìm thấy thành viên trong project');
@@ -63,30 +60,17 @@ export class ProjectsService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Admin thấy mọi project (`role` = null nếu không là thành viên); người khác thấy project mình tham gia. */
+  /** Leader thấy mọi project (`isMember` cho biết có tham gia không); member chỉ thấy project mình tham gia. */
   async list(user: AuthUser): Promise<ProjectListItemDto[]> {
-    const role = projectMembers.role;
-    const base = this.db
+    const rows = await this.db
       .select({
         id: projects.id,
         name: projects.name,
         slug: projects.slug,
-        role,
+        isMember: sql<boolean>`${projectMembers.userId} IS NOT NULL`,
       })
-      .from(projects);
-    if (user.isAdmin) {
-      return base
-        .leftJoin(
-          projectMembers,
-          and(
-            eq(projectMembers.projectId, projects.id),
-            eq(projectMembers.userId, user.id),
-          ),
-        )
-        .orderBy(asc(projects.name));
-    }
-    const rows = await base
-      .innerJoin(
+      .from(projects)
+      .leftJoin(
         projectMembers,
         and(
           eq(projectMembers.projectId, projects.id),
@@ -94,7 +78,7 @@ export class ProjectsService {
         ),
       )
       .orderBy(asc(projects.name));
-    return rows;
+    return user.role === 'leader' ? rows : rows.filter((row) => row.isMember);
   }
 
   async create(
@@ -107,6 +91,10 @@ export class ProjectsService {
           .insert(projects)
           .values({ name: input.name, slug: input.slug })
           .returning();
+        // Leader tạo project thì tự là thành viên, để session của chính leader được ingest.
+        await tx
+          .insert(projectMembers)
+          .values({ projectId: project.id, userId: actor.id });
         await this.audit.record(
           actor.id,
           'project.create',
@@ -161,43 +149,34 @@ export class ProjectsService {
         userId: users.id,
         email: users.email,
         name: users.name,
-        role: projectMembers.role,
+        role: users.role,
       })
       .from(projectMembers)
       .innerJoin(users, eq(users.id, projectMembers.userId))
       .where(
         and(eq(projectMembers.projectId, projectId), isNull(users.deletedAt)),
       )
-      .orderBy(asc(users.email));
+      .orderBy(asc(users.name));
   }
 
   async addMember(
     actor: AuthUser,
     projectId: string,
-    input: { email: string; role: ProjectRole },
+    userId: string,
   ): Promise<MemberDto> {
     await this.findProject(projectId);
     const [user] = await this.db
       .select()
       .from(users)
-      .where(
-        and(
-          eq(users.email, normalizeEmail(input.email)),
-          isNull(users.deletedAt),
-        ),
-      )
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)))
       .limit(1);
     if (!user)
-      throw new ApiError(
-        404,
-        'user_not_found',
-        'Không tìm thấy người dùng với email này',
-      );
+      throw new ApiError(404, 'user_not_found', 'Không tìm thấy người dùng');
 
     return this.db.transaction(async (tx) => {
       const inserted = await tx
         .insert(projectMembers)
-        .values({ projectId, userId: user.id, role: input.role })
+        .values({ projectId, userId: user.id })
         .onConflictDoNothing()
         .returning();
       if (inserted.length === 0) {
@@ -218,41 +197,8 @@ export class ProjectsService {
         userId: user.id,
         email: user.email,
         name: user.name,
-        role: input.role,
+        role: user.role,
       };
-    });
-  }
-
-  async updateMemberRole(
-    actor: AuthUser,
-    projectId: string,
-    userId: string,
-    role: ProjectRole,
-  ): Promise<MemberDto> {
-    if (!isUuid(userId)) throw memberNotFound();
-    return this.db.transaction(async (tx) => {
-      if (role !== 'leader')
-        await this.assertNotLastLeader(tx, projectId, userId);
-      const [updated] = await tx
-        .update(projectMembers)
-        .set({ role })
-        .where(
-          and(
-            eq(projectMembers.projectId, projectId),
-            eq(projectMembers.userId, userId),
-          ),
-        )
-        .returning();
-      if (!updated) throw memberNotFound();
-      await this.audit.record(
-        actor.id,
-        'member.role_change',
-        'project',
-        `${projectId}:${userId}`,
-        tx,
-      );
-      const [user] = await tx.select().from(users).where(eq(users.id, userId));
-      return { userId, email: user.email, name: user.name, role };
     });
   }
 
@@ -263,7 +209,6 @@ export class ProjectsService {
   ): Promise<void> {
     if (!isUuid(userId)) throw memberNotFound();
     await this.db.transaction(async (tx) => {
-      await this.assertNotLastLeader(tx, projectId, userId);
       const deleted = await tx
         .delete(projectMembers)
         .where(
@@ -365,34 +310,6 @@ export class ProjectsService {
   }
 
   // ---- Nội bộ ----
-
-  /**
-   * Ném 409 `last_leader` nếu `userId` là leader duy nhất của project.
-   * Khóa các dòng leader (FOR UPDATE) để hai thao tác đồng thời không cùng lọt qua.
-   */
-  private async assertNotLastLeader(
-    tx: Transaction,
-    projectId: string,
-    userId: string,
-  ): Promise<void> {
-    const leaders = await tx
-      .select({ userId: projectMembers.userId })
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.role, 'leader'),
-        ),
-      )
-      .for('update');
-    if (leaders.length === 1 && leaders[0].userId === userId) {
-      throw new ApiError(
-        409,
-        'last_leader',
-        'Không thể hạ vai trò hoặc xóa leader cuối cùng của project',
-      );
-    }
-  }
 
   private async findProject(projectId: string) {
     if (!isUuid(projectId)) throw notFound('Không tìm thấy project');

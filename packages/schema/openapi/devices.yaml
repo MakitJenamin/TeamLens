@@ -82,7 +82,7 @@ paths:
     post:
       operationId: revokeDevice
       tags: [devices]
-      summary: Thu hồi token của một thiết bị (chủ thiết bị hoặc admin)
+      summary: Thu hồi token của một thiết bị (chủ thiết bị hoặc leader)
       security:
         - cookieAuth: []
       responses:

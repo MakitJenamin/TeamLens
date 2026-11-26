@@ -1,10 +1,12 @@
-# Nhóm `users`: admin quản lý tài khoản (giai đoạn nền chỉ có danh sách và tạo mới).
+# Nhóm `users`: leader quản lý tài khoản (SPEC 11.1).
+# Member tự tạo tài khoản qua link mời (`tl join`), không có email/mật khẩu; ở đây leader chỉ
+# thêm leader khác (có email + mật khẩu) và đổi vai trò.
 paths:
   /api/v1/users:
     get:
       operationId: listUsers
       tags: [users]
-      summary: Danh sách user (chỉ admin)
+      summary: Danh sách user (leader)
       security:
         - cookieAuth: []
       responses:
@@ -21,9 +23,9 @@ paths:
         '403':
           $ref: './common.yaml#/components/responses/Forbidden'
     post:
-      operationId: createUser
+      operationId: createLeader
       tags: [users]
-      summary: Tạo user (chỉ admin)
+      summary: Thêm một leader mới (leader)
       security:
         - cookieAuth: []
       requestBody:
@@ -44,12 +46,9 @@ paths:
                 password:
                   type: string
                   minLength: 8
-                isAdmin:
-                  type: boolean
-                  default: false
       responses:
         '201':
-          description: User vừa tạo.
+          description: Leader vừa tạo.
           content:
             application/json:
               schema:
@@ -69,3 +68,61 @@ paths:
               example:
                 error: email_taken
                 message: Email này đã có tài khoản.
+
+  /api/v1/users/{userId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/UserId'
+    patch:
+      operationId: updateUserRole
+      tags: [users]
+      summary: Đổi vai trò của user (leader)
+      description: |
+        Nâng member lên leader thì phải kèm `email` và `password` nếu user chưa có (để đăng nhập dashboard).
+        Hạ leader xuống member thì giữ nguyên email/mật khẩu. Server luôn phải còn ít nhất một leader.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              additionalProperties: false
+              properties:
+                role:
+                  $ref: './common.yaml#/components/schemas/Role'
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: User sau khi đổi vai trò.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/User'
+        '400':
+          description: 'Body sai (`validation_error`), hoặc nâng lên leader mà thiếu email/mật khẩu (`credentials_required`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Hạ leader cuối cùng (`last_leader`) hoặc email đã được dùng (`email_taken`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: last_leader
+                message: Server phải còn ít nhất một leader.

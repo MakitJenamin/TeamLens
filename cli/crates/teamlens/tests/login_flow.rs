@@ -39,12 +39,13 @@ fn device_code_body(expires_in: u64) -> serde_json::Value {
 
 fn whoami_body() -> serde_json::Value {
     json!({
-        "user": { "id": "u1", "email": "member1@teamlens.local", "name": "Member One" },
+        "user": { "id": "u1", "email": null, "name": "Member One" },
+        "role": "member",
         "device": { "id": "d1", "name": "MAY-TEST" },
         "projects": [
-            { "id": "p1", "name": "TeamLens", "slug": "teamlens", "role": "member",
+            { "id": "p1", "name": "TeamLens", "slug": "teamlens",
               "repoPatterns": ["github.com/makitjenamin/teamlens"] },
-            { "id": "p2", "name": "Demo", "slug": "demo", "role": "leader",
+            { "id": "p2", "name": "Demo", "slug": "demo",
               "repoPatterns": ["github.com/acme/*"] }
         ]
     })
@@ -142,7 +143,7 @@ async fn login_pending_then_slow_down_then_success() {
         "slow_down phải cộng 5 giây"
     );
     assert_eq!(outcome.device_id, "d1");
-    assert_eq!(outcome.email.as_deref(), Some("member1@teamlens.local"));
+    assert_eq!(outcome.email.as_deref(), Some("Member One"));
     assert_eq!(outcome.server_url, server.uri());
 
     // Token vào credential store, config chỉ có server_url.
@@ -161,10 +162,7 @@ async fn login_pending_then_slow_down_then_success() {
         "phải in mã to: {printed}"
     );
     assert!(printed.contains("http://localhost:3000/device?code=WDJB-MJHT"));
-    assert!(printed.contains(&format!(
-        "Đã đăng nhập: member1@teamlens.local trên {}",
-        server.uri()
-    )));
+    assert!(printed.contains(&format!("Đã đăng nhập: Member One trên {}", server.uri())));
 }
 
 #[tokio::test]
@@ -274,12 +272,9 @@ async fn status_shows_account_and_projects() {
         .await
         .unwrap();
     let text = String::from_utf8(out).unwrap();
-    assert!(
-        text.contains("Member One <member1@teamlens.local>"),
-        "{text}"
-    );
+    assert!(text.contains("Member One · member"), "{text}");
     assert!(text.contains("MAY-TEST"));
-    assert!(text.contains("TeamLens (teamlens) · member"));
+    assert!(text.contains("TeamLens (teamlens)"));
     assert!(text.contains("github.com/acme/*"));
     assert!(text.contains("chưa có (task M3.3)"));
 
@@ -290,7 +285,8 @@ async fn status_shows_account_and_projects() {
     let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(v["loggedIn"], true);
     assert_eq!(v["server"], server.uri());
-    assert_eq!(v["account"]["user"]["email"], "member1@teamlens.local");
+    assert_eq!(v["account"]["user"]["email"], serde_json::Value::Null);
+    assert_eq!(v["account"]["role"], "member");
     assert_eq!(
         v["account"]["projects"][1]["repoPatterns"][0],
         "github.com/acme/*"

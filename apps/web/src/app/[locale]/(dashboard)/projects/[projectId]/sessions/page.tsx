@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { serverApi } from "@/lib/api/server";
-import type { Member, MeResponse, ProjectSummary } from "@/lib/api/types";
+import type { Member, MeResponse } from "@/lib/api/types";
 import { type MemberOption, SessionList } from "./_components/session-list";
 
 type Props = PageProps<"/[locale]/projects/[projectId]/sessions">;
@@ -12,15 +12,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: t("list.title") };
 }
 
-/** Danh sách thành viên cho bộ lọc "người": chỉ leader/admin mới cần (member chỉ thấy của mình). */
+/** Danh sách thành viên cho bộ lọc "người": chỉ leader mới cần (member chỉ thấy của mình). */
 async function memberOptions(projectId: string): Promise<MemberOption[] | null> {
   try {
-    const [me, projects] = await Promise.all([
-      serverApi<MeResponse>("/auth/me"),
-      serverApi<ProjectSummary[]>("/projects"),
-    ]);
-    const role = projects.find((p) => p.id === projectId)?.role ?? null;
-    if (!me.user.isAdmin && role !== "leader") return null;
+    const me = await serverApi<MeResponse>("/auth/me");
+    if (me.user.role !== "leader") return null;
     const members = await serverApi<Member[]>(`/projects/${projectId}/members`);
     return members.map((m) => ({ id: m.userId, name: m.name }));
   } catch {

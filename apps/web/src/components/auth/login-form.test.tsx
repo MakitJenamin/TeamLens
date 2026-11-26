@@ -33,7 +33,7 @@ describe("LoginForm", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
-        jsonResponse({ user: { id: "1", email: "admin@teamlens.local", name: "Admin", isAdmin: true } }),
+        jsonResponse({ user: { id: "1", email: "admin@teamlens.local", name: "Admin", role: "leader" } }),
       );
     renderWithProviders(<LoginForm next="/device?code=ABCD-EFGH" />);
 
@@ -54,7 +54,7 @@ describe("LoginForm", () => {
 
   it("?next= có prefix /en thì giữ locale en", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ user: { id: "1", email: "a@b.c", name: "A", isAdmin: false } }),
+      jsonResponse({ user: { id: "1", email: "a@b.c", name: "A", role: "member" } }),
     );
     renderWithProviders(<LoginForm next="/en/me" />);
 
@@ -67,7 +67,7 @@ describe("LoginForm", () => {
 
   it("không có ?next= thì về trang chủ", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ user: { id: "1", email: "a@b.c", name: "A", isAdmin: false } }),
+      jsonResponse({ user: { id: "1", email: "a@b.c", name: "A", role: "member" } }),
     );
     renderWithProviders(<LoginForm />, { locale: "en" });
 

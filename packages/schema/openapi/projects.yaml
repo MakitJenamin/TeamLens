@@ -1,12 +1,13 @@
-# Nhóm `projects`: project, thành viên (vai trò theo project) và repo pattern.
-# Quyền: admin thấy và sửa mọi project; leader quản lý project của mình; member chỉ xem.
+# Nhóm `projects`: project, thành viên và repo pattern.
+# Quyền (SPEC 11.1): leader thấy và sửa mọi project; member chỉ xem project mình tham gia.
+# Vai trò là của user toàn server (`users.role`), project không mang vai trò riêng.
 paths:
   /api/v1/projects:
     get:
       operationId: listProjects
       tags: [projects]
       summary: Danh sách project của user hiện tại
-      description: Admin thấy mọi project; `role` là `null` với project admin không là thành viên.
+      description: Leader thấy mọi project; member chỉ thấy project mình tham gia.
       security:
         - cookieAuth: []
       responses:
@@ -23,7 +24,7 @@ paths:
     post:
       operationId: createProject
       tags: [projects]
-      summary: Tạo project (chỉ admin)
+      summary: Tạo project (leader)
       security:
         - cookieAuth: []
       requestBody:
@@ -69,7 +70,7 @@ paths:
     get:
       operationId: getProject
       tags: [projects]
-      summary: Chi tiết project (thành viên hoặc admin)
+      summary: Chi tiết project (leader hoặc thành viên)
       security:
         - cookieAuth: []
       responses:
@@ -88,7 +89,7 @@ paths:
     patch:
       operationId: updateProject
       tags: [projects]
-      summary: Sửa tên hoặc cấu hình project (leader hoặc admin)
+      summary: Sửa tên hoặc cấu hình project (leader)
       security:
         - cookieAuth: []
       requestBody:
@@ -126,7 +127,7 @@ paths:
     get:
       operationId: listProjectMembers
       tags: [projects]
-      summary: Danh sách thành viên (leader hoặc admin)
+      summary: Danh sách thành viên (leader)
       security:
         - cookieAuth: []
       responses:
@@ -147,7 +148,8 @@ paths:
     post:
       operationId: addProjectMember
       tags: [projects]
-      summary: Thêm thành viên đã có tài khoản (leader hoặc admin)
+      summary: Thêm một user đã có vào project (leader)
+      description: Thành viên mới thường tự vào qua link mời (`tl join`); endpoint này để leader thêm user có sẵn vào project khác.
       security:
         - cookieAuth: []
       requestBody:
@@ -156,14 +158,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, role]
+              required: [userId]
               additionalProperties: false
               properties:
-                email:
-                  type: string
-                  format: email
-                role:
-                  $ref: './common.yaml#/components/schemas/Role'
+                userId:
+                  $ref: './common.yaml#/components/schemas/Id'
       responses:
         '201':
           description: Thành viên vừa thêm.
@@ -178,14 +177,14 @@ paths:
         '403':
           $ref: './common.yaml#/components/responses/Forbidden'
         '404':
-          description: 'Không có user với email này (`error`: `user_not_found`), hoặc project không tồn tại (`not_found`).'
+          description: 'Không có user này (`error`: `user_not_found`), hoặc project không tồn tại (`not_found`).'
           content:
             application/json:
               schema:
                 $ref: './common.yaml#/components/schemas/Error'
               example:
                 error: user_not_found
-                message: Không tìm thấy người dùng với email này.
+                message: Không tìm thấy người dùng.
         '409':
           description: 'User đã là thành viên của project (`error`: `already_member`).'
           content:
@@ -200,51 +199,10 @@ paths:
     parameters:
       - $ref: './common.yaml#/components/parameters/ProjectId'
       - $ref: './common.yaml#/components/parameters/UserId'
-    patch:
-      operationId: updateProjectMember
-      tags: [projects]
-      summary: Đổi vai trò thành viên (leader hoặc admin)
-      security:
-        - cookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [role]
-              additionalProperties: false
-              properties:
-                role:
-                  $ref: './common.yaml#/components/schemas/Role'
-      responses:
-        '200':
-          description: Thành viên sau khi đổi vai trò.
-          content:
-            application/json:
-              schema:
-                $ref: './common.yaml#/components/schemas/Member'
-        '400':
-          $ref: './common.yaml#/components/responses/ValidationError'
-        '401':
-          $ref: './common.yaml#/components/responses/Unauthenticated'
-        '403':
-          $ref: './common.yaml#/components/responses/Forbidden'
-        '404':
-          $ref: './common.yaml#/components/responses/NotFound'
-        '409':
-          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
-          content:
-            application/json:
-              schema:
-                $ref: './common.yaml#/components/schemas/Error'
-              example:
-                error: last_leader
-                message: Project phải còn ít nhất một leader.
     delete:
       operationId: removeProjectMember
       tags: [projects]
-      summary: Xóa thành viên khỏi project (leader hoặc admin)
+      summary: Xóa thành viên khỏi project (leader)
       security:
         - cookieAuth: []
       responses:
@@ -256,15 +214,6 @@ paths:
           $ref: './common.yaml#/components/responses/Forbidden'
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
-        '409':
-          description: 'Thao tác sẽ làm project không còn leader nào (`error`: `last_leader`).'
-          content:
-            application/json:
-              schema:
-                $ref: './common.yaml#/components/schemas/Error'
-              example:
-                error: last_leader
-                message: Project phải còn ít nhất một leader.
 
   /api/v1/projects/{projectId}/repos:
     parameters:
@@ -272,7 +221,7 @@ paths:
     get:
       operationId: listProjectRepos
       tags: [projects]
-      summary: Danh sách repo pattern (thành viên hoặc admin)
+      summary: Danh sách repo pattern (leader hoặc thành viên)
       security:
         - cookieAuth: []
       responses:
@@ -293,7 +242,7 @@ paths:
     post:
       operationId: addProjectRepo
       tags: [projects]
-      summary: Thêm repo pattern (leader hoặc admin)
+      summary: Thêm repo pattern (leader)
       description: |
         `remotePattern` được chuẩn hóa trước khi lưu (chữ thường, bỏ scheme, `git@`, `.git`, `/` cuối;
         `host:org` thành `host/org`). Sau chuẩn hóa phải có dạng `host/org/repo` hoặc `host/org/*`.
@@ -342,7 +291,7 @@ paths:
     delete:
       operationId: removeProjectRepo
       tags: [projects]
-      summary: Xóa repo pattern (leader hoặc admin)
+      summary: Xóa repo pattern (leader)
       security:
         - cookieAuth: []
       responses:

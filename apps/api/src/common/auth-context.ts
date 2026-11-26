@@ -4,13 +4,17 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import type { UserRole } from '../db/schema/users.js';
 
-/** User đã đăng nhập (dashboard hoặc chủ thiết bị CLI). */
+/**
+ * User đã đăng nhập (dashboard hoặc chủ thiết bị CLI).
+ * `email` null với member (tham gia bằng `tl join`, không có mật khẩu).
+ */
 export interface AuthUser {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
-  isAdmin: boolean;
+  role: UserRole;
 }
 
 /** Thiết bị CLI đã xác thực bằng device token. */

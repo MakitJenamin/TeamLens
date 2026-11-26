@@ -12,7 +12,12 @@ vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ replace, refresh, push }),
 }));
 
-const user = { id: "u1", email: "member1@teamlens.local", name: "Member Một", isAdmin: false };
+const user = {
+  id: "u1",
+  email: "member1@teamlens.local",
+  name: "Member Một",
+  role: "member" as const,
+};
 
 describe("initials", () => {
   it("lấy chữ đầu của từ đầu và cuối", () => {

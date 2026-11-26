@@ -30,7 +30,7 @@ describe("SetupForm", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
-        jsonResponse({ user: { id: "1", email: "admin@teamlens.local", name: "Quản trị viên", isAdmin: true } }, 201),
+        jsonResponse({ user: { id: "1", email: "admin@teamlens.local", name: "Quản trị viên", role: "leader" } }, 201),
       );
     renderWithProviders(<SetupForm />);
     await fillAndSubmit();

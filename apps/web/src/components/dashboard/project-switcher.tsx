@@ -27,7 +27,7 @@ export function ProjectSwitcher({
   const current = projects.find((p) => p.id === currentProjectId);
 
   function roleLabel(p: ProjectSummary) {
-    return p.role ? t(`roles.${p.role}`) : t("notMember");
+    return p.isMember ? t("roles.member") : t("notMember");
   }
 
   return (
