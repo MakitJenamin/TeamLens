@@ -171,7 +171,7 @@ fn interrupt_marks_previous_assistant_turn() {
 }
 
 #[test]
-fn permission_mode_from_first_user_line() {
+fn permission_mode_mapping() {
     let cases = [
         ("default", PermissionMode::Default),
         ("acceptEdits", PermissionMode::AcceptEdits),
@@ -184,13 +184,142 @@ fn permission_mode_from_first_user_line() {
     for (raw, expected) in cases {
         let mut first = user("2026-11-26T08:00:00Z", json!("a"));
         first["permissionMode"] = json!(raw);
-        let mut second = user("2026-11-26T08:00:01Z", json!("b"));
-        second["permissionMode"] = json!("plan");
-        let s = one(vec![first, second]);
+        let s = one(vec![first]);
         assert_eq!(s.session.permission_mode, Some(expected), "{raw}");
     }
     let s = one(vec![user("2026-11-26T08:00:00Z", json!("a"))]);
     assert_eq!(s.session.permission_mode, None);
+}
+
+#[test]
+fn permission_mode_keeps_most_permissive() {
+    let with_mode = |ts: &str, raw: &str| {
+        let mut u = user(ts, json!("a"));
+        u["permissionMode"] = json!(raw);
+        u
+    };
+    // Đổi chế độ giữa chừng (log thật: `acceptEdits` → `bypassPermissions`).
+    let s = one(vec![
+        with_mode("2026-11-26T08:00:00Z", "acceptEdits"),
+        with_mode("2026-11-26T08:00:01Z", "bypassPermissions"),
+        with_mode("2026-11-26T08:00:02Z", "default"),
+    ]);
+    assert_eq!(s.session.permission_mode, Some(PermissionMode::Bypass));
+    // `unknown` không đè chế độ đã biết; `plan` → `default` lấy `default`.
+    let s = one(vec![
+        with_mode("2026-11-26T08:00:00Z", "plan"),
+        with_mode("2026-11-26T08:00:01Z", "auto"),
+        with_mode("2026-11-26T08:00:02Z", "default"),
+    ]);
+    assert_eq!(s.session.permission_mode, Some(PermissionMode::Default));
+    // Dòng `permission-mode` (không có timestamp) cũng được tính, không đếm cảnh báo.
+    let s = one(vec![
+        with_mode("2026-11-26T08:00:00Z", "default"),
+        json!({ "type": "permission-mode", "permissionMode": "bypassPermissions", "sessionId": SID }),
+    ]);
+    assert_eq!(s.session.permission_mode, Some(PermissionMode::Bypass));
+    assert_eq!(s.parse_warnings, 0);
+}
+
+#[test]
+fn compact_summary_becomes_compaction_turn() {
+    let mut summary = user(
+        "2026-11-26T08:00:03Z",
+        json!("This session is being continued from a previous conversation..."),
+    );
+    summary["isCompactSummary"] = json!(true);
+    summary["isVisibleInTranscriptOnly"] = json!(true);
+    let mut array_summary = user(
+        "2026-11-26T08:00:05Z",
+        json!([{ "type": "text", "text": "tóm tắt 2" }]),
+    );
+    array_summary["isCompactSummary"] = json!(true);
+    let s = one(vec![
+        user("2026-11-26T08:00:00Z", json!("a")),
+        json!({ "type": "system", "subtype": "compact_boundary", "sessionId": SID, "timestamp": "2026-11-26T08:00:02Z" }),
+        summary,
+        user("2026-11-26T08:00:04Z", json!("b")),
+        array_summary,
+    ]);
+    assert_eq!(s.parse_warnings, 0);
+    let kinds: Vec<_> = s.turns.iter().map(|t| (t.role, t.kind)).collect();
+    assert_eq!(
+        kinds,
+        [
+            (Role::User, TurnKind::Prompt),
+            (Role::System, TurnKind::Compaction),
+            (Role::User, TurnKind::Prompt),
+            (Role::System, TurnKind::Compaction),
+        ]
+    );
+    assert!(s.turns[1]
+        .text
+        .as_deref()
+        .unwrap()
+        .starts_with("This session is being continued"));
+    assert_eq!(s.turns[3].text.as_deref(), Some("tóm tắt 2"));
+}
+
+#[test]
+fn subagent_lines_become_child_session() {
+    let sub = |mut v: Value| {
+        v["isSidechain"] = json!(true);
+        v["agentId"] = json!("a1b2c3d4e5f6a7b8c");
+        v
+    };
+    // Dòng meta của file subagent cũng mang `agentId`.
+    let api = json!({ "type": "api-request", "sessionId": SID, "agentId": "a1b2c3d4e5f6a7b8c" });
+    let events = ev(vec![
+        sub(user(
+            "2026-11-26T08:00:00Z",
+            json!("Tìm chỗ xử lý đăng nhập"),
+        )),
+        api,
+        sub(assistant(
+            "2026-11-26T08:00:01Z",
+            "m1",
+            json!([{ "type": "text", "text": "Ở auth.ts" }]),
+        )),
+    ]);
+    let sessions = ClaudeCodeAdapter::new("unused").normalize(events);
+    assert_eq!(sessions.len(), 1);
+    let s = &sessions[0];
+    assert_eq!(
+        s.session.source_id,
+        format!("claude_code:{SID}:a1b2c3d4e5f6a7b8c")
+    );
+    assert_eq!(
+        s.session.parent_source_id.as_deref(),
+        Some(format!("claude_code:{SID}").as_str())
+    );
+    assert_eq!(s.turns.len(), 2);
+    assert_eq!(s.parse_warnings, 0);
+
+    // Lẫn với dòng session gốc (cùng sessionId): tách thành hai session.
+    let events = ev(vec![
+        user("2026-11-26T08:00:00Z", json!("gốc")),
+        sub(user("2026-11-26T08:00:01Z", json!("con"))),
+    ]);
+    let sessions = ClaudeCodeAdapter::new("unused").normalize(events);
+    let ids: Vec<_> = sessions
+        .iter()
+        .map(|s| {
+            (
+                s.session.source_id.clone(),
+                s.session.parent_source_id.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            (format!("claude_code:{SID}"), None),
+            (
+                format!("claude_code:{SID}:a1b2c3d4e5f6a7b8c"),
+                Some(format!("claude_code:{SID}"))
+            ),
+        ]
+    );
 }
 
 #[test]
@@ -374,29 +503,37 @@ fn groups_by_session_id_and_drops_empty_sessions() {
 }
 
 #[test]
-fn discover_lists_only_top_level_transcripts() {
+fn discover_lists_transcripts_and_subagents() {
     let dir = tempfile::tempdir().unwrap();
     let project = dir.path().join("projects").join("C--repo");
-    std::fs::create_dir_all(project.join("abc").join("subagents")).unwrap();
+    let subagents = project.join("abc").join("subagents");
+    std::fs::create_dir_all(&subagents).unwrap();
+    std::fs::create_dir_all(project.join("abc").join("tool-results")).unwrap();
     std::fs::write(project.join("b.jsonl"), "{}\n").unwrap();
     std::fs::write(project.join("a.jsonl"), "").unwrap();
     std::fs::write(project.join("notes.txt"), "").unwrap();
-    std::fs::write(
-        project.join("abc").join("subagents").join("agent-1.jsonl"),
-        "",
-    )
-    .unwrap();
+    std::fs::write(subagents.join("agent-1.jsonl"), "").unwrap();
+    std::fs::write(subagents.join("agent-1.meta.json"), "{}").unwrap();
+    std::fs::write(subagents.join("other.jsonl"), "").unwrap();
+    std::fs::write(project.join("abc").join("tool-results").join("x.jsonl"), "").unwrap();
+    std::fs::create_dir_all(subagents.join("agent-2.jsonl")).unwrap();
     std::fs::write(dir.path().join("projects").join("stray.jsonl"), "").unwrap();
 
     let adapter = ClaudeCodeAdapter::new(dir.path());
     let found = adapter.discover();
     let names: Vec<_> = found
         .iter()
-        .map(|f| f.path.file_name().unwrap().to_string_lossy().into_owned())
+        .map(|f| {
+            f.path
+                .strip_prefix(&project)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/")
+        })
         .collect();
-    assert_eq!(names, ["a.jsonl", "b.jsonl"]);
-    assert_eq!(found[1].size, 3);
-    assert_eq!(found[1].agent, AgentKind::ClaudeCode);
+    assert_eq!(names, ["a.jsonl", "abc/subagents/agent-1.jsonl", "b.jsonl"]);
+    assert_eq!(found[2].size, 3);
+    assert_eq!(found[2].agent, AgentKind::ClaudeCode);
 
     assert!(ClaudeCodeAdapter::new(dir.path().join("không-có"))
         .discover()

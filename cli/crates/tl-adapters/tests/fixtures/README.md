@@ -25,6 +25,24 @@ Fixtures Claude Code thuộc task M1.3, Codex thuộc task M2.5.
 | `claude_code/2.1.326/rejected-tool-interrupt.jsonl` | Session thật ở dự án khác, **mọi nội dung tự do đã thay** (`--neutral`) | `/clear` + caveat `isMeta`, người dùng từ chối tool (`is_error`) rồi `[Request interrupted by user for tool use]`, `permissionMode: auto` (→ `unknown`) |
 | `claude_code/2.1.219/accept-edits-interrupt.jsonl` | Session thật ở dự án khác, chỉ giữ dòng 0–17, 36–44, 119–152, **mọi nội dung tự do và tên file đã thay** | Bản Claude Code cũ, `acceptEdits`, nhiều tool_use song song trong một message, Write tạo file mới (`type: create`) và ghi đè (`structuredPatch`), `[Request interrupted by user]` ngay sau tool_result, `gitBranch: HEAD` (detached → `null`) |
 
+### Bổ sung ở task M2.4
+
+| File | Nguồn | Tình huống |
+| --- | --- | --- |
+| `claude_code/2.1.322/subagent-compaction.jsonl` | Session thật ở dự án khác, chỉ giữ dòng 0–12, 1093–1128, 1138–1150, 2296–2313, 3199–3225, **mọi nội dung tự do và tên file đã thay** | Session cha: tool `Agent` gọi subagent, `task-notification`, `[Request interrupted by user]` ngay sau reply, `system`/`compact_boundary` + dòng `isCompactSummary` (→ turn `compaction`), `bypassPermissions` |
+| `claude_code/2.1.322/subagent-compaction/subagents/agent-ac4847d3842e4829c.jsonl` | Transcript subagent của chính session trên (cùng cấu trúc thư mục thật), chỉ giữ dòng 0–25, 295–303, đã thay như trên | Mọi dòng có `sessionId` = id session cha, `agentId`, `isSidechain: true`, không có `permissionMode` → session con `claude_code:<sessionId>:<agentId>`, `parent_source_id` = session cha |
+
+```bash
+P=~/.claude/projects/<thư-mục>
+python sanitize.py "$P/24d35887-....jsonl" 2.1.322/subagent-compaction.jsonl \
+  --neutral --map <tên-dự-án>=demo-app --select 0-12,1093-1128,1138-1150,2296-2313,3199-3225
+python sanitize.py "$P/24d35887-.../subagents/agent-ac4847d3842e4829c.jsonl" \
+  2.1.322/subagent-compaction/subagents/agent-ac4847d3842e4829c.jsonl \
+  --neutral --map <tên-dự-án>=demo-app --select 0-25,295-303
+```
+
+`sanitize.py` từ M2.4 giữ thêm hai khóa `agentId`, `isCompactSummary` trên dòng `user`/`assistant`.
+
 Snapshot kỳ vọng ở `../snapshots/` (crate `insta`); test ở `../claude_code.rs` còn kiểm tra
 output với `packages/schema/session.v1.schema.json`.
 
