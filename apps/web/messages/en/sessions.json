@@ -1,11 +1,119 @@
 {
   "list": {
     "title": "Sessions",
-    "description": "Project sessions filtered by member, agent and date range; leaders see the whole team, members only their own."
+    "description": "AI agent sessions in this project, newest first. Leaders see the whole team, members only their own.",
+    "filters": {
+      "agent": "Agent",
+      "user": "Member",
+      "allAgents": "All agents",
+      "allUsers": "All members"
+    },
+    "columns": {
+      "user": "User",
+      "agent": "Agent",
+      "model": "Model",
+      "repo": "Repo / branch",
+      "startedAt": "Started",
+      "duration": "Duration",
+      "turns": "Turns",
+      "tokens": "Tokens"
+    },
+    "untitled": "(no prompt yet)",
+    "running": "Running",
+    "loadMore": "Load more",
+    "loadingMore": "Loading...",
+    "emptyTitle": "No sessions yet",
+    "emptyDescription": "Sessions appear here once the CLI uploads them (tl sync). If filters are on, try clearing them.",
+    "errorTitle": "Could not load sessions",
+    "tokensDetail": "Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}"
+  },
+  "agents": {
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "copilot_vscode": "Copilot (VS Code)",
+    "antigravity": "Antigravity"
+  },
+  "permissionModes": {
+    "default": "Default (ask first)",
+    "accept_edits": "Auto-accept edits",
+    "plan": "Plan only",
+    "bypass": "Bypass all confirmations",
+    "unknown": "Unknown"
+  },
+  "duration": {
+    "seconds": "{s}s",
+    "minutes": "{m} min",
+    "hours": "{h} h {m} min"
   },
   "detail": {
     "title": "Session review",
-    "description": "Conversation timeline: prompts, responses, collapsed tool calls, highlighted diffs, turns flagged by findings; \"Review with LLM\" button; leader notes per turn; in-session search.",
+    "description": "Conversation timeline of the session: prompts, responses, tool calls and diffs.",
+    "back": "Session list",
+    "untitled": "Session without a prompt",
+    "meta": {
+      "user": "User",
+      "agent": "Agent",
+      "model": "Model",
+      "repo": "Repo",
+      "branch": "Branch",
+      "cwd": "Directory",
+      "cwdRoot": "(repo root)",
+      "startedAt": "Started",
+      "duration": "Duration",
+      "turns": "Turns",
+      "tokens": "Tokens",
+      "device": "Device",
+      "permissionMode": "Permission mode",
+      "instructionFiles": "Instruction files",
+      "noInstructionFiles": "None",
+      "bytes": "{bytes} bytes",
+      "parent": "Parent session",
+      "children": "Child sessions (subagents)"
+    },
+    "openParent": "Open parent session",
+    "openChild": "Child session {index}",
+    "timeline": "Timeline",
+    "noTurns": "This session has no turns yet.",
+    "roles": {
+      "user": "User",
+      "assistant": "Agent",
+      "system": "System"
+    },
+    "kinds": {
+      "prompt": "Prompt",
+      "reply": "Reply",
+      "tool_call": "Tool call",
+      "tool_result": "Tool result",
+      "compaction": "Context summary"
+    },
+    "interrupted": "Interrupted",
+    "toolError": "Error",
+    "showDetails": "Show details",
+    "hideDetails": "Collapse",
+    "input": "Input",
+    "output": "Output",
+    "truncated": "Output was truncated (head and tail kept)",
+    "truncatedBytes": "Output was truncated, original {bytes} bytes (head and tail kept)",
+    "diffStats": "+{added} −{removed}",
+    "redactions": "{count} secrets redacted",
+    "attachments": "{count} attachments",
+    "reasoningEffort": "Reasoning: {effort}",
+    "errorTitle": "Could not open session",
+    "forbidden": "You do not have permission to view this session.",
+    "notFound": "Session not found. It may have been deleted or the link is wrong.",
     "sessionId": "Session ID: {id}"
+  },
+  "findings": {
+    "title": "Findings",
+    "empty": "No findings for this session.",
+    "turn": "Turn {seq}",
+    "severity": {
+      "info": "Info",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "flagged": "Has findings"
   }
 }
