@@ -489,6 +489,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Thiết bị báo trạng thái (heartbeat)
+         * @description CLI gửi mỗi 15 phút khi daemon chạy, một lần cuối mỗi `tl sync` và ngay khi `tl pause`/`tl resume`
+         *     (spec 4.1, 4.2, 7.2).
+         *
+         *     **Ngữ nghĩa:**
+         *     - Server ghi `devices.last_seen_at = now()`, `devices.cli_version` và `devices.status` theo `status`
+         *       (`online` hoặc `paused`). Thiết bị đang ở `consent_revoked` (đã rút đồng ý, M3.7) giữ nguyên
+         *       trạng thái đó; heartbeat vẫn được ghi nhận.
+         *     - Số liệu (`agents`, `parse_errors`, `queue`) là ảnh chụp tại thời điểm gửi; server chỉ giữ bản
+         *       gần nhất của mỗi thiết bị để hiện trên dashboard.
+         *     - Không có heartbeat quá 30 phút thì dashboard coi thiết bị là `offline` (tính khi đọc, không ghi
+         *       vào DB).
+         *     - Response trả trạng thái server đang ghi nhận cùng `consent_text_version`, `min_cli_version` để
+         *       daemon biết khi nào cần tải lại `GET /agent/v1/config` (đổi văn bản đồng ý, cần cập nhật CLI)
+         *       mà không phải tải config mỗi 15 phút.
+         *
+         *     **Giới hạn:** tối đa 20 request/phút mỗi thiết bị.
+         *
+         *     **Lưu ý:** JSON của endpoint này dùng snake_case như `GET /agent/v1/config`.
+         */
+        post: operations["agentHeartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/sessions": {
         parameters: {
             query?: never;
@@ -877,6 +914,66 @@ export interface components {
             diff_bytes: number;
             /** @description Tối đa cho thinking (mặc định 8192). */
             thinking_bytes: number;
+        };
+        /** @description Trạng thái thiết bị CLI gửi lên (snake_case). */
+        HeartbeatRequest: {
+            /**
+             * @description `paused` sau `tl pause` (không quét, không gửi); `online` khi đang thu thập.
+             * @enum {string}
+             */
+            status: "online" | "paused";
+            /**
+             * @description Phiên bản `tl` (semver `x.y.z`).
+             * @example 0.1.0
+             */
+            cli_version: string;
+            /** @description Agent CLI phát hiện trên máy (mỗi loại agent tối đa một phần tử). */
+            agents: components["schemas"]["HeartbeatAgent"][];
+            /** @description Số lỗi parse đang ghi nhận trong `state.db` (bản ghi log lạ bị bỏ qua). */
+            parse_errors: number;
+            queue: components["schemas"]["HeartbeatQueue"];
+            /**
+             * Format: date-time
+             * @description Thời điểm CLI gửi (giờ máy, chỉ để tham khảo; server dùng giờ của mình cho `last_seen_at`).
+             */
+            sent_at: string;
+        };
+        HeartbeatAgent: {
+            agent: components["schemas"]["AgentKind"];
+            /** @description Phiên bản agent đọc được từ log gần nhất; null nếu chưa biết. */
+            version: string | null;
+            /** @description Số file log của agent CLI tìm thấy. */
+            files: number;
+        };
+        /** @description Hàng đợi gửi offline trên máy (spec 4.4). */
+        HeartbeatQueue: {
+            /** @description Số batch đang chờ gửi. */
+            batches: number;
+            /** @description Tổng kích thước hàng đợi (byte). */
+            bytes: number;
+            /** @description Số batch đã bỏ vì hàng đợi đầy (cộng dồn). */
+            dropped: number;
+            /** @description Số batch gửi lỗi vĩnh viễn (cộng dồn). */
+            failed: number;
+        };
+        /** @description Trạng thái server ghi nhận cho thiết bị (snake_case). */
+        HeartbeatResult: {
+            /**
+             * @description Trạng thái thiết bị trên server sau heartbeat. `consent_revoked`: thiết bị đã rút đồng ý,
+             *     CLI ngừng gửi.
+             * @enum {string}
+             */
+            status: "online" | "paused" | "consent_revoked";
+            /**
+             * @description Như `AgentConfig.consent_text_version`; khác bản máy đã đồng ý thì tải lại config.
+             * @example 2026-11-27.2
+             */
+            consent_text_version: string;
+            /**
+             * @description Như `AgentConfig.min_cli_version`.
+             * @example 0.1.0
+             */
+            min_cli_version: string;
         };
         /**
          * @description Tính từ `expiresAt`, `maxUses`/`usedCount`, `revokedAt` (thu hồi ưu tiên nhất).
@@ -2465,6 +2562,96 @@ export interface operations {
                 };
             };
             401: components["responses"]["InvalidToken"];
+        };
+    };
+    agentHeartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "status": "online",
+                 *       "cli_version": "0.1.0",
+                 *       "agents": [
+                 *         {
+                 *           "agent": "claude_code",
+                 *           "version": "2.1.3",
+                 *           "files": 12
+                 *         },
+                 *         {
+                 *           "agent": "codex",
+                 *           "version": null,
+                 *           "files": 0
+                 *         }
+                 *       ],
+                 *       "parse_errors": 1,
+                 *       "queue": {
+                 *         "batches": 2,
+                 *         "bytes": 48213,
+                 *         "dropped": 0,
+                 *         "failed": 0
+                 *       },
+                 *       "sent_at": "2026-11-27T08:15:00Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["HeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Đã ghi nhận heartbeat. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "online",
+                     *       "consent_text_version": "2026-11-27.2",
+                     *       "min_cli_version": "0.1.0"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["HeartbeatResult"];
+                };
+            };
+            /** @description Body không hợp lệ (`error`: `validation_error`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "validation_error",
+                     *       "message": "Heartbeat không hợp lệ: status phải là online hoặc paused."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["InvalidToken"];
+            /** @description Vượt 20 request/phút của thiết bị (`error`: `rate_limited`). Thử lại sau `Retry-After` giây. */
+            429: {
+                headers: {
+                    /** @description Số giây nên chờ trước khi gửi lại. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "rate_limited",
+                     *       "message": "Gửi quá nhanh, thử lại sau ít phút."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listProjectSessions: {

@@ -47,6 +47,8 @@ export type IngestRedaction = Schemas['Redaction'];
 export type IngestResult = Schemas['IngestResult'];
 export type IngestRejectedCode = Schemas['IngestRejected']['error'];
 export type AgentConfig = Schemas['AgentConfig'];
+export type HeartbeatRequest = Schemas['HeartbeatRequest'];
+export type HeartbeatResult = Schemas['HeartbeatResult'];
 
 type JsonContent<T> = T extends { content: { 'application/json': infer B } } ? B : never;
 
