@@ -36,7 +36,7 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 
 - **Không có global prefix.** Mỗi controller ghi rõ `api/v1/...` hoặc `agent/v1/...`.
 - Mặc định mọi route cần đăng nhập: `/agent/*` cần `Authorization: Bearer tld_...`, còn lại cần cookie `tl_session`. Route công khai đánh dấu `@Public()`.
-- Quyền theo project: `@ProjectRoles('leader')` (leader hoặc admin) hoặc `@ProjectRoles('leader', 'member')` (mọi thành viên hoặc admin), đọc `:projectId`. Xem dữ liệu của người khác: `AccessService.canViewUserData` rồi `AuditService.record`.
+- Quyền theo project: `@ProjectRoles('leader')` (leader hoặc admin) hoặc `@ProjectRoles('leader', 'member')` (mọi thành viên hoặc admin), đọc `:projectId`. Xem dữ liệu của người khác: `AccessService.canViewUserData` rồi `AuditService.record`. **Sắp đổi (Mốc 1.5, task J.4, SPEC 11.1):** bỏ admin và vai trò theo project; chỉ còn `users.role` (`leader` làm mọi thứ, `member` chỉ dữ liệu của mình). Code mới không thêm phụ thuộc vào `isAdmin` hay `@ProjectRoles`.
 - Validate body bằng zod: `@Body({ schema }) body: z.infer<typeof schema>`. Lỗi validate trả 400 `validation_error`.
 - Lỗi nghiệp vụ: `throw new ApiError(status, 'ma_loi', 'Thông báo tiếng Việt')`.
 - JSON REST dùng camelCase; DB dùng snake_case.

@@ -79,6 +79,7 @@ CLI là một file `tl.exe` duy nhất, viết bằng Rust, vừa là công cụ
 | `tl preview [session]` | Hiển thị chính xác payload sẽ gửi (sau khi che secret và cắt output) |
 | `tl sync` | Ép quét và gửi ngay |
 | `tl pause` / `tl resume` | Tạm dừng thu thập; server ghi nhận trạng thái `paused` |
+| `tl consent` | Xem bản đồng ý hiện tại; đồng ý lại khi văn bản trên server đổi phiên bản |
 | `tl consent revoke` | Rút đồng ý: dừng daemon, xóa hàng đợi local, báo server `consent_revoked` |
 | `tl daemon` | Chế độ nền (được Task Scheduler gọi, người dùng không gọi trực tiếp) |
 | `tl uninstall` | Gỡ task khởi động, xóa config và hàng đợi, báo server |
@@ -393,7 +394,7 @@ Gợi ý thư viện: shadcn/ui + Tailwind, TanStack Query, Recharts hoặc ECha
 
 ## 11. Phân quyền, retention và triển khai
 
-Một server do một leader (hoặc một nhóm leader) tự host cho team của mình và chứa không giới hạn số project. Chỉ có hai vai trò, áp dụng cho toàn server (`users.role`): **Leader** làm được mọi thứ, **Member** chỉ đụng tới dữ liệu của mình. Project chỉ dùng để nhóm repo và gom thành viên, không mang vai trò riêng.
+Một server do một leader (hoặc một nhóm leader) tự host cho team của mình và chứa không giới hạn số project. Chỉ có hai vai trò, áp dụng cho toàn server (`users.role`): **Leader** làm được mọi thứ, **Member** chỉ đụng tới dữ liệu của mình. Project chỉ dùng để nhóm repo và gom thành viên, không mang vai trò riêng. Leader xem được dữ liệu của mọi project; leader tạo project thì tự được thêm vào `project_members` của project đó, để session của chính leader (nếu leader cũng code) được ingest như mọi thành viên.
 
 ### 11.1 Ma trận quyền
 

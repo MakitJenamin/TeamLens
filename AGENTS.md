@@ -27,7 +27,7 @@ pnpm lint && pnpm typecheck && pnpm test
 cd cli && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`. Từ Mốc 1.5 (task J.2) chỉ còn `leader@teamlens.local` có mật khẩu; member không có email/mật khẩu, seed in device token ra console.
+Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`. Từ Mốc 1.5 (task J.10) chỉ còn `leader@teamlens.local` có mật khẩu; member không có email/mật khẩu, seed in device token ra console.
 
 **Mô hình danh tính đã chốt (SPEC 7.1, 11.1, áp dụng từ Mốc 1.5):** chỉ hai vai trò toàn server, `leader` (làm mọi thứ) và `member`; không còn admin. Thành viên tham gia bằng đúng một lệnh `tl join <link mời>` (link chung cho cả nhóm), mã mời đổi thẳng lấy device token, không qua trình duyệt; member vào dashboard bằng `tl open`. User trùng (máy thứ hai, cài lại Windows) do leader gộp. Code mới không thêm phụ thuộc vào `is_admin`, `project_members.role` hay device login (`device_codes`, `/device`).
 
