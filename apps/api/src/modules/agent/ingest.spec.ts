@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { gzipSync } from 'node:zlib';
 import type { IngestBatch } from '@teamlens/schema';
 import {
+  hasDeviceBearer,
   IngestBodyError,
   parseIngestJson,
   readIngestBody,
@@ -184,5 +185,16 @@ describe('IngestRateLimiter', () => {
     expect(limiter.hit('d1')).toBe(30);
     now = 60_000;
     expect(limiter.hit('d1')).toBeNull();
+  });
+});
+
+describe('hasDeviceBearer', () => {
+  it('chỉ nhận đúng dạng Bearer tld_...', () => {
+    expect(hasDeviceBearer('Bearer tld_abc')).toBe(true);
+    expect(hasDeviceBearer('bearer   tld_abc')).toBe(true);
+    expect(hasDeviceBearer(undefined)).toBe(false);
+    expect(hasDeviceBearer('Bearer abc')).toBe(false);
+    expect(hasDeviceBearer('Basic tld_abc')).toBe(false);
+    expect(hasDeviceBearer('Bearer tld_a b')).toBe(false);
   });
 });

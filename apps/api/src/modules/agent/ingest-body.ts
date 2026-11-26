@@ -130,6 +130,13 @@ export function ingestBodyReader(
     next();
     return;
   }
+  // Không đọc/giải nén body cho client vô danh: thiếu `Bearer tld_...` thì trả 401 ngay.
+  // DeviceAuthGuard vẫn kiểm tra token thật sau đó.
+  if (!hasDeviceBearer(req.headers.authorization)) {
+    req.resume();
+    sendError(res, INVALID_TOKEN);
+    return;
+  }
   readIngestBody(req)
     .then((buffer) => {
       req.body = parseIngestJson(buffer);
@@ -140,9 +147,25 @@ export function ingestBodyReader(
         next(error);
         return;
       }
-      res.statusCode = error.status;
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      if (error.status === 413) res.setHeader('Connection', 'close');
-      res.end(JSON.stringify(error.body));
+      sendError(res, error);
     });
+}
+
+/** Header có đúng dạng `Bearer tld_...` (chỉ kiểm tra hình thức, không tra DB). */
+export function hasDeviceBearer(header: string | undefined): boolean {
+  return /^Bearer\s+tld_\S+$/i.test(header ?? '');
+}
+
+const INVALID_TOKEN = new IngestBodyError(401, {
+  error: 'invalid_token',
+  message: 'Token thiết bị không hợp lệ hoặc đã bị thu hồi',
+});
+
+function sendError(res: ServerResponse, error: IngestBodyError): void {
+  res.statusCode = error.status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (error.status === 413 || error.status === 401) {
+    res.setHeader('Connection', 'close');
+  }
+  res.end(JSON.stringify(error.body));
 }

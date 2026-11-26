@@ -133,6 +133,29 @@ describe('POST /agent/v1/ingest (e2e)', () => {
       .expect(401);
   });
 
+  it('header Authorization sai dạng → 401 invalid_token ngay, không đọc body (kể cả zip bomb)', async () => {
+    const bomb = gzipSync(Buffer.alloc(11 * 1024 * 1024, 0x20));
+    for (const auth of [undefined, 'Basic abc', 'Bearer khong-phai-tld']) {
+      const req = request(server)
+        .post('/agent/v1/ingest')
+        .set('Content-Type', 'application/json')
+        .set('Content-Encoding', 'gzip')
+        .serialize(rawBody);
+      if (auth) req.set('Authorization', auth);
+      const res = await req.send(bomb).expect(401);
+      expect(res.body).toEqual({
+        error: 'invalid_token',
+        message: expect.any(String),
+      });
+    }
+    // Đúng dạng nhưng token giả: middleware cho qua, guard thật vẫn trả 401.
+    const res = await ingest(
+      example('claude-code-simple.json'),
+      'tld_gia',
+    ).expect(401);
+    expect(res.body.error).toBe('invalid_token');
+  });
+
   it('gửi các file mẫu → 202, gửi lại cùng batch_id → duplicate, không trùng dữ liệu', async () => {
     const first: Record<string, any>[] = [];
     for (const name of EXAMPLES) {
