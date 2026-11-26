@@ -51,7 +51,15 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì:** `POST /agent/v1/ingest` nhận batch gzip, kiểm tra JSON Schema, kiểm tra lại repo thuộc project của user, upsert session/turn theo `(user_id, source_id)` và `(session_id, seq)` để gửi lại không bị trùng, rồi phát job `session.ingested`.
 - **Code:** `apps/api/src/modules/agent/`, bảng ở `apps/api/src/db/schema/`, hàng đợi job ở `apps/api/src/queue/` (pg-boss).
-- **Ghi chú của người làm:** _(điền sau mốc 1)_
+- **Ghi chú của người làm:**
+  - Body đọc bằng middleware `ingest-body.ts` (đăng ký trong `setup-app.ts` trước parser 100 KB của Nest): gzip, tối đa 10 MB sau giải nén → 413.
+  - Thứ tự kiểm tra: 429 (60 request/phút/thiết bị, đếm trong bộ nhớ) → 426 nếu `schema_version` là số khác 1 → ajv (`session.v1.schema.json`) → 400.
+  - Idempotent: bảng `ingest_batches` khóa `(user_id, batch_id)`, giữ chỗ ở đầu transaction nên hai request song song cùng batch cũng chỉ ghi một lần.
+  - Project: pattern khớp đúng thắng `host/org/*`; `*` chỉ thay một đoạn (không khớp subgroup).
+  - Turn upsert theo `(session_id, seq)` bằng xóa seq cũ rồi ghi lại (PK thật có `ts`). Tổng token và `turn_count` tính lại từ mọi turn của session.
+  - Cha–con: lưu `parent_source_id`; cha tới sau thì `UPDATE` nối các con đang chờ.
+  - Job `session.ingested` enqueue cùng transaction qua `fromDrizzle(tx, sql)` của pg-boss; mỗi lần session được nhận (kể cả gửi tăng dần) sinh một job.
+  - Chưa kiểm tra consent: TODO M3.7 trong `ingest.service.ts`.
 
 ## ⑧ Rule và điểm — Người 2, mốc 1 (M1.10–M1.11), mốc 2 (M2.6–M2.8), mốc 4 (M4.4)
 
