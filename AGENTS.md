@@ -27,9 +27,9 @@ pnpm lint && pnpm typecheck && pnpm test
 cd cli && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-Tài khoản seed (mật khẩu đều là `teamlens123`): `admin@teamlens.local` (admin), `leader@teamlens.local`, `member1@teamlens.local`, `member2@teamlens.local`. Từ Mốc 1.5 (task J.10) chỉ còn `leader@teamlens.local` có mật khẩu; member không có email/mật khẩu, seed in device token ra console.
+Seed: chỉ leader có tài khoản dashboard, `leader@teamlens.local` / `teamlens123`. Hai member mẫu ("Thành viên 1/2") không có email/mật khẩu; mỗi lần chạy, seed sinh lại device token của họ và in ra console (dùng để gọi thẳng `/agent/v1/*` bằng `Authorization: Bearer <token>`). Muốn thử CLI như một member mới: `tl join http://localhost:3000/i/seed-invite-teamlens` (link mời có sẵn trong seed), rồi `tl status`, `tl open`. DB dev cũ còn `admin@teamlens.local`/`member1@...` thì seed để nguyên và dùng lại các user đó.
 
-**Mô hình danh tính đã chốt (SPEC 7.1, 11.1, áp dụng từ Mốc 1.5):** chỉ hai vai trò toàn server, `leader` (làm mọi thứ) và `member`; không còn admin. Thành viên tham gia bằng đúng một lệnh `tl join <link mời>` (link chung cho cả nhóm), mã mời đổi thẳng lấy device token, không qua trình duyệt; member vào dashboard bằng `tl open`. User trùng (máy thứ hai, cài lại Windows) do leader gộp. Code mới không thêm phụ thuộc vào `is_admin`, `project_members.role` hay device login (`device_codes`, `/device`).
+**Mô hình danh tính (SPEC 7.1, 11.1):** chỉ hai vai trò toàn server ở `users.role`, `leader` (làm mọi thứ, đăng nhập dashboard bằng email + mật khẩu) và `member` (không email, không mật khẩu); không có admin, không có vai trò theo project. Thành viên tham gia bằng đúng một lệnh `tl join <link mời>` (link chung cho cả nhóm), mã mời đổi thẳng lấy device token, không qua trình duyệt; member vào dashboard bằng `tl open`. User trùng (máy thứ hai, cài lại Windows) do leader gộp. Device login cũ (`device_codes`, trang `/device`) đã xóa ở J.10.
 
 ## 3. Vùng sở hữu (quan trọng nhất)
 
@@ -50,7 +50,7 @@ Mỗi người sở hữu trọn một nhóm tính năng từ CLI tới DB tới
 
 Luồng chính và code của từng khúc: [docs/FLOW.md](docs/FLOW.md). Hết mỗi mốc, mỗi người cập nhật phần ghi chú khúc của mình trong file đó.
 
-**Vùng nền (dùng chung, đã làm xong ở giai đoạn nền):** `auth`, `device`, `projects`, `access` (phân quyền + audit) trong API; trang login/setup/device và layout/sidebar trong web; lệnh `login`/`logout` và HTTP client cơ sở trong CLI; `apps/api/src/db/`, migration, seed; mọi file cấu hình gốc (`package.json`, lockfile, `Cargo.toml` workspace, `turbo.json`, `app.module.ts`, `next.config.*`, CI).
+**Vùng nền (dùng chung, đã làm xong ở giai đoạn nền):** `auth`, `device`, `projects`, `access` (phân quyền + audit) trong API; trang login/setup và layout/sidebar trong web; lệnh `join`/`logout`/`open` và HTTP client cơ sở trong CLI; `apps/api/src/db/`, migration, seed; mọi file cấu hình gốc (`package.json`, lockfile, `Cargo.toml` workspace, `turbo.json`, `app.module.ts`, `next.config.*`, CI).
 
 Sửa vùng nền: PR riêng, nhỏ, merge sớm rồi báo người kia `git pull`. Các trường hợp hay gặp:
 - **Thêm thư viện:** sửa `package.json`/`Cargo.toml` của đúng app, PR riêng. Conflict ở `pnpm-lock.yaml` thì lấy bản trên `main` rồi chạy lại `pnpm install`, không sửa tay.

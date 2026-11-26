@@ -3,8 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  DeviceApproveRequest,
-  DeviceApproveResponse,
   ExchangeTicketRequest,
   ExchangeTicketResponse,
   LoginRequest,
@@ -73,9 +71,3 @@ export function useLogout() {
   });
 }
 
-export function useApproveDevice() {
-  return useMutation({
-    mutationFn: (body: DeviceApproveRequest) =>
-      api.post<DeviceApproveResponse>("/device/approve", body),
-  });
-}

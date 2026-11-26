@@ -4,6 +4,7 @@ import type { App } from 'supertest/types.js';
 import { AuditService } from '../src/modules/access/audit.service.js';
 import {
   createTestApp,
+  insertDevice,
   insertUser,
   querySql,
   resetDatabase,
@@ -71,60 +72,6 @@ describe('Sửa lỗi review PR #1 (e2e)', () => {
     return agent;
   }
 
-  /** Xin device code và duyệt bằng tài khoản member. */
-  async function approvedCode() {
-    const code = await request(server)
-      .post('/agent/v1/device/code')
-      .send({ deviceName: 'PC', os: 'windows', cliVersion: '0.1.0' })
-      .expect(200);
-    const member = await loginAs('member@teamlens.local');
-    const approved = await member
-      .post('/api/v1/device/approve')
-      .send({ userCode: code.body.userCode })
-      .expect(200);
-    return {
-      deviceCode: code.body.deviceCode as string,
-      userCode: code.body.userCode as string,
-      deviceId: approved.body.device.id as string,
-    };
-  }
-
-  describe('lỗi 2: đổi token sau khi code đã duyệt nhưng vừa hết hạn', () => {
-    it('trong 5 phút grace sau expiresAt vẫn nhận được token', async () => {
-      const { deviceCode, userCode, deviceId } = await approvedCode();
-      await querySql(
-        `UPDATE device_codes SET expires_at = now() - interval '2 minutes' WHERE user_code = $1`,
-        [userCode],
-      );
-      const res = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(200);
-      expect(res.body.deviceId).toBe(deviceId);
-    });
-
-    it('quá grace thì expired_token và thiết bị bị thu hồi (không mồ côi)', async () => {
-      const { deviceCode, userCode, deviceId } = await approvedCode();
-      await querySql(
-        `UPDATE device_codes SET expires_at = now() - interval '6 minutes' WHERE user_code = $1`,
-        [userCode],
-      );
-      const res = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(400);
-      expect(res.body.error).toBe('expired_token');
-      const [device] = await querySql<{
-        revoked_at: Date | null;
-        token_hash: string | null;
-      }>('SELECT revoked_at, token_hash FROM devices WHERE id = $1', [
-        deviceId,
-      ]);
-      expect(device.revoked_at).not.toBeNull();
-      expect(device.token_hash).toBeNull();
-    });
-  });
-
   describe('lỗi 3: insert + audit trong cùng transaction', () => {
     it('audit lỗi thì không tạo project', async () => {
       const audit = app.get(AuditService);
@@ -167,12 +114,8 @@ describe('Sửa lỗi review PR #1 (e2e)', () => {
 
   describe('lỗi 6: last_seen_at chỉ cập nhật khi cũ hơn 5 phút', () => {
     it('không ghi lại khi vừa cập nhật, ghi lại khi đã cũ', async () => {
-      const { deviceCode, deviceId } = await approvedCode();
-      const token = await request(server)
-        .post('/agent/v1/device/token')
-        .send({ deviceCode })
-        .expect(200);
-      const auth = `Bearer ${token.body.accessToken}`;
+      const { id: deviceId, token } = await insertDevice(memberId, 'PC');
+      const auth = `Bearer ${token}`;
       const lastSeen = async () => {
         const [row] = await querySql<{ last_seen_at: Date }>(
           'SELECT last_seen_at FROM devices WHERE id = $1',

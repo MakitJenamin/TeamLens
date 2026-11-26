@@ -64,11 +64,7 @@ export type ResponseBody<
 
 /** Kết quả `GET /api/v1/auth/me`. */
 export type MeResponse = ResponseBody<'getMe', 200>;
-/** Kết quả `POST /agent/v1/device/code`. */
-export type DeviceCodeResponse = ResponseBody<'agentDeviceCode', 200>;
 /** Kết quả `GET /agent/v1/whoami`. */
 export type WhoamiResponse = ResponseBody<'agentWhoami', 200>;
 /** Query của `GET /api/v1/projects/{projectId}/sessions`. */
 export type ListProjectSessionsQuery = NonNullable<operations['listProjectSessions']['parameters']['query']>;
-/** Mã lỗi khi poll `POST /agent/v1/device/token`. */
-export type DeviceTokenErrorCode = ResponseBody<'agentDeviceToken', 400>['error'];

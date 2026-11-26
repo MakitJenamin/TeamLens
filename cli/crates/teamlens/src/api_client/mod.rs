@@ -16,10 +16,6 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Mã lỗi máy đọc được trong trường `error` của API.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApiErrorCode {
-    AuthorizationPending,
-    SlowDown,
-    ExpiredToken,
-    AccessDenied,
     InvalidToken,
     Unauthenticated,
     Forbidden,
@@ -37,10 +33,6 @@ pub enum ApiErrorCode {
 impl ApiErrorCode {
     pub fn parse(code: &str) -> Self {
         match code {
-            "authorization_pending" => Self::AuthorizationPending,
-            "slow_down" => Self::SlowDown,
-            "expired_token" => Self::ExpiredToken,
-            "access_denied" => Self::AccessDenied,
             "invalid_token" => Self::InvalidToken,
             "unauthenticated" => Self::Unauthenticated,
             "forbidden" => Self::Forbidden,
@@ -57,10 +49,6 @@ impl ApiErrorCode {
 
     pub fn as_str(&self) -> &str {
         match self {
-            Self::AuthorizationPending => "authorization_pending",
-            Self::SlowDown => "slow_down",
-            Self::ExpiredToken => "expired_token",
-            Self::AccessDenied => "access_denied",
             Self::InvalidToken => "invalid_token",
             Self::Unauthenticated => "unauthenticated",
             Self::Forbidden => "forbidden",
@@ -336,8 +324,8 @@ mod tests {
     #[test]
     fn parses_known_error_codes() {
         let e = parse_error_body(
-            StatusCode::BAD_REQUEST,
-            r#"{"error":"slow_down","message":"Poll chậm lại"}"#,
+            StatusCode::GONE,
+            r#"{"error":"invite_expired","message":"Link mời đã hết hạn"}"#,
         );
         match e {
             ApiError::Api {
@@ -345,9 +333,9 @@ mod tests {
                 code,
                 message,
             } => {
-                assert_eq!(status, 400);
-                assert_eq!(code, ApiErrorCode::SlowDown);
-                assert_eq!(message, "Poll chậm lại");
+                assert_eq!(status, 410);
+                assert_eq!(code, ApiErrorCode::InviteExpired);
+                assert_eq!(message, "Link mời đã hết hạn");
             }
             other => panic!("sai loại lỗi: {other:?}"),
         }
@@ -412,10 +400,6 @@ mod tests {
     #[test]
     fn error_code_roundtrip() {
         for code in [
-            "authorization_pending",
-            "slow_down",
-            "expired_token",
-            "access_denied",
             "invalid_token",
             "unauthenticated",
             "forbidden",

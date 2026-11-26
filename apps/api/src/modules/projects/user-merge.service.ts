@@ -157,7 +157,7 @@ export class UserMergeService {
         tx,
       );
 
-      // Xóa hẳn user cũ. Phần còn lại cascade: auth_sessions, web_login_tickets, device_codes,
+      // Xóa hẳn user cũ. Phần còn lại cascade: auth_sessions, web_login_tickets,
       // project_members/ingest_batches trùng, user_weekly_stats. audit_log.actor_id giữ lịch sử
       // nhưng FK đặt null; dòng `member.merge` ở trên ghi lại id cũ.
       await tx.execute(sql`DELETE FROM users WHERE id = ${fromId}`);

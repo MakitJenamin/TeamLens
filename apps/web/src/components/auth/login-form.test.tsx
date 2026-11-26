@@ -35,14 +35,14 @@ describe("LoginForm", () => {
       .mockResolvedValue(
         jsonResponse({ user: { id: "1", email: "admin@teamlens.local", name: "Admin", role: "leader" } }),
       );
-    renderWithProviders(<LoginForm next="/device?code=ABCD-EFGH" />);
+    renderWithProviders(<LoginForm next="/projects/abc/sessions?page=2" />);
 
     await userEvent.type(screen.getByLabelText("Email"), "admin@teamlens.local");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "teamlens123");
     await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/device?code=ABCD-EFGH", { locale: "vi" }),
+      expect(replace).toHaveBeenCalledWith("/projects/abc/sessions?page=2", { locale: "vi" }),
     );
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/v1/auth/login");

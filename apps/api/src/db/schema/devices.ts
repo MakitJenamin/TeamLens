@@ -23,7 +23,7 @@ export const devices = pgTable(
     name: text('name').notNull(),
     os: text('os').notNull(),
     cliVersion: text('cli_version').notNull(),
-    // null cho tới khi CLI nhận token qua /agent/v1/device/token.
+    // null nếu thiết bị chưa có token (bản ghi cũ); `tl join` luôn cấp token ngay.
     tokenHash: text('token_hash').unique(),
     lastSeenAt: timestamp('last_seen_at', tz),
     status: text('status').$type<DeviceStatus>().notNull().default('offline'),
@@ -32,31 +32,5 @@ export const devices = pgTable(
   },
   (t) => [index('devices_user_id_idx').on(t.userId)],
 );
-
-export const DEVICE_CODE_STATUSES = [
-  'pending',
-  'approved',
-  'denied',
-  'consumed',
-] as const;
-export type DeviceCodeStatus = (typeof DEVICE_CODE_STATUSES)[number];
-
-/** Phiên device login (giống `gh auth login`), hết hạn sau 15 phút. */
-export const deviceCodes = pgTable('device_codes', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  deviceCodeHash: text('device_code_hash').notNull().unique(),
-  userCode: text('user_code').notNull().unique(),
-  deviceName: text('device_name').notNull(),
-  os: text('os').notNull(),
-  cliVersion: text('cli_version').notNull(),
-  status: text('status').$type<DeviceCodeStatus>().notNull().default('pending'),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
-  deviceId: uuid('device_id').references(() => devices.id, {
-    onDelete: 'cascade',
-  }),
-  expiresAt: timestamp('expires_at', tz).notNull(),
-  lastPolledAt: timestamp('last_polled_at', tz),
-  createdAt: timestamp('created_at', tz).notNull().defaultNow(),
-});
 
 export type Device = typeof devices.$inferSelect;

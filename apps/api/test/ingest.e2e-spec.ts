@@ -8,6 +8,7 @@ import type { App } from 'supertest/types.js';
 import {
   createTestApp,
   grantConsent,
+  insertDevice,
   insertUser,
   querySql,
   resetDatabase,
@@ -110,21 +111,13 @@ describe('POST /agent/v1/ingest (e2e)', () => {
     return agent;
   }
 
+  /** Thiết bị có device token của user theo email (chèn thẳng vào DB). */
   async function deviceToken(email: string): Promise<string> {
-    const code = await request(server)
-      .post('/agent/v1/device/code')
-      .send({ deviceName: 'PC', os: 'windows', cliVersion: '0.1.0' })
-      .expect(200);
-    const user = await loginAs(email);
-    await user
-      .post('/api/v1/device/approve')
-      .send({ userCode: code.body.userCode })
-      .expect(200);
-    const res = await request(server)
-      .post('/agent/v1/device/token')
-      .send({ deviceCode: code.body.deviceCode })
-      .expect(200);
-    return res.body.accessToken as string;
+    const [user] = await querySql<{ id: string }>(
+      'SELECT id FROM users WHERE email = $1',
+      [email],
+    );
+    return (await insertDevice(user.id, 'PC')).token;
   }
 
   const ingest = (body: unknown, auth = token) =>

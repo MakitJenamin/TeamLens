@@ -61,9 +61,6 @@ export type CreateRepoRequest = RequestBody<"addProjectRepo">;
 export type CreateLeaderRequest = RequestBody<"createLeader">;
 export type UpdateUserRoleRequest = RequestBody<"updateUserRole">;
 
-export type DeviceApproveRequest = RequestBody<"approveDevice">;
-export type DeviceApproveResponse = ResponseBody<"approveDevice", 200>;
-
 // --- Session (M1.8) ---
 export type AgentKind = Schemas["AgentKind"];
 export type PermissionMode = Schemas["PermissionMode"];

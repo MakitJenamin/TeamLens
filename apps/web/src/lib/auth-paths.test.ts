@@ -7,7 +7,7 @@ describe("splitLocale", () => {
     expect(splitLocale("/en")).toEqual({ locale: "en", path: "/" });
   });
   it("không prefix là vi", () => {
-    expect(splitLocale("/device")).toEqual({ locale: "vi", path: "/device" });
+    expect(splitLocale("/me")).toEqual({ locale: "vi", path: "/me" });
     expect(splitLocale("/")).toEqual({ locale: "vi", path: "/" });
   });
   it("prefix vi tường minh cũng nhận", () => {
@@ -25,9 +25,8 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/auth/cli")).toBe(false);
     expect(isProtectedPath("/items")).toBe(true);
   });
-  it("dashboard và device cần đăng nhập", () => {
+  it("dashboard cần đăng nhập", () => {
     expect(isProtectedPath("/")).toBe(true);
-    expect(isProtectedPath("/device")).toBe(true);
     expect(isProtectedPath("/me")).toBe(true);
     expect(isProtectedPath("/projects/abc/overview")).toBe(true);
     expect(isProtectedPath("/loginx")).toBe(true);
@@ -36,7 +35,7 @@ describe("isProtectedPath", () => {
 
 describe("safeNextPath", () => {
   it("giữ đường dẫn nội bộ", () => {
-    expect(safeNextPath("/device?code=ABCD-EFGH")).toBe("/device?code=ABCD-EFGH");
+    expect(safeNextPath("/projects/abc/sessions?page=2")).toBe("/projects/abc/sessions?page=2");
   });
   it("chặn open redirect", () => {
     expect(safeNextPath("https://evil.com")).toBe("/");
@@ -56,7 +55,7 @@ describe("localizePath", () => {
 
 describe("resolveNextPath", () => {
   it("tách locale khỏi ?next= để dùng với router của next-intl", () => {
-    expect(resolveNextPath("/en/device?code=WDJB-MJHT")).toEqual({ href: "/device?code=WDJB-MJHT", locale: "en" });
+    expect(resolveNextPath("/en/projects/abc/sessions?page=2")).toEqual({ href: "/projects/abc/sessions?page=2", locale: "en" });
     expect(resolveNextPath("/me")).toEqual({ href: "/me", locale: "vi" });
   });
   it("đường dẫn ngoài bị thay bằng trang chủ", () => {

@@ -27,7 +27,7 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 | `src/db/schema/` | Drizzle schema, mỗi nhóm bảng một file. `drizzle/` là migration SQL. |
 | `src/queue/` | pg-boss (`QueueService.send`), tên job ở `jobs.ts`. |
 | `src/modules/auth` | setup, login, logout, me; `SessionAuthGuard` toàn cục. |
-| `src/modules/device` | device login cho CLI; `DeviceAuthGuard` toàn cục cho `/agent/*`. |
+| `src/modules/device` | Device token của CLI (cấp ở `POST /agent/v1/join`, module `invites`): `whoami`, `logout`, `web-login` (`tl open`), danh sách và thu hồi thiết bị; `DeviceAuthGuard` toàn cục cho `/agent/*`. |
 | `src/modules/access` | `AccessService`, `AuditService`, `@LeaderOnly()`, `@ProjectAccess()`. |
 | `src/modules/projects` | project, thành viên, repo pattern, user. |
 | `src/modules/{agent,sessions,invites,consent,rules,stats,admin,retention}` | Module rỗng, xem `README.md` trong từng thư mục. |
@@ -36,7 +36,7 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 
 - **Không có global prefix.** Mỗi controller ghi rõ `api/v1/...` hoặc `agent/v1/...`.
 - Mặc định mọi route cần đăng nhập: `/agent/*` cần `Authorization: Bearer tld_...`, còn lại cần cookie `tl_session`. Route công khai đánh dấu `@Public()`.
-- Quyền (SPEC 11.1): chỉ hai vai trò toàn server ở `users.role` (`AuthUser.role`). `@LeaderOnly()` cho route quản trị; `@ProjectAccess()` cho route theo `:projectId` (leader, hoặc member là thành viên project). Xem dữ liệu của người khác: `AccessService.canViewUserData(viewer, ownerId)` rồi `AuditService.record`. Cột `users.is_admin`, `project_members.role`, `invites.role` đã bỏ dùng (xóa ở J.10), không đọc/ghi trong code mới.
+- Quyền (SPEC 11.1): chỉ hai vai trò toàn server ở `users.role` (`AuthUser.role`). `@LeaderOnly()` cho route quản trị; `@ProjectAccess()` cho route theo `:projectId` (leader, hoặc member là thành viên project). Xem dữ liệu của người khác: `AccessService.canViewUserData(viewer, ownerId)` rồi `AuditService.record`.
 - Validate body bằng zod: `@Body({ schema }) body: z.infer<typeof schema>`. Lỗi validate trả 400 `validation_error`.
 - Lỗi nghiệp vụ: `throw new ApiError(status, 'ma_loi', 'Thông báo tiếng Việt')`.
 - JSON REST dùng camelCase; DB dùng snake_case.

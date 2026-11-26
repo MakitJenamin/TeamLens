@@ -329,26 +329,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/device/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Duyệt mã device login cho user đang đăng nhập
-         * @description Người dùng nhập `userCode` mà CLI hiển thị trên trang `/device`.
-         */
-        post: operations["approveDevice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/devices": {
         parameters: {
             query?: never;
@@ -379,48 +359,6 @@ export interface paths {
         put?: never;
         /** Thu hồi token của một thiết bị (chủ thiết bị hoặc leader) */
         post: operations["revokeDevice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/v1/device/code": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bắt đầu device login */
-        post: operations["agentDeviceCode"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/v1/device/token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Poll lấy device token
-         * @description CLI poll mỗi `interval` giây. Khi người dùng đã duyệt mã, server trả token đúng một lần.
-         *     Các trạng thái chưa xong trả 400 với `error`:
-         *     - `authorization_pending`: người dùng chưa duyệt;
-         *     - `slow_down`: poll nhanh hơn `interval`;
-         *     - `expired_token`: mã thiết bị hết hạn hoặc token đã được lấy;
-         *     - `access_denied`: người dùng từ chối.
-         */
-        post: operations["agentDeviceToken"];
         delete?: never;
         options?: never;
         head?: never;
@@ -796,11 +734,6 @@ export interface components {
             /** Format: date-time */
             revokedAt: string | null;
         };
-        /**
-         * @description Mã ngắn 8 ký tự dạng `XXXX-XXXX`, bảng chữ `BCDFGHJKLMNPQRSTVWXZ`.
-         * @example WDJB-MJHT
-         */
-        UserCode: string;
         IngestBatch: {
             /**
              * @description Phiên bản schema. Server trả 426 nếu không hỗ trợ.
@@ -1307,7 +1240,7 @@ export interface components {
                 /**
                  * @example {
                  *       "error": "invalid_token",
-                 *       "message": "Token thiết bị không hợp lệ hoặc đã bị thu hồi. Chạy `tl login` để đăng nhập lại."
+                 *       "message": "Token thiết bị không hợp lệ hoặc đã bị thu hồi. Chạy `tl join <link mời>` để tham gia lại."
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -2145,70 +2078,6 @@ export interface operations {
             };
         };
     };
-    approveDevice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /**
-                     * @description Mã `XXXX-XXXX` do CLI hiển thị (server chấp nhận chữ thường và bỏ khoảng trắng).
-                     * @example WDJB-MJHT
-                     */
-                    userCode: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Đã duyệt; CLI sẽ nhận token ở lần poll kế tiếp. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        device: components["schemas"]["DeviceRef"];
-                    };
-                };
-            };
-            400: components["responses"]["ValidationError"];
-            401: components["responses"]["Unauthenticated"];
-            /** @description Mã không tồn tại hoặc đã dùng (`error`: `invalid_code`). */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": "invalid_code",
-                     *       "message": "Mã không đúng. Kiểm tra lại mã hiển thị trong terminal."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Mã đã hết hạn (`error`: `expired_code`). */
-            410: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": "expired_code",
-                     *       "message": "Mã đã hết hạn. Chạy lại `tl login` để lấy mã mới."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
     listMyDevices: {
         parameters: {
             query?: never;
@@ -2251,113 +2120,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-        };
-    };
-    agentDeviceCode: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @example LAPTOP-01 */
-                    deviceName: string;
-                    /** @example windows */
-                    os: string;
-                    /** @example 0.1.0 */
-                    cliVersion: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Mã thiết bị và mã ngắn cho người dùng. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Mã bí mật CLI dùng để poll `/agent/v1/device/token`. */
-                        deviceCode: string;
-                        userCode: components["schemas"]["UserCode"];
-                        /**
-                         * Format: uri
-                         * @description `${TEAMLENS_PUBLIC_URL}/device`
-                         * @example http://localhost:3000/device
-                         */
-                        verificationUri: string;
-                        /**
-                         * Format: uri
-                         * @description `${TEAMLENS_PUBLIC_URL}/device?code=XXXX-XXXX`
-                         * @example http://localhost:3000/device?code=WDJB-MJHT
-                         */
-                        verificationUriComplete: string;
-                        /**
-                         * @description Số giây mã còn hiệu lực.
-                         * @example 900
-                         */
-                        expiresIn: number;
-                        /**
-                         * @description Số giây tối thiểu giữa hai lần poll.
-                         * @example 5
-                         */
-                        interval: number;
-                    };
-                };
-            };
-            400: components["responses"]["ValidationError"];
-        };
-    };
-    agentDeviceToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    deviceCode: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Token thiết bị (chỉ trả một lần). */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Device token, CLI lưu vào Windows Credential Manager. */
-                        accessToken: string;
-                        deviceId: components["schemas"]["Id"];
-                    };
-                };
-            };
-            /** @description Chưa lấy được token. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": "authorization_pending",
-                     *       "message": "Đang chờ người dùng duyệt mã."
-                     *     }
-                     */
-                    "application/json": {
-                        /** @enum {string} */
-                        error: "authorization_pending" | "slow_down" | "expired_token" | "access_denied" | "validation_error";
-                        message: string;
-                    };
-                };
-            };
         };
     };
     agentWhoami: {

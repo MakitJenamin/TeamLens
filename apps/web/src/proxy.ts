@@ -7,7 +7,7 @@ const intlMiddleware = createMiddleware(routing);
 
 /**
  * Proxy (tên mới của middleware từ Next 16):
- * - chưa có cookie `tl_session` mà vào trang dashboard hoặc /device → /login?next=...
+ * - chưa có cookie `tl_session` mà vào trang dashboard → /login?next=...
  * - còn lại để next-intl xử lý locale.
  * Cookie chỉ được kiểm tra "lạc quan"; server component vẫn gọi /auth/me để xác thực thật.
  */

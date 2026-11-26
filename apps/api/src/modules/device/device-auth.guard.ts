@@ -21,7 +21,7 @@ const invalidToken = () =>
 
 /**
  * Guard toàn cục cho `/agent/*`: yêu cầu `Authorization: Bearer tld_...`
- * (trừ route `@Public()` như `device/code`, `device/token`).
+ * (trừ route `@Public()` như `POST /agent/v1/join`).
  */
 @Injectable()
 export class DeviceAuthGuard implements CanActivate {

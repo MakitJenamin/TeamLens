@@ -11,12 +11,11 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
  ⓪ Danh tính: tl join <link mời> → đồng ý → mã mời đổi lấy device token trong Credential Manager → mọi request /agent/v1 kèm Bearer token
 ```
 
-## ⓪ Danh tính và quyền — giai đoạn nền, đổi ở Mốc 1.5 (J.1–J.10)
+## ⓪ Danh tính và quyền — giai đoạn nền, làm lại ở Mốc 1.5 (J.1–J.10)
 
-- **Làm gì (đích Mốc 1.5, SPEC 7.1 và 11.1):** chỉ hai vai trò toàn server: leader (làm mọi thứ, đăng nhập web bằng email + mật khẩu) và member (không email, không mật khẩu). Device token là danh tính của member; member vào dashboard bằng `tl open` (ticket một lần → cookie). Mọi chỗ xem dữ liệu đi qua `AccessService` và ghi audit.
-- **Hiện trạng trên `main` (trước Mốc 1.5):** máy nhận token qua device login giống `gh auth login` (`device_codes`, trang `/device`); vai trò admin + leader/member theo project.
+- **Làm gì (SPEC 7.1 và 11.1):** chỉ hai vai trò toàn server: leader (làm mọi thứ, đăng nhập web bằng email + mật khẩu) và member (không email, không mật khẩu). Device token là danh tính của member; member vào dashboard bằng `tl open` (ticket một lần → cookie). Mọi chỗ xem dữ liệu đi qua `AccessService` và ghi audit.
 - **Code:** `cli/crates/teamlens/src/commands/{join,open,logout,status}.rs`, `cli/crates/tl-platform/src/credentials.rs`; `apps/api/src/modules/{device,auth,access,projects}/`; `apps/web/src/app/[locale]/(auth)/`.
-- **Thử ngay (hiện trạng):** `pnpm dev`, rồi `tl login --server http://localhost:3000`, duyệt mã bằng `member1@teamlens.local`, rồi `tl status`.
+- **Thử ngay:** `pnpm db:seed && pnpm dev`, rồi `tl join http://localhost:3000/i/seed-invite-teamlens` (đồng ý bằng `yes`), `tl status`, `tl open`. Dashboard leader: `leader@teamlens.local` / `teamlens123`. Seed còn in device token của hai member mẫu để gọi thẳng API (`curl -H "Authorization: Bearer <token>" http://localhost:3000/agent/v1/whoami`).
 
 ## ⓪+ Tham gia và đồng ý — Người 2, Mốc 1.5 (J.1, J.3, J.5, J.7, J.9) và mốc 3 (M3.5–M3.8)
 
