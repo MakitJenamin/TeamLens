@@ -548,7 +548,8 @@ export interface paths {
         /**
          * Ghi chú của leader trên session
          * @description Mọi ghi chú của session, theo `createdAt` tăng dần. Ai xem được session (leader, hoặc member chủ session)
-         *     thì xem được ghi chú; quyền và audit giống `GET /api/v1/sessions/{sessionId}`.
+         *     thì xem được ghi chú (không ghi audit riêng: trang xem session đã ghi `session.view`). Tạo, xóa ghi chú ghi audit
+         *     `session.note.create`, `session.note.delete`.
          */
         get: operations["listSessionNotes"];
         put?: never;
