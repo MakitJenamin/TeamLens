@@ -15,6 +15,7 @@ name = "tl"
 path = "src/main.rs"
 
 [dependencies]
+tl-core = { workspace = true }
 tl-platform = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
