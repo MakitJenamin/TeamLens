@@ -71,6 +71,10 @@ const summaryColumns = {
   cacheReadTokens: sessions.cacheReadTokens,
   cacheWriteTokens: sessions.cacheWriteTokens,
   parentSessionId: sessions.parentSessionId,
+  // Số session con đã gắn vào session này (alias `c` để tham chiếu được session ngoài).
+  childCount: sql<number>`(
+    SELECT count(*)::int FROM ${sessions} c WHERE c.parent_session_id = ${sessions.id}
+  )`,
   permissionMode: sessions.permissionMode,
   // Model xuất hiện nhiều nhất ở turn của assistant.
   model: sql<string | null>`(
@@ -105,6 +109,7 @@ interface SummaryRow {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   parentSessionId: string | null;
+  childCount: number;
   permissionMode: string | null;
   model: string | null;
   title: string | null;
@@ -132,6 +137,7 @@ function toSummary(row: SummaryRow): SessionSummary {
     },
     title: row.title,
     parentSessionId: row.parentSessionId,
+    childCount: Number(row.childCount ?? 0),
     permissionMode: toPermissionMode(row.permissionMode),
   };
 }
@@ -229,7 +235,15 @@ export class SessionsService {
 
     const [children, turnRows] = await Promise.all([
       this.db
-        .select({ id: sessions.id })
+        .select({
+          id: sessions.id,
+          sourceId: sessions.sourceId,
+          agent: sessions.agent,
+          startedAt: sessions.startedAt,
+          endedAt: sessions.endedAt,
+          turnCount: sessions.turnCount,
+          title: summaryColumns.title,
+        })
         .from(sessions)
         .where(eq(sessions.parentSessionId, row.id))
         .orderBy(asc(sessions.startedAt), asc(sessions.id)),
@@ -264,6 +278,15 @@ export class SessionsService {
           : null,
       instructionFiles: row.instructionFiles ?? null,
       childSessionIds: children.map((c) => c.id),
+      children: children.map((c) => ({
+        id: c.id,
+        sourceId: c.sourceId,
+        agent: toAgentKind(c.agent),
+        title: c.title,
+        startedAt: c.startedAt.toISOString(),
+        endedAt: c.endedAt ? c.endedAt.toISOString() : null,
+        turnCount: c.turnCount,
+      })),
       turns: turnRows.map(mapTurn),
     };
   }

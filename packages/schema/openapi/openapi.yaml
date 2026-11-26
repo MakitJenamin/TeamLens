@@ -121,6 +121,10 @@ paths:
     $ref: './sessions.yaml#/paths/~1api~1v1~1projects~1{projectId}~1sessions'
   /api/v1/sessions/{sessionId}:
     $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}'
+  /api/v1/sessions/{sessionId}/notes:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1notes'
+  /api/v1/sessions/{sessionId}/notes/{noteId}:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1notes~1{noteId}'
 
   /api/v1/sessions/{sessionId}/findings:
     $ref: './rules.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1findings'
@@ -267,3 +271,11 @@ components:
       $ref: './sessions.yaml#/components/schemas/TurnUsage'
     TurnCount:
       $ref: './sessions.yaml#/components/schemas/TurnCount'
+    SessionChild:
+      $ref: './sessions.yaml#/components/schemas/SessionChild'
+    SessionNote:
+      $ref: './sessions.yaml#/components/schemas/SessionNote'
+    SessionNoteList:
+      $ref: './sessions.yaml#/components/schemas/SessionNoteList'
+    CreateSessionNoteRequest:
+      $ref: './sessions.yaml#/components/schemas/CreateSessionNoteRequest'

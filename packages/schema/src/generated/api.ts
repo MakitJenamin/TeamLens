@@ -573,6 +573,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Ghi chú của leader trên session
+         * @description Mọi ghi chú của session, theo `createdAt` tăng dần. Ai xem được session (leader, hoặc member chủ session)
+         *     thì xem được ghi chú (không ghi audit riêng: trang xem session đã ghi `session.view`). Tạo, xóa ghi chú ghi audit
+         *     `session.note.create`, `session.note.delete`.
+         */
+        get: operations["listSessionNotes"];
+        put?: never;
+        /**
+         * Thêm ghi chú (leader)
+         * @description Chỉ leader. `turnSeq` phải là `seq` của một turn trong session (404 `turn_not_found` nếu không có);
+         *     null là ghi chú chung cho cả session.
+         */
+        post: operations["createSessionNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/notes/{noteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                noteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Xóa ghi chú (leader, chỉ của chính mình)
+         * @description Chỉ tác giả (leader) xóa được ghi chú của mình; ghi chú của người khác trả 403.
+         */
+        delete: operations["deleteSessionNote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/findings": {
         parameters: {
             query?: never;
@@ -1133,6 +1185,8 @@ export interface components {
             title: string | null;
             /** @description Id session cha khi đây là session con (subagent); null với session gốc hoặc khi cha chưa tới. */
             parentSessionId: components["schemas"]["Id"] | null;
+            /** @description Số session con (subagent) đã gắn vào session này. */
+            childCount: number;
             /** @description Chế độ quyền của agent; null khi CLI không gửi. */
             permissionMode: components["schemas"]["PermissionMode"] | null;
         };
@@ -1163,6 +1217,8 @@ export interface components {
             instructionFiles: components["schemas"]["InstructionFile"][] | null;
             /** @description Id các session con (subagent), theo `startedAt` tăng dần. */
             childSessionIds: components["schemas"]["Id"][];
+            /** @description Thông tin rút gọn các session con, cùng thứ tự với `childSessionIds`. */
+            children: components["schemas"]["SessionChild"][];
             /** @description Mọi turn của session, theo `seq` tăng dần. */
             turns: components["schemas"]["SessionTurn"][];
         };
@@ -1236,6 +1292,45 @@ export interface components {
              */
             type: string;
             count: number;
+        };
+        /**
+         * @description Session con (subagent) rút gọn, đủ để dashboard ghép vào turn tool `Task`/`Agent` của session cha
+         *     (Claude Code: `sourceId` là `claude_code:<sessionId>:<agentId>`).
+         */
+        SessionChild: {
+            id: components["schemas"]["Id"];
+            /** @example claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60:a8d48656c1a58b54b */
+            sourceId: string;
+            agent: components["schemas"]["AgentKind"];
+            /** @description Prompt đầu tiên giao cho session con, tối đa 200 ký tự. */
+            title: string | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+            turnCount: number;
+        };
+        /** @description Ghi chú của leader trên session, gắn vào một turn hoặc cả session. */
+        SessionNote: {
+            id: components["schemas"]["Id"];
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của turn được ghi chú; null là ghi chú chung cho cả session. */
+            turnSeq: number | null;
+            body: string;
+            /** @description Người viết; null khi tài khoản đã bị xóa. */
+            author: components["schemas"]["UserRef"] | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SessionNoteList: {
+            /** @description Theo `createdAt` tăng dần. */
+            items: components["schemas"]["SessionNote"][];
+        };
+        CreateSessionNoteRequest: {
+            /** @description Bỏ trống hoặc null để ghi chú cho cả session. */
+            turnSeq?: number | null;
+            /** @description Nội dung ghi chú (văn bản thuần, cắt khoảng trắng hai đầu). */
+            body: string;
         };
         SourceId: string;
         Session: {
@@ -2714,6 +2809,85 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionDetail"];
                 };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSessionNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách ghi chú. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNoteList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSessionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Ghi chú vừa tạo. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNote"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSessionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                noteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];

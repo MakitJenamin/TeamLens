@@ -202,6 +202,7 @@ describe('Sessions (e2e)', () => {
         turnCount: 3,
         usage: { input: 100, output: 0, cacheRead: 0, cacheWrite: 0 },
         parentSessionId: null,
+        childCount: 1,
         permissionMode: 'plan',
       });
     });
@@ -323,6 +324,8 @@ describe('Sessions (e2e)', () => {
         device: null,
         instructionFiles: [{ path: 'CLAUDE.md', bytes: 120 }],
         childSessionIds: [childSession],
+        childCount: 1,
+        children: [{ id: childSession }],
         permissionMode: 'plan',
       });
       expect(res.body.turns.map((t: { seq: number }) => t.seq)).toEqual([

@@ -49,7 +49,19 @@ const session: SessionDetail = {
   sourceId: "claude_code:x",
   device: { id: "d-1", name: "PC" },
   instructionFiles: [{ path: "CLAUDE.md", bytes: 120 }],
+  childCount: 1,
   childSessionIds: ["s-child"],
+  children: [
+    {
+      id: "s-child",
+      sourceId: "claude_code:x:a1",
+      agent: "claude_code",
+      title: "Việc con",
+      startedAt: "2026-11-20T01:02:00.000Z",
+      endedAt: null,
+      turnCount: 2,
+    },
+  ],
   turns: [
     turn(0, { role: "user", kind: "prompt", text: "Dòng 1\n<script>alert(1)</script>" }),
     turn(1, { kind: "reply", text: "Mình sẽ làm", model: "claude-opus-5-5", interrupted: true }),
