@@ -8,7 +8,8 @@
 //! - `source_sessions`: tiến độ từng session trong file (`source_id`, số turn đã gửi
 //!   thành công, `seq` phải gửi lại từ đó ở lần sau).
 //! - `parse_errors`: file đọc lỗi hoặc có bản ghi không nhận ra (chỉ số đếm).
-//! - `meta`: khóa/giá trị (dấu vân tay phạm vi gửi: server + repo pattern + đồng ý).
+//! - `meta`: khóa/giá trị (dấu vân tay phạm vi gửi: server + repo pattern + đồng ý; cờ tạm dừng
+//!   `tl pause`, heartbeat gần nhất, phiên bản agent đọc được — M3.3).
 //!
 //!
 //! Migration v2 (M3.1) thêm hàng đợi batch (xem [`crate::queue`]):
@@ -21,6 +22,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
@@ -131,6 +133,26 @@ impl FileState {
 pub fn mtime_ns(t: Option<SystemTime>) -> Option<i64> {
     let d = t?.duration_since(UNIX_EPOCH).ok()?;
     i64::try_from(d.as_nanos()).ok()
+}
+
+/// Khóa `meta`: cờ tạm dừng của `tl pause` (`"1"` khi đang tạm dừng).
+pub const PAUSED_META_KEY: &str = "paused";
+
+/// Khóa `meta`: danh sách [`PauseWindow`] (JSON).
+pub const PAUSE_WINDOWS_META_KEY: &str = "pause_windows";
+
+/// Một khoảng `tl pause` → `tl resume`: `[start, end)`, `end = None` khi còn đang tạm dừng.
+/// Chỉ lưu thời điểm, không lưu nội dung.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PauseWindow {
+    pub start: DateTime<Utc>,
+    pub end: Option<DateTime<Utc>>,
+}
+
+impl PauseWindow {
+    pub fn contains(&self, t: DateTime<Utc>) -> bool {
+        t >= self.start && self.end.is_none_or(|end| t < end)
+    }
 }
 
 /// Kết nối tới `state.db`.
@@ -320,6 +342,60 @@ impl StateDb {
         Ok(())
     }
 
+    /// Tổng số lỗi parse để báo qua heartbeat: số bản ghi không nhận ra cộng số file đọc lỗi.
+    pub fn parse_error_total(&self) -> rusqlite::Result<u64> {
+        self.conn
+            .query_row(
+                "SELECT COALESCE(SUM(warnings), 0) + COALESCE(SUM(read_failed), 0) FROM parse_errors",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n.max(0) as u64)
+    }
+
+    /// `tl pause` đang bật (khóa `meta.paused`).
+    pub fn is_paused(&self) -> rusqlite::Result<bool> {
+        Ok(self.meta(PAUSED_META_KEY)?.as_deref() == Some("1"))
+    }
+
+    /// Bật/tắt cờ tạm dừng, đồng thời mở/đóng một khoảng tạm dừng (lúc `now`). Turn có
+    /// `ts` trong khoảng tạm dừng không bao giờ được gửi (xem [`PauseWindow`]).
+    pub fn set_paused(&self, paused: bool, now: DateTime<Utc>) -> rusqlite::Result<()> {
+        let was = self.is_paused()?;
+        let mut windows = self.pause_windows()?;
+        if paused && !was {
+            windows.push(PauseWindow {
+                start: now,
+                end: None,
+            });
+        } else if !paused {
+            for w in windows.iter_mut().filter(|w| w.end.is_none()) {
+                w.end = Some(now.max(w.start));
+            }
+        }
+        let text = serde_json::to_string(&windows).expect("PauseWindow luôn serialize được");
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [PAUSE_WINDOWS_META_KEY, &text],
+        )?;
+        tx.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [PAUSED_META_KEY, if paused { "1" } else { "0" }],
+        )?;
+        tx.commit()
+    }
+
+    /// Các khoảng tạm dừng đã ghi (cũ nhất trước). Giá trị hỏng coi như không có.
+    pub fn pause_windows(&self) -> rusqlite::Result<Vec<PauseWindow>> {
+        Ok(self
+            .meta(PAUSE_WINDOWS_META_KEY)?
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_default())
+    }
+
     /// Quên mọi offset (lần sau đọc và gửi lại từ đầu mọi file), kể cả tiến độ đặt chỗ
     /// của hàng đợi (batch đã xếp hàng vẫn giữ, xem [`crate::queue::clear`]).
     pub fn reset_files(&mut self) -> rusqlite::Result<()> {
@@ -440,6 +516,11 @@ mod tests {
         db.record_parse_errors(p, "claude_code", 0, false).unwrap();
         assert_eq!(db.parse_error_files().unwrap(), 0);
 
+        db.record_parse_errors(p, "claude_code", 3, false).unwrap();
+        db.record_parse_errors(Path::new("b.jsonl"), "codex", 0, true)
+            .unwrap();
+        assert_eq!(db.parse_error_total().unwrap(), 4);
+
         assert_eq!(db.meta("k").unwrap(), None);
         db.set_meta("k", "v1").unwrap();
         db.set_meta("k", "v2").unwrap();
@@ -478,5 +559,40 @@ mod tests {
             .query_row("SELECT count(*) FROM queue_batches", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn tam_dung_ghi_khoang_thoi_gian() {
+        let db = StateDb::open_in_memory().unwrap();
+        let t = |m: i64| DateTime::<Utc>::UNIX_EPOCH + chrono::Duration::minutes(m);
+        assert!(!db.is_paused().unwrap());
+        db.set_paused(false, t(0)).unwrap();
+        assert!(db.pause_windows().unwrap().is_empty());
+
+        db.set_paused(true, t(10)).unwrap();
+        db.set_paused(true, t(12)).unwrap(); // pause lần hai không mở khoảng mới
+        assert!(db.is_paused().unwrap());
+        assert_eq!(
+            db.pause_windows().unwrap(),
+            vec![PauseWindow {
+                start: t(10),
+                end: None
+            }]
+        );
+        db.set_paused(false, t(20)).unwrap();
+        db.set_paused(true, t(30)).unwrap();
+        db.set_paused(false, t(40)).unwrap();
+        assert!(!db.is_paused().unwrap());
+        let w = db.pause_windows().unwrap();
+        assert_eq!(w.len(), 2);
+        assert_eq!(
+            w[0],
+            PauseWindow {
+                start: t(10),
+                end: Some(t(20))
+            }
+        );
+        assert!(w[0].contains(t(10)) && w[0].contains(t(19)));
+        assert!(!w[0].contains(t(20)) && !w[0].contains(t(9)));
     }
 }

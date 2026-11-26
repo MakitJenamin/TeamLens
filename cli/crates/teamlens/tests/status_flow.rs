@@ -74,7 +74,7 @@ async fn status_shows_account_and_projects() {
     assert!(text.contains("MAY-TEST"));
     assert!(text.contains("TeamLens (teamlens)"));
     assert!(text.contains("github.com/acme/*"));
-    assert!(text.contains("chưa có (task M3.3)"));
+    assert!(text.contains("Daemon:     chưa chạy"), "{text}");
     assert!(text.contains("Hàng đợi:   trống"), "{text}");
 
     let mut out = Vec::new();
@@ -90,7 +90,7 @@ async fn status_shows_account_and_projects() {
         v["account"]["projects"][1]["repoPatterns"][0],
         "github.com/acme/*"
     );
-    assert_eq!(v["daemon"], "chưa có (task M3.3)");
+    assert_eq!(v["daemon"], "chưa chạy");
     assert_eq!(v["queue"]["pendingBatches"], 0);
 }
 

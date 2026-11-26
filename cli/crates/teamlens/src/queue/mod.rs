@@ -110,6 +110,11 @@ pub fn enqueue_with_limit(
     let mut envelopes = Vec::new();
     let mut projects = HashMap::new();
     for s in plans.iter().flat_map(|p| &p.sessions) {
+        if s.turn_count() == 0 {
+            // Mọi turn mới đều trong lúc `tl pause` (M3.3): không gửi; đặt chỗ không có
+            // batch nào nên tiến độ được ghi ngay.
+            continue;
+        }
         projects.insert(s.progress.source_id.clone(), s.prepared.project_id.clone());
         envelopes.push(s.prepared.envelope.clone());
     }

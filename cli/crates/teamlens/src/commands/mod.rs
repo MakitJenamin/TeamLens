@@ -25,14 +25,14 @@ pub async fn dispatch(
     out: &mut dyn Write,
 ) -> Result<(), AppError> {
     match command {
-        Command::Pause(args) => pause::run(args),
-        Command::Resume(args) => resume::run(args),
         Command::Consent(args) => consent::run(args),
         Command::Daemon(args) => daemon::run(args),
         Command::Uninstall(args) => uninstall::run(args),
         Command::Join(args) => join::run(&make_ctx()?, args, out).await,
         Command::Open(args) => open::run(&make_ctx()?, args, out).await.map(|_| ()),
         Command::Logout(args) => logout::run(&make_ctx()?, args, out).await,
+        Command::Pause(args) => pause::run(&make_ctx()?, args, out).await,
+        Command::Resume(args) => resume::run(&make_ctx()?, args, out).await,
         Command::Status(args) => status::run(&make_ctx()?, args, out).await,
         Command::Preview(args) => preview::run(&make_ctx()?, args, out).await,
         Command::Sync(args) => sync::run(&make_ctx()?, args, out).await,

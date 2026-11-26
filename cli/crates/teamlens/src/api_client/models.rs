@@ -1,4 +1,4 @@
-//! Kiểu request/response của `/agent/v1` (JSON camelCase, riêng `AgentConfig` snake_case; viết tay khớp `packages/schema/openapi`).
+//! Kiểu request/response của `/agent/v1` (JSON camelCase, riêng `AgentConfig` và heartbeat snake_case; viết tay khớp `packages/schema/openapi`).
 
 use serde::{Deserialize, Serialize};
 
@@ -294,4 +294,64 @@ impl From<AgentTruncation> for tl_core::truncate::TruncateLimits {
             diff_max: size(t.diff_bytes),
         }
     }
+}
+
+/// Body `POST /agent/v1/heartbeat` (M3.3). **JSON snake_case** như `AgentConfig`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeartbeatRequest {
+    /// `online` hoặc `paused`.
+    pub status: DeviceRunStatus,
+    pub cli_version: String,
+    /// Agent phát hiện trên máy (mỗi loại một phần tử).
+    pub agents: Vec<HeartbeatAgent>,
+    /// Số lỗi parse đang ghi nhận trong `state.db`.
+    pub parse_errors: u64,
+    pub queue: HeartbeatQueue,
+    /// Giờ máy lúc gửi (RFC 3339).
+    pub sent_at: String,
+}
+
+/// Trạng thái thiết bị tự báo trong heartbeat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceRunStatus {
+    Online,
+    Paused,
+}
+
+impl DeviceRunStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Online => "online",
+            Self::Paused => "paused",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeartbeatAgent {
+    /// `claude_code`, `codex`...
+    pub agent: String,
+    /// Phiên bản agent đọc được từ log gần nhất, `null` nếu chưa biết.
+    pub version: Option<String>,
+    /// Số file log tìm thấy.
+    pub files: u64,
+}
+
+/// Hàng đợi gửi offline (M3.1).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeartbeatQueue {
+    pub batches: u64,
+    pub bytes: u64,
+    pub dropped: u64,
+    pub failed: u64,
+}
+
+/// Trả về `200` của `POST /agent/v1/heartbeat` (snake_case).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeartbeatResult {
+    /// `online`, `paused` hoặc `consent_revoked` (đã rút đồng ý trên server).
+    pub status: String,
+    pub consent_text_version: String,
+    pub min_cli_version: String,
 }

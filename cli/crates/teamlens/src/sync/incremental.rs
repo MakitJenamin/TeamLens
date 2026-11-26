@@ -27,7 +27,7 @@ use tl_core::session::{Role, Turn, TurnKind};
 use crate::api_client::AgentConfig;
 use crate::consent::ConsentState;
 use crate::pipeline::collect::{PreparedSession, STABLE_AFTER};
-use crate::state::{mtime_ns, FileState, SessionProgress};
+use crate::state::{mtime_ns, FileState, PauseWindow, SessionProgress};
 
 /// Khóa `meta` lưu dấu vân tay phạm vi gửi.
 pub const SCOPE_META_KEY: &str = "scope_fingerprint";
@@ -120,6 +120,20 @@ impl PlannedSession {
             prepared.envelope.turns.retain(|t| t.seq >= from);
         }
         Self { prepared, progress }
+    }
+
+    /// Bỏ turn có `ts` nằm trong một khoảng `tl pause` → `tl resume` (không bao giờ gửi).
+    /// Turn còn lại giữ nguyên `seq` gốc (server upsert theo `(session_id, seq)`, không cần
+    /// liền nhau). Tiến độ vẫn tính theo cả session nên turn bị bỏ không bị xét lại.
+    /// Hết turn thì session không được gửi lần này. Trả số turn đã bỏ.
+    pub fn drop_paused_turns(&mut self, windows: &[PauseWindow]) -> usize {
+        if windows.is_empty() {
+            return 0;
+        }
+        let turns = &mut self.prepared.envelope.turns;
+        let before = turns.len();
+        turns.retain(|t| !windows.iter().any(|w| w.contains(t.ts)));
+        before - turns.len()
     }
 
     pub fn turn_count(&self) -> usize {

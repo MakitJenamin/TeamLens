@@ -5,6 +5,7 @@
 //! và chỉ gửi file đã ổn định (không đổi ≥ 2 phút) trừ khi có `--include-active`.
 //! M3.1: phần đã che được xếp vào hàng đợi trong `state.db` rồi mới gửi
 //! ([`crate::queue`]); gửi lỗi thì batch nằm lại hàng đợi, lần sau gửi lại đúng batch đó.
+//! M3.3: đang `tl pause` thì không quét, không gửi; xong lượt gửi thì gửi một heartbeat.
 
 use std::io::Write;
 use std::time::SystemTime;
@@ -14,6 +15,7 @@ use clap::Args;
 use crate::consent;
 use crate::context::AppContext;
 use crate::error::AppError;
+use crate::heartbeat;
 use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
 use crate::pipeline::prepare::build_redactor;
@@ -75,12 +77,51 @@ pub async fn run_with(
     out: &mut dyn Write,
 ) -> Result<(), AppError> {
     let _ = args.once; // Luôn một lần.
+    let state_file = state_path(&ctx.config_path);
+    if state_file.exists()
+        && StateDb::open(&state_file)?
+            .is_paused()
+            .map_err(state_err(ctx))?
+    {
+        let _ = writeln!(
+            out,
+            "TeamLens đang tạm dừng (`tl pause`): không quét, không gửi gì. Chạy `tl resume` để tiếp tục."
+        );
+        return Ok(());
+    }
     if !args.dry_run && !consent_gate::may_send(ctx) {
         return Err(AppError::user(
             "Máy này chưa đồng ý chia sẻ dữ liệu với server hiện tại nên không gửi gì.",
             "Chạy `tl join <link mời>` (link do leader gửi) để xem và đồng ý.",
         ));
     }
+    let result = sync_once(ctx, &args, sources, max_batch_bytes, out).await;
+    if !args.dry_run {
+        send_heartbeat(ctx, sources).await;
+    }
+    result
+}
+
+/// Heartbeat cuối lượt `tl sync`; lỗi chỉ ghi vào `state.db` (hiện ở `tl status`), không làm
+/// lệnh thất bại.
+async fn send_heartbeat(ctx: &AppContext, sources: &Sources) {
+    let client = match heartbeat::client_for(ctx) {
+        Ok(Some(c)) => c,
+        _ => return,
+    };
+    if let Err(e) = heartbeat::send_once(ctx, &client, sources).await {
+        tracing::debug!(error = %e, "heartbeat cuối tl sync thất bại");
+    }
+}
+
+/// Một lượt quét + gửi (đã qua kiểm tra tạm dừng và đồng ý).
+async fn sync_once(
+    ctx: &AppContext,
+    args: &SyncArgs,
+    sources: &Sources,
+    max_batch_bytes: usize,
+    out: &mut dyn Write,
+) -> Result<(), AppError> {
     let conn = connect(ctx).await?;
     let local = ctx.load_config()?;
     let server_config = &conn.agent_config.config;
@@ -124,6 +165,9 @@ pub async fn run_with(
     let mut stats = CollectStats::default();
     let mut skip = SkipStats::default();
     let mut skipped_by_consent = 0usize;
+    // Turn phát sinh lúc `tl pause` không bao giờ được gửi.
+    let pause_windows = db.pause_windows().map_err(state_err(ctx))?;
+    let mut dropped_paused = 0usize;
     let mut plans: Vec<FilePlan> = Vec::new();
     for adapter in sources.adapter_refs() {
         for file in adapter.discover() {
@@ -145,6 +189,17 @@ pub async fn run_with(
             };
             let (sessions, s) = pipeline.process_file(adapter, &file);
             stats.merge(&s);
+            if !args.dry_run {
+                // Phiên bản agent (chỉ từ session trong phạm vi) để heartbeat báo lên server.
+                if let Some(v) = sessions
+                    .iter()
+                    .filter_map(|p| p.envelope.session.agent_version.as_deref())
+                    .next_back()
+                {
+                    db.set_meta(&heartbeat::agent_version_key(file.agent.as_str()), v)
+                        .map_err(state_err(ctx))?;
+                }
+            }
             if !args.dry_run {
                 db.record_parse_errors(
                     &file.path,
@@ -168,7 +223,9 @@ pub async fn run_with(
                     }
                 }
                 let progress = prev_sessions.and_then(|f| f.session(&p.envelope.session.source_id));
-                planned.push(PlannedSession::new(p, progress));
+                let mut plan = PlannedSession::new(p, progress);
+                dropped_paused += plan.drop_paused_turns(&pause_windows);
+                planned.push(plan);
             }
             plans.push(FilePlan {
                 active: is_active(&file, now),
@@ -191,6 +248,12 @@ pub async fn run_with(
         let _ = writeln!(
             out,
             "Bỏ {skipped_by_consent} session theo lựa chọn khi đồng ý (session cũ khi không gửi lịch sử, hoặc project chưa đồng ý)."
+        );
+    }
+    if dropped_paused > 0 {
+        let _ = writeln!(
+            out,
+            "Bỏ {dropped_paused} turn phát sinh trong lúc tạm dừng (`tl pause`): không bao giờ gửi."
         );
     }
     if consent.is_none() {

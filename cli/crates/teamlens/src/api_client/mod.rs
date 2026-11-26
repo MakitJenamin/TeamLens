@@ -192,6 +192,12 @@ impl ApiClient {
         self.send_json(req).await
     }
 
+    /// `POST /agent/v1/heartbeat` (M3.3): báo trạng thái thiết bị (JSON snake_case).
+    pub async fn heartbeat(&self, body: &HeartbeatRequest) -> Result<HeartbeatResult, ApiError> {
+        let req = self.request(Method::POST, "/agent/v1/heartbeat").json(body);
+        self.send_json(req).await
+    }
+
     /// `POST /agent/v1/logout`: thu hồi token của chính máy này.
     pub async fn logout(&self) -> Result<(), ApiError> {
         let req = self.request(Method::POST, "/agent/v1/logout");
