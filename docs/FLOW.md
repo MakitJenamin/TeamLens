@@ -27,7 +27,7 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì:** tìm file log của Claude Code (`%USERPROFILE%\.claude\projects\...\*.jsonl`) và Codex (`%USERPROFILE%\.codex\sessions\...`), đọc từng dòng, biến thành schema chung `session.v1` (spec mục 5). Server không bao giờ biết định dạng log gốc.
 - **Code:** `cli/crates/tl-adapters/src/{claude_code,codex}/`, kiểu dữ liệu ở `cli/crates/tl-core/src/session.rs`, contract ở `packages/schema/session.v1.schema.json`.
-- **Ghi chú của người làm:** _(điền sau mốc 1)_
+- **Ghi chú của người làm:** Claude Code (M2.4): `discover` trả cả `<uuid>\subagents\agent-*.jsonl`; mỗi file subagent là một session con `claude_code:<sessionId>:<agentId>` với `parent_source_id = claude_code:<sessionId>` (server nối cha/con theo `parent_source_id`, cha tới sau con cũng được). Bản tóm tắt sau compaction (`isCompactSummary`) thành turn `compaction`; `permission_mode` lấy chế độ thoáng nhất trong session; `instruction_files` do pipeline điền ở bước `prepare`, không phải adapter. Chi tiết định dạng log ở doc đầu `claude_code/normalize.rs`.
 
 ## ③ Lọc phạm vi — Người 1, mốc 1 (M1.4)
 

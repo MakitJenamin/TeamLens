@@ -1,4 +1,4 @@
-//! Chuyển các dòng JSONL của Claude Code thành [`NormalizedSession`] (task M1.3).
+//! Chuyển các dòng JSONL của Claude Code thành [`NormalizedSession`] (task M1.3, M2.4).
 //!
 //! Định dạng log là nội bộ của Claude Code (không có tài liệu chính thức), kiểm chứng
 //! trên các bản 2.1.219 → 2.1.332. Các điểm chính:
@@ -18,8 +18,26 @@
 //!   `origin.kind` khác `human` (vd. `task-notification`) → `role = system`.
 //! - `[Request interrupted by user]` (và biến thể `... for tool use`) không thành
 //!   prompt mà đánh dấu `interrupted = true` cho turn assistant gần nhất trước nó.
-//! - Dòng `isSidechain = true` (transcript subagent cũ nằm chung file) bỏ qua; subagent
-//!   thành session con ở task M2.4.
+//! - **Subagent** (M2.4): transcript nằm ở `<uuid>\subagents\agent-<agentId>.jsonl`. Mọi
+//!   dòng trong file đó có `sessionId` = uuid của session **cha** và `agentId` riêng
+//!   (kiểm chứng trên 40 file của bản 2.1.3xx; file session gốc không có dòng nào mang
+//!   `agentId`). Nên nhóm theo cặp (`sessionId`, `agentId`): dòng có `agentId` thuộc session
+//!   con `claude_code:<sessionId>:<agentId>` với `parent_source_id =
+//!   claude_code:<sessionId>`. Giữ `sessionId` trong id vì `agentId` chỉ có 17 ký tự hex
+//!   (không có gì bảo đảm duy nhất toàn cục), và nhìn id là biết cha. Dòng
+//!   `isSidechain = true` mà không có `agentId` (định dạng cũ, không gắn được vào subagent
+//!   nào) vẫn bỏ qua như M1.3.
+//! - **Compaction** (M2.4): Claude Code ghi `system`/`compact_boundary` (bỏ qua, chỉ là
+//!   mốc) rồi một dòng `user` có `isCompactSummary = true` chứa bản tóm tắt; dòng đó thành
+//!   turn `kind = compaction`, `role = system` (không phải prompt người gõ).
+//! - **`permission_mode`**: đọc từ `permissionMode` trên dòng `user` và dòng
+//!   `permission-mode` (đổi chế độ giữa chừng, không có `timestamp`). Session đổi chế độ
+//!   (vd. `acceptEdits` → `bypassPermissions`, có trên log thật) lấy chế độ **thoáng
+//!   nhất** từng dùng ([`mode_rank`]) để rule `yolo-mode` không bỏ sót; `unknown`
+//!   (`auto`, `dontAsk`, giá trị lạ) chỉ dùng khi không thấy chế độ nào khác. Transcript
+//!   subagent không ghi `permissionMode` nên session con để trống trường này.
+//! - `instruction_files` không thuộc adapter: pipeline điền ở bước `prepare` (chỉ đọc
+//!   kích thước file ở gốc repo, `teamlens::pipeline::instructions`).
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -59,6 +77,10 @@ pub(crate) const META_TYPES: &[&str] = &[
     "cost-state",
     // Trỏ sang file session tiếp nối (`continuedInSessionId`); chưa dùng ở M1.3.
     "continued-in",
+    // Session chuyển vào git worktree (`EnterWorktree`); `cwd` mới đã có trên dòng hội
+    // thoại sau đó nên không cần đọc (thấy trên log thật 2.1.33x ở M2.4).
+    "relocated",
+    "worktree-state",
 ];
 
 /// Tiền tố của tin nhắn Claude Code chèn khi người dùng ngắt lượt.
@@ -75,7 +97,8 @@ const LOCAL_COMMAND_PREFIXES: &[&str] = &[
 /// theo thứ tự xuất hiện. Session không có turn nào bị bỏ.
 pub(crate) fn normalize(events: Vec<RawEvent>) -> Vec<NormalizedSession> {
     let mut sessions: Vec<SessionBuilder> = Vec::new();
-    let mut index: HashMap<String, usize> = HashMap::new();
+    // Khóa nhóm: (`sessionId`, `agentId` nếu là dòng của subagent).
+    let mut index: HashMap<(String, Option<String>), usize> = HashMap::new();
     // Cảnh báo của dòng chưa biết thuộc session nào (trước dòng có `sessionId` đầu tiên).
     let mut orphan_warnings = 0u32;
     let mut current: Option<usize> = None;
@@ -84,11 +107,18 @@ pub(crate) fn normalize(events: Vec<RawEvent>) -> Vec<NormalizedSession> {
         let value = &event.value;
         let session_id = value.get("sessionId").and_then(Value::as_str);
         if let Some(id) = session_id {
-            let i = *index.entry(id.to_owned()).or_insert_with(|| {
-                sessions.push(SessionBuilder::new(id));
+            let agent_id = non_empty_str(value, "agentId");
+            let key = (id.to_owned(), agent_id.map(str::to_owned));
+            let i = *index.entry(key).or_insert_with(|| {
+                sessions.push(SessionBuilder::new(id, agent_id));
                 sessions.len() - 1
             });
             current = Some(i);
+            if value.get("type").and_then(Value::as_str) == Some("permission-mode") {
+                if let Some(raw) = value.get("permissionMode").and_then(Value::as_str) {
+                    sessions[i].observe_mode(raw);
+                }
+            }
         }
         let outcome = classify(value);
         match (outcome, current) {
@@ -117,8 +147,10 @@ enum Line {
 fn classify(value: &Value) -> Line {
     match value.get("type").and_then(Value::as_str) {
         Some("user" | "assistant") => {
-            if value.get("isSidechain").and_then(Value::as_bool) == Some(true) {
-                // Transcript subagent kiểu cũ: để task M2.4.
+            if value.get("isSidechain").and_then(Value::as_bool) == Some(true)
+                && non_empty_str(value, "agentId").is_none()
+            {
+                // Dòng subagent kiểu cũ không có `agentId`: không biết thuộc subagent nào.
                 Line::Ignored
             } else {
                 Line::Conversation
@@ -131,7 +163,10 @@ fn classify(value: &Value) -> Line {
 
 /// Tích lũy dữ liệu của một session trong lúc duyệt các dòng.
 struct SessionBuilder {
+    /// `sessionId` (với subagent là id của session cha).
     raw_id: String,
+    /// `agentId` khi đây là transcript subagent.
+    agent_id: Option<String>,
     cwd: Option<PathBuf>,
     version: Option<String>,
     /// `Some(..)` sau dòng hội thoại đầu tiên (nhánh lúc bắt đầu, có thể là `None`).
@@ -148,9 +183,10 @@ struct SessionBuilder {
 }
 
 impl SessionBuilder {
-    fn new(raw_id: &str) -> Self {
+    fn new(raw_id: &str, agent_id: Option<&str>) -> Self {
         Self {
             raw_id: raw_id.to_owned(),
+            agent_id: agent_id.map(str::to_owned),
             cwd: None,
             version: None,
             branch: None,
@@ -273,15 +309,27 @@ impl SessionBuilder {
         self.turns.push(turn);
     }
 
+    /// Ghi nhận một chế độ quyền, giữ chế độ thoáng nhất (xem đầu module).
+    fn observe_mode(&mut self, raw: &str) {
+        let mode = permission_mode(raw);
+        if self
+            .permission_mode
+            .is_none_or(|old| mode_rank(mode) > mode_rank(old))
+        {
+            self.permission_mode = Some(mode);
+        }
+    }
+
     fn push_user(&mut self, line: &Value, message: &Value, ts: DateTime<Utc>) {
+        if line.get("isCompactSummary").and_then(Value::as_bool) == Some(true) {
+            self.push_compaction(message, ts);
+            return;
+        }
         if line.get("isMeta").and_then(Value::as_bool) == Some(true) {
             return;
         }
-        if self.permission_mode.is_none() {
-            self.permission_mode = line
-                .get("permissionMode")
-                .and_then(Value::as_str)
-                .map(permission_mode);
+        if let Some(raw) = line.get("permissionMode").and_then(Value::as_str) {
+            self.observe_mode(raw);
         }
         let role = match line.pointer("/origin/kind").and_then(Value::as_str) {
             Some(kind) if kind != "human" => Role::System,
@@ -332,6 +380,28 @@ impl SessionBuilder {
             turn.text = Some(prompt.join("\n"));
         }
         turn.attachments = image_attachments(images);
+        self.turns.push(turn);
+    }
+
+    /// Bản tóm tắt sau compaction: một turn `compaction` của hệ thống.
+    fn push_compaction(&mut self, message: &Value, ts: DateTime<Utc>) {
+        let text = match message.get("content") {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Array(blocks)) => blocks
+                .iter()
+                .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|b| b.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            _ => {
+                self.warnings += 1;
+                return;
+            }
+        };
+        let mut turn = Turn::new(0, Role::System, TurnKind::Compaction, ts);
+        if !text.trim().is_empty() {
+            turn.text = Some(text);
+        }
         self.turns.push(turn);
     }
 
@@ -433,10 +503,17 @@ impl SessionBuilder {
         for (seq, turn) in turns.iter_mut().enumerate() {
             turn.seq = u32::try_from(seq).unwrap_or(u32::MAX);
         }
+        let (source_id, parent_source_id) = match &self.agent_id {
+            Some(agent) => (
+                AgentKind::ClaudeCode.source_id(&format!("{}:{agent}", self.raw_id)),
+                Some(AgentKind::ClaudeCode.source_id(&self.raw_id)),
+            ),
+            None => (AgentKind::ClaudeCode.source_id(&self.raw_id), None),
+        };
         Some(NormalizedSession {
             cwd: self.cwd,
             session: Session {
-                source_id: AgentKind::ClaudeCode.source_id(&self.raw_id),
+                source_id,
                 agent: AgentKind::ClaudeCode,
                 agent_version: self.version,
                 repo_remote: String::new(),
@@ -444,7 +521,7 @@ impl SessionBuilder {
                 cwd_relative: None,
                 started_at,
                 ended_at: self.ended_at,
-                parent_source_id: None,
+                parent_source_id,
                 permission_mode: self.permission_mode,
                 instruction_files: None,
             },
@@ -477,6 +554,17 @@ pub(crate) fn permission_mode(raw: &str) -> PermissionMode {
         "plan" => PermissionMode::Plan,
         "bypassPermissions" => PermissionMode::Bypass,
         _ => PermissionMode::Unknown,
+    }
+}
+
+/// Độ "thoáng" của chế độ quyền, để chọn chế độ thoáng nhất trong session.
+fn mode_rank(mode: PermissionMode) -> u8 {
+    match mode {
+        PermissionMode::Unknown => 0,
+        PermissionMode::Plan => 1,
+        PermissionMode::Default => 2,
+        PermissionMode::AcceptEdits => 3,
+        PermissionMode::Bypass => 4,
     }
 }
 

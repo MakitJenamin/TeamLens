@@ -113,6 +113,51 @@ fn rejected_tool_interrupt_2_1_326() {
 }
 
 #[test]
+fn subagent_compaction_2_1_322() {
+    let parent = load("2.1.322/subagent-compaction.jsonl");
+    let child = load("2.1.322/subagent-compaction/subagents/agent-ac4847d3842e4829c.jsonl");
+    assert_eq!(parent.parse_warnings, 0);
+    assert_eq!(child.parse_warnings, 0);
+
+    // Session cha: gốc, bypass, có 1 lần ngắt và 1 compaction.
+    let parent_id = "claude_code:24d35887-bc08-4a6e-9e7d-70dceaa07905";
+    assert_eq!(parent.session.source_id, parent_id);
+    assert_eq!(parent.session.parent_source_id, None);
+    assert_eq!(parent.session.permission_mode, Some(PermissionMode::Bypass));
+    assert_eq!(
+        parent
+            .turns
+            .iter()
+            .filter(|t| t.interrupted == Some(true))
+            .count(),
+        1
+    );
+    let compactions: Vec<_> = parent
+        .turns
+        .iter()
+        .filter(|t| t.kind == TurnKind::Compaction)
+        .collect();
+    assert_eq!(compactions.len(), 1);
+    assert_eq!(compactions[0].role, tl_core::session::Role::System);
+    // Agent tool gọi subagent nằm trong session cha.
+    assert!(parent
+        .turns
+        .iter()
+        .any(|t| t.tool.as_ref().is_some_and(|x| x.name == "Agent")));
+
+    // Session con: id riêng, trỏ về cha, không có permissionMode trong transcript.
+    assert_eq!(
+        child.session.source_id,
+        format!("{parent_id}:ac4847d3842e4829c")
+    );
+    assert_eq!(child.session.parent_source_id.as_deref(), Some(parent_id));
+    assert_eq!(child.session.permission_mode, None);
+    assert_eq!(child.turns[0].kind, TurnKind::Prompt);
+    insta::assert_json_snapshot!("subagent_compaction_parent_2_1_322", parent);
+    insta::assert_json_snapshot!("subagent_compaction_child_2_1_322", child);
+}
+
+#[test]
 fn accept_edits_interrupt_2_1_219() {
     let s = load("2.1.219/accept-edits-interrupt.jsonl");
     assert_eq!(s.parse_warnings, 0);
