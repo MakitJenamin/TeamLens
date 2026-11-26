@@ -91,6 +91,28 @@ fn display_message(message: &str, code: &ApiErrorCode) -> String {
     }
 }
 
+/// Lỗi riêng của `POST /agent/v1/ingest` cần CLI xử lý khác lỗi thường.
+#[derive(Debug, thiserror::Error)]
+pub enum IngestError {
+    /// `413`: batch quá lớn, cần chia nhỏ rồi gửi lại.
+    #[error("Batch quá lớn so với giới hạn của server")]
+    TooLarge,
+    /// `429`: gửi quá nhanh; chờ `retry_after` giây (nếu server báo) rồi thử lại.
+    #[error("Server báo gửi quá nhanh: {message}")]
+    RateLimited {
+        retry_after: Option<u64>,
+        message: String,
+    },
+    /// `426`: server không hỗ trợ `schema_version` này, cần cập nhật CLI.
+    #[error("Server không nhận phiên bản dữ liệu của tl này: {message}")]
+    UpgradeRequired {
+        min_cli_version: Option<String>,
+        message: String,
+    },
+    #[error(transparent)]
+    Api(#[from] ApiError),
+}
+
 impl ApiError {
     /// Mã lỗi API nếu là lỗi đúng định dạng.
     pub fn code(&self) -> Option<&ApiErrorCode> {
@@ -161,6 +183,41 @@ impl ApiClient {
     pub async fn logout(&self) -> Result<(), ApiError> {
         let req = self.request(Method::POST, "/agent/v1/logout");
         self.send_empty(req).await
+    }
+
+    /// `POST /agent/v1/ingest` với body JSON đã nén gzip (`Content-Encoding: gzip`).
+    pub async fn ingest_gzip(&self, gzip_body: Vec<u8>) -> Result<IngestResult, IngestError> {
+        let req = self
+            .request(Method::POST, "/agent/v1/ingest")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::CONTENT_ENCODING, "gzip")
+            .body(gzip_body);
+        let resp = req.send().await.map_err(|source| ApiError::Network {
+            url: self.base_url.clone(),
+            source,
+        })?;
+        let status = resp.status();
+        tracing::debug!(status = %status, "phản hồi ingest");
+        if status.is_success() {
+            let text = resp.text().await.map_err(|source| ApiError::Network {
+                url: self.base_url.clone(),
+                source,
+            })?;
+            return serde_json::from_str(&text).map_err(|e| {
+                ApiError::InvalidResponse {
+                    status: status.as_u16(),
+                    detail: format!("JSON không đúng contract ({e})"),
+                }
+                .into()
+            });
+        }
+        let retry_after = resp
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok());
+        let text = resp.text().await.unwrap_or_default();
+        Err(ingest_error(status, retry_after, &text))
     }
 
     fn url(&self, path: &str) -> String {
@@ -237,6 +294,27 @@ pub fn parse_error_body(status: StatusCode, text: &str) -> ApiError {
     }
 }
 
+/// Chuyển phản hồi lỗi của ingest thành [`IngestError`]. Tách riêng để test.
+pub fn ingest_error(status: StatusCode, retry_after: Option<u64>, text: &str) -> IngestError {
+    match status {
+        StatusCode::PAYLOAD_TOO_LARGE => IngestError::TooLarge,
+        StatusCode::TOO_MANY_REQUESTS => IngestError::RateLimited {
+            retry_after,
+            message: serde_json::from_str::<ErrorBody>(text)
+                .map(|b| b.message)
+                .unwrap_or_default(),
+        },
+        StatusCode::UPGRADE_REQUIRED => {
+            let body: Option<UnsupportedSchemaVersionBody> = serde_json::from_str(text).ok();
+            IngestError::UpgradeRequired {
+                min_cli_version: body.as_ref().and_then(|b| b.min_cli_version.clone()),
+                message: body.map(|b| b.message).unwrap_or_default(),
+            }
+        }
+        _ => IngestError::Api(parse_error_body(status, text)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +361,38 @@ mod tests {
             ApiError::InvalidResponse { detail, .. } => assert_eq!(detail, "Not Found"),
             other => panic!("sai loại lỗi: {other:?}"),
         }
+    }
+
+    #[test]
+    fn ingest_error_theo_ma_http() {
+        assert!(matches!(
+            ingest_error(StatusCode::PAYLOAD_TOO_LARGE, None, "<html>"),
+            IngestError::TooLarge
+        ));
+        match ingest_error(
+            StatusCode::UPGRADE_REQUIRED,
+            None,
+            r#"{"error":"unsupported_schema_version","message":"Cập nhật","supportedSchemaVersions":[1],"minCliVersion":"0.2.0"}"#,
+        ) {
+            IngestError::UpgradeRequired {
+                min_cli_version, ..
+            } => {
+                assert_eq!(min_cli_version.as_deref(), Some("0.2.0"));
+            }
+            other => panic!("sai loại lỗi: {other:?}"),
+        }
+        match ingest_error(StatusCode::TOO_MANY_REQUESTS, Some(7), "") {
+            IngestError::RateLimited { retry_after, .. } => assert_eq!(retry_after, Some(7)),
+            other => panic!("sai loại lỗi: {other:?}"),
+        }
+        assert!(matches!(
+            ingest_error(
+                StatusCode::UNAUTHORIZED,
+                None,
+                r#"{"error":"invalid_token","message":"x"}"#
+            ),
+            IngestError::Api(ApiError::Api { status: 401, .. })
+        ));
     }
 
     #[test]
