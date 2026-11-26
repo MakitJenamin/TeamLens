@@ -7,6 +7,7 @@
 pub mod agent_config;
 pub mod consent_gate;
 pub mod incremental;
+pub mod scan;
 
 use tl_adapters::claude_code::ClaudeCodeAdapter;
 use tl_adapters::codex::CodexAdapter;

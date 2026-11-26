@@ -146,7 +146,8 @@ async fn pause_resume_gui_heartbeat_ngay_va_doi_trang_thai() {
     let v: Value = serde_json::from_str(&status_text(&ctx, true).await).unwrap();
     assert_eq!(v["paused"], false);
     assert_eq!(v["lastHeartbeat"]["status"], "online");
-    assert_eq!(v["daemon"], "chưa chạy");
+    #[cfg(windows)]
+    assert_eq!(v["daemon"]["running"], false);
 }
 
 #[tokio::test]

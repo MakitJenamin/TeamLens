@@ -1463,3 +1463,157 @@ async fn sync_moi_turn_trong_khoang_tam_dung_thi_khong_gui_session() {
     assert!(out.contains("Không có session nào mới"), "{out}");
     assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
 }
+
+// ---------------------------------------------------------------------------
+// Daemon (M3.2): một chu kỳ `daemon::run_cycle`, thời gian truyền vào (không chờ thật).
+// ---------------------------------------------------------------------------
+
+mod daemon_cycle {
+    use super::*;
+    use std::time::SystemTime;
+    use teamlens::daemon::{self, CycleSkip};
+    use teamlens::queue;
+    use teamlens::state::{state_path, StateDb};
+
+    async fn cycle(env: &Env, ctx: &AppContext, now: SystemTime) -> daemon::CycleReport {
+        let conn = teamlens::sync::connect(ctx).await.unwrap();
+        daemon::run_cycle(ctx, &env.sources(), &conn, now, 8 << 20)
+            .await
+            .unwrap()
+    }
+
+    fn pending(ctx: &AppContext) -> u64 {
+        let db = StateDb::open(&state_path(&ctx.config_path)).unwrap();
+        queue::queue_stats(&db).unwrap().pending_batches
+    }
+
+    #[tokio::test]
+    async fn chu_ky_cho_file_on_dinh_roi_gui_chi_session_trong_pham_vi() {
+        let env = Env::new(); // file vừa ghi
+        let ingest = Ingest::new(vec![]);
+        let server = server_with(ingest.clone()).await;
+        let ctx = env.ctx(&server.uri());
+        assert!(daemon::last_cycle_at(&ctx).is_none());
+
+        // Lúc này file còn đang ghi: chờ, không gửi.
+        let now = SystemTime::now();
+        let r = cycle(&env, &ctx, now).await;
+        assert!(r.skipped.is_none());
+        assert_eq!(r.scan.waiting, 3, "{r:?}");
+        assert_eq!(r.sent_batches, 0);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+        assert!(daemon::last_cycle_at(&ctx).is_some());
+
+        // 3 phút sau (không chờ thật): file đã ổn định → gửi.
+        let later = now + Duration::from_secs(180);
+        let r = cycle(&env, &ctx, later).await;
+        assert_eq!(r.scan.waiting, 0);
+        assert_eq!(r.scan.collect.in_scope, 1, "{r:?}");
+        assert_eq!(r.scan.collect.out_of_scope, 2);
+        assert_eq!(r.sent_batches, 1);
+        assert!(r.stop.is_none());
+        let bodies = ingest.bodies.lock().unwrap().clone();
+        assert_eq!(bodies.len(), 1);
+        assert_valid_batch(&bodies[0]);
+        assert_clean(&env, &serde_json::to_string(&bodies[0]).unwrap());
+        assert_eq!(pending(&ctx), 0);
+
+        // Chu kỳ sau: không đổi gì, không gửi lại.
+        let r = cycle(&env, &ctx, later + Duration::from_secs(600)).await;
+        assert_eq!(r.scan.unchanged, 3);
+        assert_eq!(r.sent_batches, 0);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn chu_ky_chua_dong_y_khong_quet_khong_gui() {
+        let env = Env::new();
+        age_logs(&env);
+        let ingest = Ingest::new(vec![]);
+        let server = server_with(ingest.clone()).await;
+        let ctx = env.ctx(&server.uri());
+        let conn = teamlens::sync::connect(&ctx).await.unwrap();
+        // Rút đồng ý sau khi daemon đã kết nối.
+        let ctx = env.ctx_with_consent(&server.uri(), None);
+        let r = daemon::run_cycle(&ctx, &env.sources(), &conn, SystemTime::now(), 8 << 20)
+            .await
+            .unwrap();
+        assert_eq!(r.skipped, Some(CycleSkip::NoConsent));
+        assert_eq!(r.scan.collect.files, 0);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn chu_ky_dang_tam_dung_khong_quet_khong_gui() {
+        let env = Env::new();
+        age_logs(&env);
+        let ingest = Ingest::new(vec![]);
+        let server = server_with(ingest.clone()).await;
+        let ctx = env.ctx(&server.uri());
+        StateDb::open(&state_path(&ctx.config_path))
+            .unwrap()
+            .set_paused(true, chrono::Utc::now())
+            .unwrap();
+        let r = cycle(&env, &ctx, SystemTime::now()).await;
+        assert_eq!(r.skipped, Some(CycleSkip::Paused));
+        assert_eq!(r.scan.collect.files, 0);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn chu_ky_lech_phien_ban_dong_y_hoac_cli_cu_khong_gui() {
+        for body in [
+            config_body("2026-12-01", "0.1.0"),
+            config_body(CONSENT_VERSION, "9.9.9"),
+        ] {
+            let env = Env::new();
+            age_logs(&env);
+            let ingest = Ingest::new(vec![]);
+            let server = server_with_config(ingest.clone(), body).await;
+            let ctx = env.ctx(&server.uri());
+            let r = cycle(&env, &ctx, SystemTime::now()).await;
+            assert!(
+                matches!(r.skipped, Some(CycleSkip::Blocked(_))),
+                "{:?}",
+                r.skipped
+            );
+            assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn chu_ky_loi_mang_giu_hang_doi_va_ton_trong_backoff() {
+        let env = Env::new();
+        age_logs(&env);
+        let ingest = Ingest::new(vec![ResponseTemplate::new(503)
+            .set_body_json(json!({ "error": "unavailable", "message": "bảo trì" }))]);
+        let server = server_with(ingest.clone()).await;
+        let ctx = env.ctx(&server.uri());
+        let now = SystemTime::now();
+        let r = cycle(&env, &ctx, now).await;
+        assert_eq!(r.enqueued.batches, 1);
+        assert_eq!(r.sent_batches, 0);
+        assert!(r.stop.is_some());
+        let retry_at = r.retry_at.expect("phải hẹn gửi lại");
+        assert_eq!(pending(&ctx), 1);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+
+        // Ngay sau đó: chưa tới giờ thử lại → không gửi, không xếp hàng trùng.
+        let r = cycle(&env, &ctx, now + Duration::from_secs(1)).await;
+        assert_eq!(r.enqueued.batches, 0);
+        assert_eq!(r.sent_batches, 0);
+        assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(r.retry_at, Some(retry_at));
+
+        // Tới giờ hẹn: gửi lại đúng batch đó.
+        let r = cycle(
+            &env,
+            &ctx,
+            SystemTime::from(retry_at) + Duration::from_secs(1),
+        )
+        .await;
+        assert_eq!(r.sent_batches, 1);
+        assert_eq!(pending(&ctx), 0);
+        assert_eq!(ingest.bodies.lock().unwrap().len(), 1);
+    }
+}

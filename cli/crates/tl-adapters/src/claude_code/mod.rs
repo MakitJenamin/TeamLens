@@ -65,6 +65,10 @@ impl Adapter for ClaudeCodeAdapter {
         AgentKind::ClaudeCode
     }
 
+    fn watch_dirs(&self) -> Vec<PathBuf> {
+        vec![self.projects_dir()]
+    }
+
     /// Liệt kê `<root>\projects\*\*.jsonl` (session gốc) và
     /// `<root>\projects\*\<uuid>\subagents\agent-*.jsonl` (transcript subagent), sắp theo
     /// đường dẫn. Thư mục không tồn tại hoặc không đọc được thì trả về rỗng (máy chưa

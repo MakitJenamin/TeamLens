@@ -74,6 +74,7 @@ async fn status_shows_account_and_projects() {
     assert!(text.contains("MAY-TEST"));
     assert!(text.contains("TeamLens (teamlens)"));
     assert!(text.contains("github.com/acme/*"));
+    #[cfg(windows)]
     assert!(text.contains("Daemon:     chưa chạy"), "{text}");
     assert!(text.contains("Hàng đợi:   trống"), "{text}");
 
@@ -90,7 +91,9 @@ async fn status_shows_account_and_projects() {
         v["account"]["projects"][1]["repoPatterns"][0],
         "github.com/acme/*"
     );
-    assert_eq!(v["daemon"], "chưa chạy");
+    #[cfg(windows)]
+    assert_eq!(v["daemon"]["running"], false);
+    assert_eq!(v["daemon"]["lastCycleAt"], serde_json::Value::Null);
     assert_eq!(v["queue"]["pendingBatches"], 0);
 }
 
