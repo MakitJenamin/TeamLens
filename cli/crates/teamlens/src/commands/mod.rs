@@ -26,7 +26,7 @@ pub async fn dispatch(
 ) -> Result<(), AppError> {
     match command {
         Command::Consent(args) => consent::run(args),
-        Command::Daemon(args) => daemon::run(args),
+        Command::Daemon(args) => daemon::run(&make_ctx()?, args, out).await,
         Command::Uninstall(args) => uninstall::run(args),
         Command::Join(args) => join::run(&make_ctx()?, args, out).await,
         Command::Open(args) => open::run(&make_ctx()?, args, out).await.map(|_| ()),

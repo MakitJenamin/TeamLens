@@ -66,6 +66,13 @@ impl Adapter for CodexAdapter {
         AgentKind::Codex
     }
 
+    fn watch_dirs(&self) -> Vec<PathBuf> {
+        vec![
+            self.root.join("sessions"),
+            self.root.join("archived_sessions"),
+        ]
+    }
+
     /// Liệt kê rollout trong `sessions\` (tới [`MAX_DEPTH`] cấp) và `archived_sessions\`,
     /// sắp theo đường dẫn. Thư mục không có hoặc không đọc được thì bỏ qua.
     fn discover(&self) -> Vec<SourceFile> {

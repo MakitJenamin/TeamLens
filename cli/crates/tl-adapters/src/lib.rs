@@ -92,6 +92,11 @@ pub trait Adapter {
     fn id(&self) -> AgentKind;
     /// Tìm các file log của agent trên máy.
     fn discover(&self) -> Vec<SourceFile>;
+    /// Các thư mục chứa file log để daemon theo dõi thay đổi (watch đệ quy). Thư mục có
+    /// thể chưa tồn tại (máy chưa dùng agent này); daemon bỏ qua và thử lại lúc quét.
+    fn watch_dirs(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
     /// Đọc tiếp từ `from`, trả về các bản ghi mới và offset kế tiếp.
     fn read_incremental(
         &self,

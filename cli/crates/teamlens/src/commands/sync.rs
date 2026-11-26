@@ -23,9 +23,8 @@ use crate::pipeline::scope::ScopeFilter;
 use crate::queue::{self, format_bytes, FlushOptions, FlushReport, FlushStop};
 use crate::state::{state_path, StateDb};
 use crate::sync::agent_config::{self, ConfigSource};
-use crate::sync::incremental::{
-    classify, is_active, scope_fingerprint, FilePlan, FileStatus, PlannedSession, SCOPE_META_KEY,
-};
+use crate::sync::incremental::{scope_fingerprint, FilePlan, PlannedSession};
+use crate::sync::scan::{self, ScanOptions, ScanStats};
 use crate::sync::{connect, consent_gate, dashboard_link, Sources};
 
 /// Số link dashboard in tối đa sau khi gửi.
@@ -46,13 +45,6 @@ pub struct SyncArgs {
 
 pub async fn run(ctx: &AppContext, args: SyncArgs, out: &mut dyn Write) -> Result<(), AppError> {
     run_with(ctx, args, &Sources::from_env(), MAX_BATCH_JSON_BYTES, out).await
-}
-
-/// Số file bỏ qua ở lần quét này.
-#[derive(Debug, Default)]
-struct SkipStats {
-    unchanged: usize,
-    waiting: usize,
 }
 
 fn state_err(ctx: &AppContext) -> impl Fn(rusqlite::Error) -> AppError + '_ {
@@ -146,104 +138,46 @@ async fn sync_once(
     let mut db = StateDb::open(&state_path(&ctx.config_path))?;
     // Phạm vi gửi đổi (server, repo pattern, đồng ý) → xét lại mọi file từ đầu.
     let fingerprint = scope_fingerprint(&conn.server_url, server_config, consent.as_ref());
-    let scope_changed =
-        db.meta(SCOPE_META_KEY).map_err(state_err(ctx))?.as_deref() != Some(fingerprint.as_str());
+    let scope_changed = scan::scope_changed(&db, &fingerprint).map_err(state_err(ctx))?;
     if scope_changed && !args.dry_run {
         // Batch cũ thuộc phạm vi cũ (có thể là server khác): bỏ, quét lại từ đầu.
-        queue::clear(&mut db).map_err(state_err(ctx))?;
-        db.reset_files().map_err(state_err(ctx))?;
-        db.set_meta(SCOPE_META_KEY, &fingerprint)
-            .map_err(state_err(ctx))?;
+        scan::reset_scope(&mut db, &fingerprint).map_err(state_err(ctx))?;
     }
-    let now = SystemTime::now();
     let mut pipeline = Pipeline {
         filter: &mut filter,
         redactor: &redactor,
         options: &prepare,
-        now,
+        now: SystemTime::now(),
     };
-    let mut stats = CollectStats::default();
-    let mut skip = SkipStats::default();
-    let mut skipped_by_consent = 0usize;
-    // Turn phát sinh lúc `tl pause` không bao giờ được gửi.
-    let pause_windows = db.pause_windows().map_err(state_err(ctx))?;
-    let mut dropped_paused = 0usize;
     let mut plans: Vec<FilePlan> = Vec::new();
-    for adapter in sources.adapter_refs() {
-        for file in adapter.discover() {
-            let prev = if scope_changed {
-                None // dry-run khi phạm vi đổi: xem như gửi lại từ đầu.
-            } else {
-                db.effective_file(&file.path).map_err(state_err(ctx))?
-            };
-            let reset = match classify(&file, prev.as_ref(), now, args.include_active) {
-                FileStatus::Unchanged => {
-                    skip.unchanged += 1;
-                    continue;
-                }
-                FileStatus::Waiting => {
-                    skip.waiting += 1;
-                    continue;
-                }
-                FileStatus::Ready { reset } => reset,
-            };
-            let (sessions, s) = pipeline.process_file(adapter, &file);
-            stats.merge(&s);
-            if !args.dry_run {
-                // Phiên bản agent (chỉ từ session trong phạm vi) để heartbeat báo lên server.
-                if let Some(v) = sessions
-                    .iter()
-                    .filter_map(|p| p.envelope.session.agent_version.as_deref())
-                    .next_back()
-                {
-                    db.set_meta(&heartbeat::agent_version_key(file.agent.as_str()), v)
-                        .map_err(state_err(ctx))?;
-                }
-            }
-            if !args.dry_run {
-                db.record_parse_errors(
-                    &file.path,
-                    file.agent.as_str(),
-                    s.parse_warnings,
-                    s.read_errors > 0,
-                )
-                .map_err(state_err(ctx))?;
-            }
-            if s.read_errors > 0 {
-                continue; // Không ghi offset: lần sau đọc lại.
-            }
-            let prev_sessions = if reset { None } else { prev.as_ref() };
-            let mut planned = Vec::new();
-            for p in sessions {
-                // Chỉ gửi session của project đã đồng ý; không backfill thì bỏ session cũ.
-                if let Some(state) = &consent {
-                    if !state.allows_session(&p.project_id, p.last_activity) {
-                        skipped_by_consent += 1;
-                        continue;
-                    }
-                }
-                let progress = prev_sessions.and_then(|f| f.session(&p.envelope.session.source_id));
-                let mut plan = PlannedSession::new(p, progress);
-                dropped_paused += plan.drop_paused_turns(&pause_windows);
-                planned.push(plan);
-            }
-            plans.push(FilePlan {
-                active: is_active(&file, now),
-                file,
-                reset,
-                prev,
-                sessions: planned,
-            });
-        }
-    }
+    let scanned = scan::scan(
+        &mut db,
+        sources,
+        &mut pipeline,
+        consent.as_ref(),
+        ScanOptions {
+            include_active: args.include_active,
+            // dry-run khi phạm vi đổi: xem như gửi lại từ đầu.
+            ignore_state: scope_changed,
+            record_meta: !args.dry_run,
+        },
+        &mut |_, plan| {
+            plans.push(plan);
+            Ok(())
+        },
+    )
+    .map_err(state_err(ctx))?;
+    let stats = &scanned.collect;
+    let skipped_by_consent = scanned.skipped_by_consent;
+    let dropped_paused = scanned.dropped_paused;
 
     let turns: usize = plans
         .iter()
         .flat_map(|p| &p.sessions)
         .map(PlannedSession::turn_count)
         .sum();
-    print_stats(out, &stats, turns);
-    print_skips(out, &skip);
+    print_stats(out, stats, turns);
+    print_skips(out, &scanned);
     if skipped_by_consent > 0 {
         let _ = writeln!(
             out,
@@ -347,7 +281,7 @@ fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
     }
 }
 
-fn print_skips(out: &mut dyn Write, s: &SkipStats) {
+fn print_skips(out: &mut dyn Write, s: &ScanStats) {
     if s.unchanged > 0 {
         let _ = writeln!(
             out,

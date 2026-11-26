@@ -1,7 +1,7 @@
 //! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`),
 //! đồng ý, trạng thái thu thập (`tl pause`), heartbeat gần nhất, agent phát hiện được, file chờ
 //! ổn định, hàng đợi, lỗi parse (M3.3). Phần cục bộ chỉ đọc metadata file log và `state.db`.
-//! Dòng "Daemon" để M3.2 điền.
+//! Dòng "Daemon" (M3.2): thử named mutex của daemon và đọc chu kỳ gần nhất trong `state.db`.
 
 use std::io::Write;
 use std::time::SystemTime;
@@ -20,8 +20,43 @@ use crate::state::{state_path, StateDb};
 use crate::sync::incremental::{classify, FileStatus};
 use crate::sync::Sources;
 
-/// TODO(M3.2): daemon chưa có; khi có thì kiểm tra named mutex để biết daemon đang chạy.
-const DAEMON_UNKNOWN: &str = "chưa chạy";
+/// Trạng thái daemon trên máy (M3.2).
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaemonStatus {
+    /// Daemon của thư mục dữ liệu này có đang chạy (giữ named mutex); `null` khi không
+    /// kiểm tra được.
+    pub running: Option<bool>,
+    /// Lúc daemon chạy xong chu kỳ gần nhất (đọc từ `state.db`).
+    pub last_cycle_at: Option<DateTime<Utc>>,
+}
+
+/// Daemon có đang chạy không (thử named mutex) và chu kỳ gần nhất.
+pub fn daemon_status(ctx: &AppContext) -> DaemonStatus {
+    let running = ctx
+        .config_path
+        .parent()
+        .and_then(|dir| crate::daemon::instance::is_running(tl_platform::current().as_ref(), dir));
+    DaemonStatus {
+        running,
+        last_cycle_at: crate::daemon::last_cycle_at(ctx),
+    }
+}
+
+/// Dòng "Daemon" của `tl status`.
+fn daemon_text(d: &DaemonStatus) -> String {
+    let mut text = match d.running {
+        Some(true) => "đang chạy".to_owned(),
+        Some(false) => {
+            "chưa chạy (chạy `tl daemon`, hoặc đăng xuất rồi đăng nhập lại Windows)".to_owned()
+        }
+        None => "không kiểm tra được".to_owned(),
+    };
+    if let Some(t) = d.last_cycle_at {
+        text.push_str(&format!(", quét lần cuối lúc {}", local_time(t)));
+    }
+    text
+}
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
@@ -46,7 +81,7 @@ pub struct StatusReport {
     pub account_error: Option<String>,
     /// Bản đồng ý cục bộ cho server hiện tại, `null` nếu chưa đồng ý.
     pub consent: Option<ConsentState>,
-    pub daemon: &'static str,
+    pub daemon: DaemonStatus,
     /// Đang `tl pause` (không quét, không gửi).
     pub paused: bool,
     /// Lúc bắt đầu tạm dừng (khi `paused`).
@@ -151,7 +186,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         account: None,
         account_error: None,
         consent: consent::current(&config).cloned(),
-        daemon: DAEMON_UNKNOWN,
+        daemon: daemon_status(ctx),
         paused: false,
         paused_since: None,
         last_heartbeat: LastHeartbeat::default(),
@@ -275,7 +310,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
         (true, None) => "tạm dừng — không quét, không gửi; `tl resume` để tiếp tục".to_owned(),
     };
     w("Trạng thái:", &state);
-    w("Daemon:", r.daemon);
+    w("Daemon:", &daemon_text(&r.daemon));
     let hb = match (r.last_heartbeat.at, &r.last_heartbeat.status) {
         (Some(at), Some(st)) => {
             format!("{} (server ghi nhận: {})", local_time(at), status_label(st))
