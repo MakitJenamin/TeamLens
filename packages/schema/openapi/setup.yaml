@@ -25,7 +25,10 @@ paths:
       operationId: setup
       tags: [setup]
       summary: Tạo leader đầu tiên và đăng nhập luôn
-      description: Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `role = leader`.
+      description: |
+        Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `role = leader`.
+        Wizard `/setup` gửi kèm `project` (tùy chọn): server tạo luôn project, repo pattern, thêm leader
+        làm thành viên và tạo một link mời mặc định (7 ngày, không giới hạn lượt), trả về trong `invite`.
       security: []
       requestBody:
         required: true
@@ -45,6 +48,23 @@ paths:
                 password:
                   type: string
                   minLength: 8
+                project:
+                  type: object
+                  required: [name, slug, repoPatterns]
+                  additionalProperties: false
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                    slug:
+                      $ref: './common.yaml#/components/schemas/ProjectSlug'
+                    repoPatterns:
+                      type: array
+                      minItems: 1
+                      maxItems: 20
+                      items:
+                        type: string
+                        description: Pattern remote, server chuẩn hóa như khi thêm repo.
       responses:
         '201':
           description: Đã tạo leader; cookie `tl_session` được đặt.
@@ -60,8 +80,16 @@ paths:
                 properties:
                   user:
                     $ref: './common.yaml#/components/schemas/User'
+                  project:
+                    $ref: './common.yaml#/components/schemas/ProjectDetail'
+                  invite:
+                    $ref: './invites.yaml#/components/schemas/CreatedInvite'
         '400':
-          $ref: './common.yaml#/components/responses/ValidationError'
+          description: 'Body sai (`validation_error`) hoặc repo pattern không hợp lệ (`invalid_pattern`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
         '409':
           description: 'Server đã có user (`error`: `already_setup`).'
           content:

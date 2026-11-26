@@ -126,3 +126,71 @@ paths:
               example:
                 error: last_leader
                 message: Server phải còn ít nhất một leader.
+
+  /api/v1/users/{userId}/merge:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/UserId'
+    post:
+      operationId: mergeUser
+      tags: [users]
+      summary: Gộp user `userId` vào user khác (leader)
+      description: |
+        Dùng khi một người tham gia lần nữa (máy thứ hai, cài lại Windows) và thành user mới.
+        Trong một transaction: chuyển `devices`, `sessions`, `consents`, `project_members` (bỏ trùng),
+        `notes`, `ingest_batches` (bỏ trùng) của `userId` sang `intoUserId`; session trùng `source_id`
+        giữ bản `updated_at` mới hơn; ghi audit `member.merge`; xóa user `userId`. Sau đó phát job chấm
+        lại các session đã chuyển. Không gộp được user vào chính nó, và không gộp leader vào member.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intoUserId]
+              additionalProperties: false
+              properties:
+                intoUserId:
+                  $ref: './common.yaml#/components/schemas/Id'
+      responses:
+        '200':
+          description: User còn lại sau khi gộp và số bản ghi đã chuyển.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, moved]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/User'
+                  moved:
+                    type: object
+                    required: [devices, sessions, projects]
+                    additionalProperties: false
+                    properties:
+                      devices:
+                        type: integer
+                      sessions:
+                        type: integer
+                      projects:
+                        type: integer
+        '400':
+          description: 'Body sai (`validation_error`) hoặc gộp vào chính nó (`same_user`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Gộp leader vào member (`error`: `role_mismatch`); hạ vai trò trước rồi gộp.'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'

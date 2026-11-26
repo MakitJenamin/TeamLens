@@ -50,6 +50,8 @@ export interface paths {
         /**
          * Tạo leader đầu tiên và đăng nhập luôn
          * @description Chỉ dùng được khi chưa có user nào. Tài khoản tạo ra có `role = leader`.
+         *     Wizard `/setup` gửi kèm `project` (tùy chọn): server tạo luôn project, repo pattern, thêm leader
+         *     làm thành viên và tạo một link mời mặc định (7 ngày, không giới hạn lượt), trả về trong `invite`.
          */
         post: operations["setup"];
         delete?: never;
@@ -106,6 +108,26 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Đổi ticket của `tl open` lấy cookie phiên dashboard
+         * @description Trang web `/auth/cli` gọi endpoint này. Ticket dùng một lần, hết hạn sau 60 giây.
+         */
+        post: operations["exchangeLoginTicket"];
         delete?: never;
         options?: never;
         head?: never;
@@ -281,6 +303,32 @@ export interface paths {
         patch: operations["updateUserRole"];
         trace?: never;
     };
+    "/api/v1/users/{userId}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gộp user `userId` vào user khác (leader)
+         * @description Dùng khi một người tham gia lần nữa (máy thứ hai, cài lại Windows) và thành user mới.
+         *     Trong một transaction: chuyển `devices`, `sessions`, `consents`, `project_members` (bỏ trùng),
+         *     `notes`, `ingest_batches` (bỏ trùng) của `userId` sang `intoUserId`; session trùng `source_id`
+         *     giữ bản `updated_at` mới hơn; ghi audit `member.merge`; xóa user `userId`. Sau đó phát job chấm
+         *     lại các session đã chuyển. Không gộp được user vào chính nó, và không gộp leader vào member.
+         */
+        post: operations["mergeUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/device/approve": {
         parameters: {
             query?: never;
@@ -413,6 +461,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/web-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Xin link đăng nhập dashboard một lần cho `tl open`
+         * @description Member không có mật khẩu: `tl open` gọi endpoint này bằng device token rồi mở `url` trên trình
+         *     duyệt. Ticket sống 60 giây, dùng một lần; DB chỉ lưu SHA-256 (bảng `web_login_tickets`).
+         */
+        post: operations["agentWebLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/v1/ingest": {
         parameters: {
             query?: never;
@@ -514,6 +583,95 @@ export interface paths {
         get: operations["listSessionFindings"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Danh sách link mời của project (leader) */
+        get: operations["listProjectInvites"];
+        put?: never;
+        /** Tạo link mời chung cho project (leader) */
+        post: operations["createProjectInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/invites/{inviteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                inviteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Thu hồi link mời (leader)
+         * @description Đặt `revokedAt`; link không dùng được nữa. Gọi lại trên link đã thu hồi vẫn trả 204.
+         */
+        delete: operations["revokeProjectInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/v1/invites/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mã mời lấy từ link `/i/<code>`. */
+                code: components["parameters"]["InviteCode"];
+            };
+            cookie?: never;
+        };
+        /** Xem trước link mời (công khai, cho màn hình đồng ý của `tl join`) */
+        get: operations["previewInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/v1/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tham gia project bằng mã mời và bản đồng ý
+         * @description Công khai. Trong một transaction: khóa invite và kiểm tra lại → tạo user (`role = member`,
+         *     không email, không mật khẩu) → `project_members` → thiết bị (kèm token) → `consents` →
+         *     tăng `usedCount` → audit `member.join`. Trả device token đúng một lần (`201`).
+         *
+         *     Nếu request kèm `Authorization: Bearer tld_...` hợp lệ (máy đã tham gia), server không tạo
+         *     user/thiết bị mới mà chỉ thêm user đó vào project và ghi bản đồng ý, trả `200` không có token.
+         *     Đã là thành viên project rồi thì vẫn `200`, không tăng `usedCount`.
+         */
+        post: operations["joinWithInvite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -707,6 +865,97 @@ export interface components {
              * @example 0.2.0
              */
             minCliVersion: string;
+        };
+        /**
+         * @description Tính từ `expiresAt`, `maxUses`/`usedCount`, `revokedAt` (thu hồi ưu tiên nhất).
+         * @enum {string}
+         */
+        InviteStatus: "active" | "expired" | "used_up" | "revoked";
+        Invite: {
+            id: components["schemas"]["Id"];
+            projectId: components["schemas"]["Id"];
+            status: components["schemas"]["InviteStatus"];
+            /** Format: date-time */
+            expiresAt: string;
+            maxUses: number | null;
+            usedCount: number;
+            revokedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Leader tạo link; `null` nếu user đó đã bị xóa. */
+            createdBy: components["schemas"]["UserRef"] | null;
+        };
+        CreatedInvite: {
+            invite: components["schemas"]["Invite"];
+            /** @description Mã mời gốc (chỉ trả lần này). */
+            code: string;
+            /**
+             * Format: uri
+             * @description `${TEAMLENS_PUBLIC_URL}/i/<code>`; thành viên chạy `tl join <url>`.
+             * @example http://localhost:3000/i/Zm9vYmFy
+             */
+            url: string;
+            /**
+             * @description Câu lệnh PowerShell cài `tl.exe` rồi tự `tl join` (dùng khi máy chưa có `tl`).
+             * @example irm http://localhost:3000/install.ps1?code=Zm9vYmFy | iex
+             */
+            installCommand: string;
+        };
+        ConsentText: {
+            /**
+             * @description Phiên bản văn bản đồng ý; CLI gửi lại đúng giá trị này khi `join`.
+             * @example 2026-11-26
+             */
+            version: string;
+            /** @description Nội dung tiếng Việt hiển thị trên màn hình đồng ý (spec 4.3). */
+            text: string;
+        };
+        InvitePreview: {
+            /**
+             * Format: uri
+             * @description `TEAMLENS_PUBLIC_URL` của server.
+             */
+            serverUrl: string;
+            project: {
+                id: components["schemas"]["Id"];
+                name: string;
+                slug: components["schemas"]["ProjectSlug"];
+            };
+            /** @description Repo sẽ được thu thập; session ngoài các repo này không bao giờ rời máy. */
+            repoPatterns: components["schemas"]["RemotePattern"][];
+            consent: components["schemas"]["ConsentText"];
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        JoinRequest: {
+            code: string;
+            /** @description Tên hiển thị thành viên tự nhập (bỏ qua khi máy đã có token). */
+            name: string;
+            /** @example LAPTOP-01 */
+            deviceName: string;
+            /** @example windows */
+            os: string;
+            /** @example 0.1.0 */
+            cliVersion: string;
+            consent: {
+                /** @description Phải bằng `consent.version` của server, sai thì `409 consent_outdated`. */
+                textVersion: string;
+                /** @description Có gửi cả session cũ trên máy không. */
+                backfill: boolean;
+            };
+        };
+        JoinResult: {
+            /** @description Device token `tld_...`; chỉ có khi máy mới tham gia (`201`). CLI lưu vào Credential Manager. */
+            accessToken?: string;
+            userId: components["schemas"]["Id"];
+            deviceId: components["schemas"]["Id"];
+            role: components["schemas"]["Role"];
+            project: {
+                id: components["schemas"]["Id"];
+                name: string;
+                slug: components["schemas"]["ProjectSlug"];
+                repoPatterns: components["schemas"]["RemotePattern"][];
+            };
         };
         SessionFinding: {
             id: components["schemas"]["Id"];
@@ -1064,6 +1313,52 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Mã mời không tồn tại (`error`: `invite_not_found`). */
+        InviteNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "invite_not_found",
+                 *       "message": "Link mời không đúng. Hãy xin leader link mới."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Link không dùng được nữa (`error`: `invite_expired`, `invite_used_up` hoặc `invite_revoked`). */
+        InviteUnusable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "invite_expired",
+                 *       "message": "Link mời đã hết hạn. Hãy xin leader link mới."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Quá 10 request/phút từ một IP (`error`: `rate_limited`). Thử lại sau `Retry-After` giây. */
+        RateLimited: {
+            headers: {
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "rate_limited",
+                 *       "message": "Thử lại sau ít phút."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         ProjectId: components["schemas"]["Id"];
@@ -1071,6 +1366,8 @@ export interface components {
         RepoId: components["schemas"]["Id"];
         DeviceId: components["schemas"]["Id"];
         SessionId: components["schemas"]["Id"];
+        /** @description Mã mời lấy từ link `/i/<code>`. */
+        InviteCode: string;
     };
     requestBodies: never;
     headers: {
@@ -1150,6 +1447,11 @@ export interface operations {
                     email: string;
                     name: string;
                     password: string;
+                    project?: {
+                        name: string;
+                        slug: components["schemas"]["ProjectSlug"];
+                        repoPatterns: string[];
+                    };
                 };
             };
         };
@@ -1163,10 +1465,20 @@ export interface operations {
                 content: {
                     "application/json": {
                         user: components["schemas"]["User"];
+                        project?: components["schemas"]["ProjectDetail"];
+                        invite?: components["schemas"]["CreatedInvite"];
                     };
                 };
             };
-            400: components["responses"]["ValidationError"];
+            /** @description Body sai (`validation_error`) hoặc repo pattern không hợp lệ (`invalid_pattern`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Server đã có user (`error`: `already_setup`). */
             409: {
                 headers: {
@@ -1273,6 +1585,51 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+        };
+    };
+    exchangeLoginTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Đăng nhập thành công; cookie `tl_session` được đặt. */
+            200: {
+                headers: {
+                    "Set-Cookie": components["headers"]["SetSessionCookie"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user: components["schemas"]["User"];
+                    };
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            /** @description Ticket sai, đã dùng hoặc hết hạn (`error`: `invalid_ticket`). Chạy lại `tl open`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "invalid_ticket",
+                     *       "message": "Link đăng nhập đã hết hạn hoặc đã dùng. Chạy lại `tl open`."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listProjects: {
@@ -1732,6 +2089,62 @@ export interface operations {
             };
         };
     };
+    mergeUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    intoUserId: components["schemas"]["Id"];
+                };
+            };
+        };
+        responses: {
+            /** @description User còn lại sau khi gộp và số bản ghi đã chuyển. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user: components["schemas"]["User"];
+                        moved: {
+                            devices: number;
+                            sessions: number;
+                            projects: number;
+                        };
+                    };
+                };
+            };
+            /** @description Body sai (`validation_error`) hoặc gộp vào chính nó (`same_user`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Gộp leader vào member (`error`: `role_mismatch`); hạ vai trò trước rồi gộp. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     approveDevice: {
         parameters: {
             query?: never;
@@ -1999,6 +2412,36 @@ export interface operations {
             401: components["responses"]["InvalidToken"];
         };
     };
+    agentWebLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link đăng nhập một lần. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uri
+                         * @description `${TEAMLENS_PUBLIC_URL}/auth/cli?ticket=<ticket>`
+                         * @example http://localhost:3000/auth/cli?ticket=abc
+                         */
+                        url: string;
+                        /** @example 60 */
+                        expiresIn: number;
+                    };
+                };
+            };
+            401: components["responses"]["InvalidToken"];
+        };
+    };
     agentIngest: {
         parameters: {
             query?: never;
@@ -2226,6 +2669,169 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listProjectInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mọi link mời của project, mới nhất trước (kể cả đã hết hạn, hết lượt, thu hồi). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createProjectInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default 7 */
+                    expiresInDays?: number;
+                    /** @description Số lượt dùng tối đa; bỏ trống hoặc `null` là không giới hạn. */
+                    maxUses?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Link vừa tạo. `code`, `url`, `installCommand` chỉ trả đúng lần này. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedInvite"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    revokeProjectInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                inviteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã thu hồi. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    previewInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mã mời lấy từ link `/i/<code>`. */
+                code: components["parameters"]["InviteCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link còn dùng được. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitePreview"];
+                };
+            };
+            404: components["responses"]["InviteNotFound"];
+            410: components["responses"]["InviteUnusable"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    joinWithInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Máy đã có token, được thêm vào project; không có `accessToken`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinResult"];
+                };
+            };
+            /** @description Máy mới tham gia; có `accessToken`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinResult"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["InvalidToken"];
+            404: components["responses"]["InviteNotFound"];
+            /** @description Văn bản đồng ý đã đổi phiên bản (`error`: `consent_outdated`); CLI xem trước lại rồi hỏi đồng ý lại. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "consent_outdated",
+                     *       "message": "Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            410: components["responses"]["InviteUnusable"];
+            429: components["responses"]["RateLimited"];
         };
     };
 }
