@@ -489,6 +489,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Thiết bị báo trạng thái (heartbeat)
+         * @description CLI gửi mỗi 15 phút khi daemon chạy, một lần cuối mỗi `tl sync` và ngay khi `tl pause`/`tl resume`
+         *     (spec 4.1, 4.2, 7.2).
+         *
+         *     **Ngữ nghĩa:**
+         *     - Server ghi `devices.last_seen_at = now()`, `devices.cli_version` và `devices.status` theo `status`
+         *       (`online` hoặc `paused`). Thiết bị đang ở `consent_revoked` (đã rút đồng ý, M3.7) giữ nguyên
+         *       trạng thái đó; heartbeat vẫn được ghi nhận.
+         *     - Số liệu (`agents`, `parse_errors`, `queue`) là ảnh chụp tại thời điểm gửi; server chỉ giữ bản
+         *       gần nhất của mỗi thiết bị để hiện trên dashboard.
+         *     - Không có heartbeat quá 30 phút thì dashboard coi thiết bị là `offline` (tính khi đọc, không ghi
+         *       vào DB).
+         *     - Response trả trạng thái server đang ghi nhận cùng `consent_text_version`, `min_cli_version` để
+         *       daemon biết khi nào cần tải lại `GET /agent/v1/config` (đổi văn bản đồng ý, cần cập nhật CLI)
+         *       mà không phải tải config mỗi 15 phút.
+         *
+         *     **Giới hạn:** tối đa 20 request/phút mỗi thiết bị.
+         *
+         *     **Lưu ý:** JSON của endpoint này dùng snake_case như `GET /agent/v1/config`.
+         */
+        post: operations["agentHeartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/sessions": {
         parameters: {
             query?: never;
@@ -531,6 +568,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Ghi chú của leader trên session
+         * @description Mọi ghi chú của session, theo `createdAt` tăng dần. Ai xem được session (leader, hoặc member chủ session)
+         *     thì xem được ghi chú (không ghi audit riêng: trang xem session đã ghi `session.view`). Tạo, xóa ghi chú ghi audit
+         *     `session.note.create`, `session.note.delete`.
+         */
+        get: operations["listSessionNotes"];
+        put?: never;
+        /**
+         * Thêm ghi chú (leader)
+         * @description Chỉ leader. `turnSeq` phải là `seq` của một turn trong session (404 `turn_not_found` nếu không có);
+         *     null là ghi chú chung cho cả session.
+         */
+        post: operations["createSessionNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/notes/{noteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                noteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Xóa ghi chú (leader, chỉ của chính mình)
+         * @description Chỉ tác giả (leader) xóa được ghi chú của mình; ghi chú của người khác trả 403.
+         */
+        delete: operations["deleteSessionNote"];
         options?: never;
         head?: never;
         patch?: never;
@@ -878,6 +967,66 @@ export interface components {
             /** @description Tối đa cho thinking (mặc định 8192). */
             thinking_bytes: number;
         };
+        /** @description Trạng thái thiết bị CLI gửi lên (snake_case). */
+        HeartbeatRequest: {
+            /**
+             * @description `paused` sau `tl pause` (không quét, không gửi); `online` khi đang thu thập.
+             * @enum {string}
+             */
+            status: "online" | "paused";
+            /**
+             * @description Phiên bản `tl` (semver `x.y.z`).
+             * @example 0.1.0
+             */
+            cli_version: string;
+            /** @description Agent CLI phát hiện trên máy (mỗi loại agent tối đa một phần tử). */
+            agents: components["schemas"]["HeartbeatAgent"][];
+            /** @description Số lỗi parse đang ghi nhận trong `state.db` (bản ghi log lạ bị bỏ qua). */
+            parse_errors: number;
+            queue: components["schemas"]["HeartbeatQueue"];
+            /**
+             * Format: date-time
+             * @description Thời điểm CLI gửi (giờ máy, chỉ để tham khảo; server dùng giờ của mình cho `last_seen_at`).
+             */
+            sent_at: string;
+        };
+        HeartbeatAgent: {
+            agent: components["schemas"]["AgentKind"];
+            /** @description Phiên bản agent đọc được từ log gần nhất; null nếu chưa biết. */
+            version: string | null;
+            /** @description Số file log của agent CLI tìm thấy. */
+            files: number;
+        };
+        /** @description Hàng đợi gửi offline trên máy (spec 4.4). */
+        HeartbeatQueue: {
+            /** @description Số batch đang chờ gửi. */
+            batches: number;
+            /** @description Tổng kích thước hàng đợi (byte). */
+            bytes: number;
+            /** @description Số batch đã bỏ vì hàng đợi đầy (cộng dồn). */
+            dropped: number;
+            /** @description Số batch gửi lỗi vĩnh viễn (cộng dồn). */
+            failed: number;
+        };
+        /** @description Trạng thái server ghi nhận cho thiết bị (snake_case). */
+        HeartbeatResult: {
+            /**
+             * @description Trạng thái thiết bị trên server sau heartbeat. `consent_revoked`: thiết bị đã rút đồng ý,
+             *     CLI ngừng gửi.
+             * @enum {string}
+             */
+            status: "online" | "paused" | "consent_revoked";
+            /**
+             * @description Như `AgentConfig.consent_text_version`; khác bản máy đã đồng ý thì tải lại config.
+             * @example 2026-11-27.2
+             */
+            consent_text_version: string;
+            /**
+             * @description Như `AgentConfig.min_cli_version`.
+             * @example 0.1.0
+             */
+            min_cli_version: string;
+        };
         /**
          * @description Tính từ `expiresAt`, `maxUses`/`usedCount`, `revokedAt` (thu hồi ưu tiên nhất).
          * @enum {string}
@@ -1036,6 +1185,8 @@ export interface components {
             title: string | null;
             /** @description Id session cha khi đây là session con (subagent); null với session gốc hoặc khi cha chưa tới. */
             parentSessionId: components["schemas"]["Id"] | null;
+            /** @description Số session con (subagent) đã gắn vào session này. */
+            childCount: number;
             /** @description Chế độ quyền của agent; null khi CLI không gửi. */
             permissionMode: components["schemas"]["PermissionMode"] | null;
         };
@@ -1066,6 +1217,8 @@ export interface components {
             instructionFiles: components["schemas"]["InstructionFile"][] | null;
             /** @description Id các session con (subagent), theo `startedAt` tăng dần. */
             childSessionIds: components["schemas"]["Id"][];
+            /** @description Thông tin rút gọn các session con, cùng thứ tự với `childSessionIds`. */
+            children: components["schemas"]["SessionChild"][];
             /** @description Mọi turn của session, theo `seq` tăng dần. */
             turns: components["schemas"]["SessionTurn"][];
         };
@@ -1139,6 +1292,45 @@ export interface components {
              */
             type: string;
             count: number;
+        };
+        /**
+         * @description Session con (subagent) rút gọn, đủ để dashboard ghép vào turn tool `Task`/`Agent` của session cha
+         *     (Claude Code: `sourceId` là `claude_code:<sessionId>:<agentId>`).
+         */
+        SessionChild: {
+            id: components["schemas"]["Id"];
+            /** @example claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60:a8d48656c1a58b54b */
+            sourceId: string;
+            agent: components["schemas"]["AgentKind"];
+            /** @description Prompt đầu tiên giao cho session con, tối đa 200 ký tự. */
+            title: string | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+            turnCount: number;
+        };
+        /** @description Ghi chú của leader trên session, gắn vào một turn hoặc cả session. */
+        SessionNote: {
+            id: components["schemas"]["Id"];
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của turn được ghi chú; null là ghi chú chung cho cả session. */
+            turnSeq: number | null;
+            body: string;
+            /** @description Người viết; null khi tài khoản đã bị xóa. */
+            author: components["schemas"]["UserRef"] | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SessionNoteList: {
+            /** @description Theo `createdAt` tăng dần. */
+            items: components["schemas"]["SessionNote"][];
+        };
+        CreateSessionNoteRequest: {
+            /** @description Bỏ trống hoặc null để ghi chú cho cả session. */
+            turnSeq?: number | null;
+            /** @description Nội dung ghi chú (văn bản thuần, cắt khoảng trắng hai đầu). */
+            body: string;
         };
         SourceId: string;
         Session: {
@@ -2467,6 +2659,96 @@ export interface operations {
             401: components["responses"]["InvalidToken"];
         };
     };
+    agentHeartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "status": "online",
+                 *       "cli_version": "0.1.0",
+                 *       "agents": [
+                 *         {
+                 *           "agent": "claude_code",
+                 *           "version": "2.1.3",
+                 *           "files": 12
+                 *         },
+                 *         {
+                 *           "agent": "codex",
+                 *           "version": null,
+                 *           "files": 0
+                 *         }
+                 *       ],
+                 *       "parse_errors": 1,
+                 *       "queue": {
+                 *         "batches": 2,
+                 *         "bytes": 48213,
+                 *         "dropped": 0,
+                 *         "failed": 0
+                 *       },
+                 *       "sent_at": "2026-11-27T08:15:00Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["HeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Đã ghi nhận heartbeat. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "online",
+                     *       "consent_text_version": "2026-11-27.2",
+                     *       "min_cli_version": "0.1.0"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["HeartbeatResult"];
+                };
+            };
+            /** @description Body không hợp lệ (`error`: `validation_error`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "validation_error",
+                     *       "message": "Heartbeat không hợp lệ: status phải là online hoặc paused."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["InvalidToken"];
+            /** @description Vượt 20 request/phút của thiết bị (`error`: `rate_limited`). Thử lại sau `Retry-After` giây. */
+            429: {
+                headers: {
+                    /** @description Số giây nên chờ trước khi gửi lại. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "rate_limited",
+                     *       "message": "Gửi quá nhanh, thử lại sau ít phút."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     listProjectSessions: {
         parameters: {
             query?: {
@@ -2527,6 +2809,85 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionDetail"];
                 };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSessionNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách ghi chú. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNoteList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSessionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Ghi chú vừa tạo. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNote"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSessionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                noteId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];

@@ -1,7 +1,8 @@
 # Nhóm `sessions`: dashboard xem session (cookieAuth), spec mục 7.4. Task: M1.1 (contract), M1.8 (code).
 # - GET /api/v1/projects/{projectId}/sessions: danh sách session của project (lọc cơ bản, phân trang cursor).
 # - GET /api/v1/sessions/{sessionId}: chi tiết session kèm toàn bộ turn.
-# Để sau (M4.1): tìm kiếm full-text `q`, `POST /api/v1/sessions/{sessionId}/llm-review`, notes.
+# - GET/POST /api/v1/sessions/{sessionId}/notes, DELETE .../notes/{noteId}: ghi chú của leader theo turn (M3.4).
+# Để sau (M4.1): tìm kiếm full-text `q`, `POST /api/v1/sessions/{sessionId}/llm-review`.
 #
 # Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session. Xem session của người khác đi qua `AccessService` và ghi audit.
 # Trường lấy từ bảng `sessions`/`turns` (apps/api/src/db/schema/sessions.ts), đổi sang camelCase.
@@ -110,6 +111,88 @@ paths:
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
 
+  /api/v1/sessions/{sessionId}/notes:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      operationId: listSessionNotes
+      tags: [sessions]
+      summary: Ghi chú của leader trên session
+      description: |
+        Mọi ghi chú của session, theo `createdAt` tăng dần. Ai xem được session (leader, hoặc member chủ session)
+        thì xem được ghi chú (không ghi audit riêng: trang xem session đã ghi `session.view`). Tạo, xóa ghi chú ghi audit
+        `session.note.create`, `session.note.delete`.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách ghi chú.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionNoteList'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: createSessionNote
+      tags: [sessions]
+      summary: Thêm ghi chú (leader)
+      description: |
+        Chỉ leader. `turnSeq` phải là `seq` của một turn trong session (404 `turn_not_found` nếu không có);
+        null là ghi chú chung cho cả session.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionNoteRequest'
+      responses:
+        '201':
+          description: Ghi chú vừa tạo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionNote'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/sessions/{sessionId}/notes/{noteId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          $ref: './common.yaml#/components/schemas/Id'
+    delete:
+      operationId: deleteSessionNote
+      tags: [sessions]
+      summary: Xóa ghi chú (leader, chỉ của chính mình)
+      description: Chỉ tác giả (leader) xóa được ghi chú của mình; ghi chú của người khác trả 403.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
 components:
   parameters:
     SessionId:
@@ -164,6 +247,7 @@ components:
         - usage
         - title
         - parentSessionId
+        - childCount
         - permissionMode
       additionalProperties: false
       properties:
@@ -212,6 +296,10 @@ components:
           oneOf:
             - $ref: './common.yaml#/components/schemas/Id'
             - type: 'null'
+        childCount:
+          type: integer
+          minimum: 0
+          description: Số session con (subagent) đã gắn vào session này.
         permissionMode:
           description: Chế độ quyền của agent; null khi CLI không gửi.
           oneOf:
@@ -239,7 +327,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SessionSummary'
         - type: object
-          required: [sourceId, device, instructionFiles, childSessionIds, turns]
+          required: [sourceId, device, instructionFiles, childSessionIds, children, turns]
           properties:
             sourceId:
               type: string
@@ -262,11 +350,98 @@ components:
               description: Id các session con (subagent), theo `startedAt` tăng dần.
               items:
                 $ref: './common.yaml#/components/schemas/Id'
+            children:
+              type: array
+              description: Thông tin rút gọn các session con, cùng thứ tự với `childSessionIds`.
+              items:
+                $ref: '#/components/schemas/SessionChild'
             turns:
               type: array
               description: Mọi turn của session, theo `seq` tăng dần.
               items:
                 $ref: '#/components/schemas/SessionTurn'
+
+    SessionChild:
+      type: object
+      description: |
+        Session con (subagent) rút gọn, đủ để dashboard ghép vào turn tool `Task`/`Agent` của session cha
+        (Claude Code: `sourceId` là `claude_code:<sessionId>:<agentId>`).
+      required: [id, sourceId, agent, title, startedAt, endedAt, turnCount]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        sourceId:
+          type: string
+          examples: ['claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60:a8d48656c1a58b54b']
+        agent:
+          $ref: '#/components/schemas/AgentKind'
+        title:
+          type: [string, 'null']
+          description: Prompt đầu tiên giao cho session con, tối đa 200 ký tự.
+          maxLength: 200
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+        turnCount:
+          type: integer
+          minimum: 0
+
+    SessionNote:
+      type: object
+      description: Ghi chú của leader trên session, gắn vào một turn hoặc cả session.
+      required: [id, sessionId, turnSeq, body, author, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: [integer, 'null']
+          minimum: 0
+          description: '`seq` của turn được ghi chú; null là ghi chú chung cho cả session.'
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        author:
+          description: Người viết; null khi tài khoản đã bị xóa.
+          oneOf:
+            - $ref: './common.yaml#/components/schemas/UserRef'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+
+    SessionNoteList:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          description: Theo `createdAt` tăng dần.
+          items:
+            $ref: '#/components/schemas/SessionNote'
+
+    CreateSessionNoteRequest:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        turnSeq:
+          type: [integer, 'null']
+          minimum: 0
+          description: Bỏ trống hoặc null để ghi chú cho cả session.
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: Nội dung ghi chú (văn bản thuần, cắt khoảng trắng hai đầu).
 
     TurnTool:
       type: object

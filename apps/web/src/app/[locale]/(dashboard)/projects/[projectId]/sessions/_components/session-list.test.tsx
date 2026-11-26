@@ -26,6 +26,7 @@ function summary(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     usage: { input: 1200, output: 300, cacheRead: 0, cacheWrite: 0 },
     title: `Prompt ${id}`,
     parentSessionId: null,
+    childCount: 0,
     permissionMode: null,
     ...overrides,
   };

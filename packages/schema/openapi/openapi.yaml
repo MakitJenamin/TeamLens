@@ -6,7 +6,7 @@
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
 #   invites.yaml · consent.yaml · stats.yaml · admin.yaml
-# agent.yaml có ingest, config (heartbeat viết sau).
+# agent.yaml có ingest, config, heartbeat.
 openapi: 3.1.0
 info:
   title: TeamLens API
@@ -113,12 +113,18 @@ paths:
     $ref: './agent.yaml#/paths/~1agent~1v1~1ingest'
   /agent/v1/config:
     $ref: './agent.yaml#/paths/~1agent~1v1~1config'
+  /agent/v1/heartbeat:
+    $ref: './agent.yaml#/paths/~1agent~1v1~1heartbeat'
 
   # sessions.yaml
   /api/v1/projects/{projectId}/sessions:
     $ref: './sessions.yaml#/paths/~1api~1v1~1projects~1{projectId}~1sessions'
   /api/v1/sessions/{sessionId}:
     $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}'
+  /api/v1/sessions/{sessionId}/notes:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1notes'
+  /api/v1/sessions/{sessionId}/notes/{noteId}:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1notes~1{noteId}'
 
   /api/v1/sessions/{sessionId}/findings:
     $ref: './rules.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1findings'
@@ -209,6 +215,14 @@ components:
       $ref: './agent.yaml#/components/schemas/AgentRedactionPattern'
     AgentTruncation:
       $ref: './agent.yaml#/components/schemas/AgentTruncation'
+    HeartbeatRequest:
+      $ref: './agent.yaml#/components/schemas/HeartbeatRequest'
+    HeartbeatAgent:
+      $ref: './agent.yaml#/components/schemas/HeartbeatAgent'
+    HeartbeatQueue:
+      $ref: './agent.yaml#/components/schemas/HeartbeatQueue'
+    HeartbeatResult:
+      $ref: './agent.yaml#/components/schemas/HeartbeatResult'
 
     # invites.yaml
     InviteStatus:
@@ -257,3 +271,11 @@ components:
       $ref: './sessions.yaml#/components/schemas/TurnUsage'
     TurnCount:
       $ref: './sessions.yaml#/components/schemas/TurnCount'
+    SessionChild:
+      $ref: './sessions.yaml#/components/schemas/SessionChild'
+    SessionNote:
+      $ref: './sessions.yaml#/components/schemas/SessionNote'
+    SessionNoteList:
+      $ref: './sessions.yaml#/components/schemas/SessionNoteList'
+    CreateSessionNoteRequest:
+      $ref: './sessions.yaml#/components/schemas/CreateSessionNoteRequest'

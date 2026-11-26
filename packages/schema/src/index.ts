@@ -30,6 +30,10 @@ export type SessionSummary = Schemas['SessionSummary'];
 export type SessionPage = Schemas['SessionPage'];
 export type SessionDetail = Schemas['SessionDetail'];
 export type SessionTurn = Schemas['SessionTurn'];
+export type SessionChild = Schemas['SessionChild'];
+export type SessionNote = Schemas['SessionNote'];
+export type SessionNoteList = Schemas['SessionNoteList'];
+export type CreateSessionNoteRequest = Schemas['CreateSessionNoteRequest'];
 export type InstructionFile = Schemas['InstructionFile'];
 
 // Payload ingest của CLI (session.v1.schema.json, snake_case). Tên gốc trong `Schemas` là
@@ -47,6 +51,8 @@ export type IngestRedaction = Schemas['Redaction'];
 export type IngestResult = Schemas['IngestResult'];
 export type IngestRejectedCode = Schemas['IngestRejected']['error'];
 export type AgentConfig = Schemas['AgentConfig'];
+export type HeartbeatRequest = Schemas['HeartbeatRequest'];
+export type HeartbeatResult = Schemas['HeartbeatResult'];
 
 type JsonContent<T> = T extends { content: { 'application/json': infer B } } ? B : never;
 
