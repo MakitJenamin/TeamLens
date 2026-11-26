@@ -71,6 +71,8 @@ export const sessions = pgTable(
     cacheWriteTokens: bigint('cache_write_tokens', { mode: 'number' })
       .notNull()
       .default(0),
+    // source_id của session cha do CLI gửi; giữ lại để nối `parent_session_id` khi cha tới sau con.
+    parentSourceId: text('parent_source_id'),
     parentSessionId: uuid('parent_session_id').references(
       (): AnyPgColumn => sessions.id,
       {
@@ -85,6 +87,7 @@ export const sessions = pgTable(
     index('sessions_project_started_idx').on(t.projectId, t.startedAt),
     index('sessions_user_started_idx').on(t.userId, t.startedAt),
     index('sessions_parent_idx').on(t.parentSessionId),
+    index('sessions_user_parent_source_idx').on(t.userId, t.parentSourceId),
   ],
 );
 
