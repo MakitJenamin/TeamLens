@@ -1,18 +1,33 @@
+import { verificationCommand } from './verification-pattern.js';
 import type { IngestTurn } from '@teamlens/schema';
 import type { RuleSeverity } from '../../db/schema/scoring.js';
+import { measureSignal, type Signal } from './session-signals.js';
 
 export type RuleTurn = Pick<IngestTurn, 'seq' | 'role' | 'kind'> & {
   text?: string | null;
-  diff?: { added: number; removed: number; path: string } | null;
-  tool?: { name: string; input?: Record<string, unknown> | null } | null;
+  ts?: string;
+  diff?: {
+    added: number;
+    removed: number;
+    path: string;
+    patch?: string;
+  } | null;
+  tool?: {
+    name: string;
+    input?: Record<string, unknown> | null;
+    status?: string;
+  } | null;
 };
 
 export interface RuleSession {
   parentSourceId: string | null;
+  permissionMode?: string | null;
+  instructionFiles?: readonly { path: string; bytes: number }[] | null;
   turns: readonly RuleTurn[];
 }
 
 type Match =
+  | { op: 'signal'; signal: Signal }
   | { op: 'consecutive'; source: 'prompts'; textRegex: string }
   | { op: 'count'; source: 'prompts' }
   | { op: 'sumDiffWithoutCommand'; commandRegex: string };
@@ -22,7 +37,7 @@ export interface SessionRule {
   scope: 'session';
   category: string;
   severity: RuleSeverity;
-  thresholds: { min: number };
+  thresholds: { min: number; [key: string]: number };
   match: Match;
   message: string;
   advice: string;
@@ -34,36 +49,8 @@ interface Measurement {
   turn: RuleTurn;
 }
 
-function verificationCommand(turn: RuleTurn): string | undefined {
-  if (
-    turn.kind !== 'tool_call' ||
-    !turn.tool ||
-    !/^(bash|shell|shell_command|exec_command|powershell)$/i.test(
-      turn.tool.name,
-    )
-  )
-    return;
-  const input = turn.tool.input;
-  const command = input?.command ?? input?.cmd;
-  if (typeof command === 'string') return command;
-  if (
-    Array.isArray(command) &&
-    command.every((arg) => typeof arg === 'string')
-  ) {
-    // Dạng argv của Codex, có thể được bọc bởi bash -lc hoặc pwsh -Command.
-    if (
-      /^(?:.*[\\/])?(?:bash|sh|pwsh|powershell)(?:\.exe)?$/i.test(
-        command[0] ?? '',
-      ) &&
-      /^(?:-lc|-c|-command)$/i.test(command[1] ?? '')
-    )
-      return command[2];
-    return command.join(' ');
-  }
-}
-
 function measure(
-  match: Match,
+  match: Exclude<Match, { op: 'signal' }>,
   turns: readonly RuleTurn[],
 ): Measurement | undefined {
   if (match.op === 'sumDiffWithoutCommand') {
@@ -106,7 +93,10 @@ export function evaluateSession(
   if (session.parentSourceId !== null) return [];
   const turns = [...session.turns].sort((a, b) => a.seq - b.seq);
   return rules.flatMap((rule) => {
-    const result = measure(rule.match, turns);
+    const result =
+      rule.match.op === 'signal'
+        ? measureSignal(rule.match.signal, session, turns, rule.thresholds)
+        : measure(rule.match, turns);
     if (!result || result.count < rule.thresholds.min) return [];
     const { count, turn } = result;
     return [
