@@ -39,9 +39,7 @@ pub struct PrepareOptions {
     pub limits: TruncateLimits,
     /// Pattern che secret bổ sung từ `GET /agent/v1/config` (`redaction_patterns`).
     ///
-    /// Chỗ móc cho M2.1: hiện **chưa** áp vào [`Redactor`] (prepare vẫn chỉ dùng bộ pattern có
-    /// sẵn); M2.1 biên dịch các pattern này (bỏ pattern lỗi) thành `Redactor` mở rộng và dùng
-    /// thay `Redactor::shared()` ở `commands/sync.rs`, `commands/preview.rs`.
+    /// `tl sync`/`tl preview` biên dịch chúng thành bộ che mở rộng bằng [`build_redactor`].
     pub server_redaction_patterns: Vec<AgentRedactionPattern>,
 }
 
@@ -70,6 +68,34 @@ impl PrepareOptions {
             server_redaction_patterns: Vec::new(),
         }
     }
+}
+
+/// Bộ che secret cho một lần chạy: rule có sẵn + `redaction_patterns` của server.
+///
+/// Không có pattern server thì dùng lại [`Redactor::shared()`] (không biên dịch lại). Pattern
+/// lỗi (regex sai, id rỗng, quá nặng) bị bỏ qua; trả về kèm danh sách cảnh báo tiếng Việt để
+/// nơi gọi in ra. Rule có sẵn luôn còn nguyên.
+pub fn build_redactor(
+    patterns: &[AgentRedactionPattern],
+) -> (std::borrow::Cow<'static, Redactor>, Vec<String>) {
+    if patterns.is_empty() {
+        return (std::borrow::Cow::Borrowed(Redactor::shared()), Vec::new());
+    }
+    let (redactor, errors) =
+        Redactor::with_external(patterns.iter().map(|p| (p.id.as_str(), p.regex.as_str())));
+    let warnings = errors
+        .iter()
+        .map(|e| {
+            // Lỗi regex nhiều dòng (có mũi tên chỉ vị trí): gộp thành một dòng.
+            let msg = e
+                .to_string()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("Bỏ qua pattern che secret từ server: {msg}")
+        })
+        .collect();
+    (std::borrow::Cow::Owned(redactor), warnings)
 }
 
 /// Xử lý một session trong phạm vi.
@@ -627,6 +653,7 @@ mod tests {
             user_name: Some("alice".into()),
             host_name: None,
             limits: TruncateLimits::default(),
+            server_redaction_patterns: Vec::new(),
         };
         prepare_session(ns, &scope(), Redactor::shared(), &opts, false)
     }
@@ -759,5 +786,32 @@ mod tests {
         assert_eq!(kinds(1), ["gitlab_pat"]);
         assert_eq!(kinds(2), ["npm_token", "url_password"]);
         assert_eq!(kinds(3), ["huggingface_token"]);
+    }
+
+    #[test]
+    fn server_patterns_extend_builtin_redactor() {
+        let (r, warnings) = build_redactor(&[]);
+        assert!(warnings.is_empty());
+        assert!(std::ptr::eq(r.as_ref(), Redactor::shared()));
+
+        let patterns = vec![
+            AgentRedactionPattern {
+                id: "acme_internal".into(),
+                regex: r"\bACME-[0-9]{6}\b".into(),
+            },
+            AgentRedactionPattern {
+                id: "broken".into(),
+                regex: "(unclosed".into(),
+            },
+        ];
+        let (r, warnings) = build_redactor(&patterns);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("broken"), "{warnings:?}");
+        let aws = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
+        let out = r.redact(&format!("mã ACME-123456 và {aws}"));
+        assert_eq!(
+            out.text,
+            "mã [REDACTED:acme_internal] và [REDACTED:aws_access_key]"
+        );
     }
 }

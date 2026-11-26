@@ -17,12 +17,12 @@ use std::time::SystemTime;
 
 use clap::Args;
 use tl_adapters::{Adapter, SourceFile};
-use tl_core::redact::Redactor;
 
 use crate::context::AppContext;
 use crate::error::AppError;
 use crate::pipeline::batch::new_batch;
 use crate::pipeline::collect::{source_file, CollectStats, Pipeline, PreparedSession};
+use crate::pipeline::prepare::build_redactor;
 use crate::pipeline::scope::ScopeFilter;
 use crate::sync::agent_config;
 use crate::sync::{connect, Sources};
@@ -60,11 +60,14 @@ pub async fn run_with(
         );
     }
     let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
+    let (redactor, warnings) = build_redactor(&prepare.server_redaction_patterns);
+    for warning in &warnings {
+        let _ = writeln!(note, "Cảnh báo: {warning}");
+    }
     let mut filter = ScopeFilter::new(agent_config::repo_patterns(server_config));
     let mut pipeline = Pipeline {
         filter: &mut filter,
-        // M2.1: dựng Redactor từ `prepare.server_redaction_patterns` thay cho bộ có sẵn.
-        redactor: Redactor::shared(),
+        redactor: &redactor,
         options: &prepare,
         now: SystemTime::now(),
     };
