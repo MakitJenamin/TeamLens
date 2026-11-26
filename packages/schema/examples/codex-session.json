@@ -12,7 +12,9 @@
         "cwd_relative": "",
         "started_at": "2026-11-25T14:10:00Z",
         "ended_at": null,
-        "parent_source_id": null
+        "parent_source_id": null,
+        "permission_mode": "default",
+        "instruction_files": [{ "path": "AGENTS.md", "bytes": 2048 }]
       },
       "turns": [
         {
@@ -35,6 +37,8 @@
           "kind": "reply",
           "ts": "2026-11-25T14:10:12Z",
           "model": "gpt-5.1-codex",
+          "reasoning_effort": "medium",
+          "interrupted": false,
           "text": "Bạn muốn sửa lỗi nào? Tôi thấy nhánh tên fix/invoice-rounding, có phải lỗi làm tròn trong invoice.py không?",
           "usage": { "input": 5400, "output": 48, "cache_read": 3200, "cache_write": 0, "estimated": false }
         },
@@ -51,6 +55,7 @@
           "kind": "tool_call",
           "ts": "2026-11-25T14:11:20Z",
           "model": "gpt-5.1-codex",
+          "reasoning_effort": "high",
           "tool": {
             "name": "apply_patch",
             "input": {
@@ -74,6 +79,8 @@
           "kind": "tool_call",
           "ts": "2026-11-25T14:11:40Z",
           "model": "gpt-5.1-codex",
+          "reasoning_effort": "high",
+          "interrupted": true,
           "tool": {
             "name": "shell",
             "input": { "command": ["pytest", "-q", "tests/test_invoice.py"], "timeout_ms": 120000 },

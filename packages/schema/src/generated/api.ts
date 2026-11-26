@@ -388,6 +388,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gửi một batch session đã chuẩn hóa
+         * @description CLI gửi batch session đã lọc phạm vi theo git remote, đã che secret và đã cắt output (spec mục 6).
+         *
+         *     **Giới hạn:** body tối đa 10 MB (tính sau khi giải nén); nên nén gzip và gửi kèm
+         *     `Content-Encoding: gzip`. Tối đa 60 request/phút mỗi thiết bị.
+         *
+         *     **Ngữ nghĩa (spec 7.3):**
+         *     - Idempotent theo `batch_id`: gửi lại batch đã nhận thì server không ghi lại mà trả lại kết quả
+         *       của lần đầu, kèm `duplicate: true`.
+         *     - Session upsert theo `(user_id, source_id)`; turn upsert theo `(session_id, seq)`, nên gửi tăng dần
+         *       (chỉ các turn mới) và gửi lại đều an toàn.
+         *     - Mỗi session được kiểm tra riêng: `repo_remote` phải khớp repo pattern của một project mà user là
+         *       thành viên (pattern cụ thể nhất thắng). Session không đạt nằm trong `rejected`, các session khác
+         *       vẫn được nhận; cả batch vẫn trả `202`.
+         *     - `parent_source_id` trỏ tới session chưa có trên server thì vẫn nhận; liên kết cha–con được nối
+         *       khi session cha tới sau.
+         *     - Session được nhận sinh job `session.ingested` (pg-boss) trong cùng transaction để chạy rule.
+         *
+         *     **Phiên bản:** server đọc `schema_version` trước khi validate chi tiết; giá trị không hỗ trợ trả `426`
+         *     kèm phiên bản CLI tối thiểu để CLI tự cập nhật.
+         */
+        post: operations["agentIngest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Danh sách session của project
+         * @description Sắp xếp theo `startedAt` giảm dần (mới nhất trước), phân trang bằng cursor.
+         *     Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader và admin thấy mọi
+         *     session trong project. Mặc định chỉ trả session gốc, ẩn session con (subagent).
+         */
+        get: operations["listProjectSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Chi tiết session kèm các turn
+         * @description Trả thông tin session và toàn bộ turn theo `seq` tăng dần. Xem session của người khác ghi audit
+         *     (`session.view`). Finding của session lấy riêng qua `GET /api/v1/sessions/{sessionId}/findings`.
+         */
+        get: operations["getSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -511,6 +596,334 @@ export interface components {
          * @example WDJB-MJHT
          */
         UserCode: string;
+        IngestBatch: {
+            /**
+             * @description Phiên bản schema. Server trả 426 nếu không hỗ trợ.
+             * @constant
+             */
+            schema_version: 1;
+            /**
+             * Format: uuid
+             * @description UUID do CLI sinh; server dùng để chống trùng khi gửi lại (idempotent).
+             */
+            batch_id: string;
+            sessions: components["schemas"]["SessionEnvelope"][];
+        };
+        /** @description Kết quả ingest một batch. Mỗi session trong batch nằm ở đúng một trong `accepted` hoặc `rejected`. */
+        IngestResult: {
+            /**
+             * Format: uuid
+             * @description `batch_id` của batch vừa gửi.
+             */
+            batchId: string;
+            /** @description true khi batch này đã được nhận trước đó; kết quả là kết quả của lần nhận đầu tiên. */
+            duplicate: boolean;
+            accepted: components["schemas"]["IngestAccepted"][];
+            rejected: components["schemas"]["IngestRejected"][];
+        };
+        IngestAccepted: {
+            /** @description `source_id` của session trong batch. */
+            sourceId: string;
+            /**
+             * Format: uuid
+             * @description Id session trên server (dùng cho link dashboard `/sessions/{sessionId}`).
+             */
+            sessionId: string;
+            /** @description Số turn được thêm hoặc cập nhật. */
+            turnsUpserted: number;
+        };
+        IngestRejected: {
+            /** @description `source_id` của session bị từ chối. */
+            sourceId: string;
+            /**
+             * @description Mã lý do:
+             *     - `repo_not_in_project`: `repo_remote` không khớp repo pattern của project nào user là thành viên;
+             *     - `invalid_session`: hợp lệ theo schema nhưng sai về ngữ nghĩa (vd. `seq` trùng nhau trong batch,
+             *       `ended_at` trước `started_at`).
+             *     CLI không gửi lại session bị từ chối cho tới khi cấu hình hoặc dữ liệu thay đổi.
+             * @enum {string}
+             */
+            error: "repo_not_in_project" | "invalid_session";
+            /** @description Mô tả tiếng Việt cho người dùng. */
+            message: string;
+        };
+        /** @description Lỗi `426` khi `schema_version` không được hỗ trợ. */
+        UnsupportedSchemaVersionError: components["schemas"]["Error"] & {
+            /**
+             * @example [
+             *       1
+             *     ]
+             */
+            supportedSchemaVersions: number[];
+            /**
+             * @description Phiên bản `tl` tối thiểu gửi được schema mà server hỗ trợ.
+             * @example 0.2.0
+             */
+            minCliVersion: string;
+        };
+        /**
+         * @description Agent sinh ra session.
+         * @enum {string}
+         */
+        AgentKind: "claude_code" | "codex" | "copilot_vscode" | "antigravity";
+        /**
+         * @description Chế độ quyền của agent trong session: `default` (hỏi trước khi sửa file/chạy lệnh), `accept_edits` (tự chấp nhận sửa file), `plan` (chỉ lập kế hoạch), `bypass` (bỏ qua mọi xác nhận), `unknown` (không xác định được). Claude Code: `permissionMode`; Codex: `approval_policy` + `sandbox_policy`. Dùng cho rule `yolo-mode`.
+         * @enum {string}
+         */
+        PermissionMode: "default" | "accept_edits" | "plan" | "bypass" | "unknown";
+        /** @description Tổng token của session (cộng từ `usage` của các turn). */
+        TokenUsage: {
+            input: number;
+            output: number;
+            cacheRead: number;
+            cacheWrite: number;
+        };
+        /** @description Thông tin tóm tắt một session (một dòng trong danh sách). */
+        SessionSummary: {
+            id: components["schemas"]["Id"];
+            projectId: components["schemas"]["Id"];
+            user: components["schemas"]["UserRef"];
+            agent: components["schemas"]["AgentKind"];
+            /** @example 2.1.4 */
+            agentVersion: string | null;
+            /**
+             * @description Model chính của session (model xuất hiện nhiều nhất ở turn của assistant); null nếu không có.
+             * @example claude-opus-5-5
+             */
+            model: string | null;
+            /**
+             * @description Remote git đã chuẩn hóa (host/org/repo).
+             * @example github.com/acme/shop-api
+             */
+            repoRemote: string;
+            branch: string | null;
+            /** @description Thư mục làm việc tương đối với gốc repo; chuỗi rỗng là gốc repo. */
+            cwdRelative: string | null;
+            /** Format: date-time */
+            startedAt: string;
+            /**
+             * Format: date-time
+             * @description null khi session còn đang chạy.
+             */
+            endedAt: string | null;
+            turnCount: number;
+            usage: components["schemas"]["TokenUsage"];
+            /** @description Prompt đầu tiên của user (đã che secret), cắt còn tối đa 200 ký tự; null nếu chưa có prompt. */
+            title: string | null;
+            /** @description Id session cha khi đây là session con (subagent); null với session gốc hoặc khi cha chưa tới. */
+            parentSessionId: components["schemas"]["Id"] | null;
+            /** @description Chế độ quyền của agent; null khi CLI không gửi. */
+            permissionMode: components["schemas"]["PermissionMode"] | null;
+        };
+        SessionPage: {
+            items: components["schemas"]["SessionSummary"][];
+            /** @description Truyền vào `cursor` để lấy trang tiếp; null khi đã hết. */
+            nextCursor: string | null;
+        };
+        InstructionFile: {
+            /**
+             * @description Đường dẫn tương đối với gốc repo, dùng `/`.
+             * @example CLAUDE.md
+             */
+            path: string;
+            /** @description Kích thước file (byte). */
+            bytes: number;
+        };
+        /** @description Chi tiết session, gồm mọi trường của `SessionSummary` cộng thêm các trường dưới đây. */
+        SessionDetail: components["schemas"]["SessionSummary"] & {
+            /**
+             * @description `<agent>:<id gốc>` do CLI gửi.
+             * @example claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60
+             */
+            sourceId: string;
+            /** @description Thiết bị đã gửi session; null khi thiết bị đã bị xóa. */
+            device: components["schemas"]["DeviceRef"] | null;
+            /** @description File hướng dẫn cho agent ở gốc repo (chỉ đường dẫn và kích thước); null khi CLI không gửi. */
+            instructionFiles: components["schemas"]["InstructionFile"][] | null;
+            /** @description Id các session con (subagent), theo `startedAt` tăng dần. */
+            childSessionIds: components["schemas"]["Id"][];
+            /** @description Mọi turn của session, theo `seq` tăng dần. */
+            turns: components["schemas"]["SessionTurn"][];
+        };
+        /**
+         * @description Một turn trong session (camelCase của `Turn` trong session.v1). Trường không có trong payload ingest
+         *     trả `null` (hoặc mảng rỗng với `attachments`, `redactions`; `false` với `interrupted`).
+         */
+        SessionTurn: {
+            seq: number;
+            /** @enum {string} */
+            role: "user" | "assistant" | "system";
+            /** @enum {string} */
+            kind: "prompt" | "reply" | "tool_call" | "tool_result" | "compaction";
+            /** Format: date-time */
+            ts: string;
+            model: string | null;
+            /** @description Nội dung prompt, câu trả lời hoặc tóm tắt compaction (đã che secret). */
+            text: string | null;
+            tool: components["schemas"]["TurnTool"] | null;
+            output: components["schemas"]["TurnOutput"] | null;
+            diff: components["schemas"]["TurnDiff"] | null;
+            usage: components["schemas"]["TurnUsage"] | null;
+            attachments: components["schemas"]["TurnCount"][];
+            /** @description Loại secret đã được che trong turn và số lượng. */
+            redactions: components["schemas"]["TurnCount"][];
+            /** @description true khi người dùng ngắt lượt này. */
+            interrupted: boolean;
+            /** @description Mức suy luận (Codex); null khi agent không ghi. */
+            reasoningEffort: string | null;
+        };
+        TurnTool: {
+            /** @example Edit */
+            name: string;
+            /** @description Input gốc của tool (tùy agent, đã cắt khi quá 4 KB); null khi không có. */
+            input: {
+                [key: string]: unknown;
+            } | null;
+            /** @enum {string|null} */
+            status: "ok" | "error" | null;
+        };
+        TurnOutput: {
+            text: string;
+            /** @description true khi chỉ giữ 2 KB đầu và 1 KB cuối. */
+            truncated: boolean;
+            /** @description Kích thước output gốc (byte) trước khi cắt; null khi CLI không gửi. */
+            originalBytes: number | null;
+        };
+        TurnDiff: {
+            /** @description Đường dẫn file tương đối với gốc repo. */
+            path: string;
+            /** @description Unified diff. */
+            patch: string;
+            added: number;
+            removed: number;
+        };
+        TurnUsage: {
+            input: number;
+            output: number;
+            /** @description 0 khi CLI không gửi. */
+            cacheRead: number;
+            /** @description 0 khi CLI không gửi. */
+            cacheWrite: number;
+            /** @description true khi số token là ước tính; false khi CLI không gửi. */
+            estimated: boolean;
+        };
+        /** @description Số lượng theo loại (dùng cho `attachments` và `redactions`). */
+        TurnCount: {
+            /**
+             * @example image
+             * @example aws_access_key
+             */
+            type: string;
+            count: number;
+        };
+        SourceId: string;
+        Session: {
+            /** @description `<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id). */
+            source_id: components["schemas"]["SourceId"];
+            agent: components["schemas"]["AgentKind"];
+            /** @description Phiên bản agent đọc được từ log; null nếu log không ghi. */
+            agent_version: string | null;
+            /** @description Remote git đã chuẩn hóa: chữ thường, không scheme, không `git@`, không `.git`, dạng host/org/repo. */
+            repo_remote: string;
+            /** @description Nhánh git lúc bắt đầu session; null khi detached HEAD hoặc không đọc được. */
+            branch: string | null;
+            /** @description Thư mục làm việc tương đối với gốc repo, dùng `/`; chuỗi rỗng là gốc repo. Không bao giờ là đường dẫn tuyệt đối. */
+            cwd_relative: string | null;
+            /** Format: date-time */
+            started_at: string;
+            /**
+             * Format: date-time
+             * @description null khi session còn đang chạy.
+             */
+            ended_at: string | null;
+            /** @description source_id của session cha khi đây là session con (subagent); null với session gốc. */
+            parent_source_id: components["schemas"]["SourceId"] | null;
+            permission_mode?: components["schemas"]["PermissionMode"];
+            /** @description File hướng dẫn cho agent tìm thấy ở gốc repo (`CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/CLAUDE.md`). Chỉ gửi đường dẫn tương đối và kích thước, KHÔNG gửi nội dung. Thiếu trường: CLI không thu thập; mảng rỗng: không có file nào. */
+            instruction_files?: components["schemas"]["InstructionFile"][];
+        };
+        Tool: {
+            /**
+             * @example Edit
+             * @example Bash
+             * @example apply_patch
+             */
+            name: string;
+            /** @description Input gốc của tool (tùy agent, không kiểm tra cấu trúc); cắt khi quá 4 KB. */
+            input?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            status?: "ok" | "error";
+        };
+        Output: {
+            text: string;
+            /** @description true khi chỉ giữ 2 KB đầu và 1 KB cuối. */
+            truncated: boolean;
+            /** @description Kích thước output gốc (byte) trước khi cắt. */
+            original_bytes?: number;
+        };
+        Diff: {
+            /** @description Đường dẫn file tương đối với gốc repo. */
+            path: string;
+            /** @description Unified diff, tối đa 256 KB. */
+            patch: string;
+            added: number;
+            removed: number;
+        };
+        Usage: {
+            input: number;
+            output: number;
+            cache_read?: number;
+            cache_write?: number;
+            /** @description true khi số token là ước tính (vd. Copilot). */
+            estimated?: boolean;
+        };
+        Attachment: {
+            /** @enum {string} */
+            type: "image";
+            count: number;
+        };
+        Redaction: {
+            /**
+             * @description Loại secret đã che, vd. `aws_access_key`, `github_token`, `env_file`.
+             * @example aws_access_key
+             */
+            type: string;
+            count: number;
+        };
+        Turn: {
+            /** @description Số thứ tự trong session, bắt đầu từ 0; upsert theo (session_id, seq). */
+            seq: number;
+            /** @enum {string} */
+            role: "user" | "assistant" | "system";
+            /** @enum {string} */
+            kind: "prompt" | "reply" | "tool_call" | "tool_result" | "compaction";
+            /** Format: date-time */
+            ts: string;
+            /** @description Model sinh ra turn (với turn của assistant). */
+            model?: string | null;
+            /** @description Nội dung prompt, câu trả lời hoặc tóm tắt compaction (đã che secret). */
+            text?: string;
+            tool?: components["schemas"]["Tool"];
+            output?: components["schemas"]["Output"];
+            diff?: components["schemas"]["Diff"];
+            usage?: components["schemas"]["Usage"];
+            attachments?: components["schemas"]["Attachment"][];
+            redactions?: components["schemas"]["Redaction"][];
+            /** @description true khi người dùng ngắt lượt này (Claude Code: `[Request interrupted by user]`; Codex: event `turn_aborted`). Dùng cho rule `high-interruption`. */
+            interrupted?: boolean;
+            /**
+             * @description Mức suy luận agent dùng cho lượt này (Codex: `turn_context.effort`, vd. `low`, `medium`, `high`); null khi agent không ghi (Claude Code).
+             * @example high
+             */
+            reasoning_effort?: string | null;
+        };
+        /** @description Một session cùng các turn mới (gửi tăng dần: chỉ cần các turn chưa gửi, upsert theo seq). */
+        SessionEnvelope: {
+            session: components["schemas"]["Session"];
+            turns: components["schemas"]["Turn"][];
+        };
     };
     responses: {
         /** @description Body hoặc tham số không hợp lệ (`error`: `validation_error`). */
@@ -594,6 +1007,7 @@ export interface components {
         UserId: components["schemas"]["Id"];
         RepoId: components["schemas"]["Id"];
         DeviceId: components["schemas"]["Id"];
+        SessionId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -1527,6 +1941,210 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["InvalidToken"];
+        };
+    };
+    agentIngest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description `gzip` khi body được nén (khuyến nghị). Bỏ trống khi gửi JSON thô. */
+                "Content-Encoding"?: "gzip";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestBatch"];
+            };
+        };
+        responses: {
+            /** @description Batch đã được nhận (có thể một phần, xem `rejected`). */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "batchId": "0b6f3a3e-2f5d-4c1b-9a8e-6d1f7c2e4a10",
+                     *       "duplicate": false,
+                     *       "accepted": [
+                     *         {
+                     *           "sourceId": "claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60",
+                     *           "sessionId": "3f1e2d4c-5b6a-4789-8a0b-1c2d3e4f5a6b",
+                     *           "turnsUpserted": 6
+                     *         }
+                     *       ],
+                     *       "rejected": [
+                     *         {
+                     *           "sourceId": "claude_code:9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d",
+                     *           "error": "repo_not_in_project",
+                     *           "message": "Repo github.com/acme/private-tool không thuộc project nào bạn là thành viên."
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["IngestResult"];
+                };
+            };
+            /**
+             * @description Body không hợp lệ theo `session.v1.schema.json`, JSON hỏng hoặc gzip hỏng
+             *     (`error`: `validation_error`). Cả batch bị từ chối; CLI không nên gửi lại nguyên văn.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "validation_error",
+                     *       "message": "Batch không hợp lệ: /sessions/0/turns/3/seq phải là số nguyên không âm."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["InvalidToken"];
+            /**
+             * @description Thiết bị chưa đồng ý hoặc đã rút đồng ý gửi dữ liệu (`error`: `consent_required`).
+             *     Cả batch bị từ chối; CLI dừng gửi và nhắc người dùng chạy `tl consent`.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "consent_required",
+                     *       "message": "Thiết bị này chưa đồng ý chia sẻ dữ liệu. Chạy `tl consent` để xem và đồng ý."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Body vượt 10 MB (`error`: `payload_too_large`). CLI cần chia nhỏ batch. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "payload_too_large",
+                     *       "message": "Batch vượt quá 10 MB, hãy chia nhỏ rồi gửi lại."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description `schema_version` không được hỗ trợ (`error`: `unsupported_schema_version`).
+             *     CLI cần cập nhật lên tối thiểu `minCliVersion`.
+             */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "unsupported_schema_version",
+                     *       "message": "Phiên bản dữ liệu 2 không được hỗ trợ. Hãy cập nhật tl lên bản 0.2.0 trở lên.",
+                     *       "supportedSchemaVersions": [
+                     *         1
+                     *       ],
+                     *       "minCliVersion": "0.2.0"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["UnsupportedSchemaVersionError"];
+                };
+            };
+            /** @description Vượt 60 request/phút của thiết bị (`error`: `rate_limited`). Thử lại sau `Retry-After` giây. */
+            429: {
+                headers: {
+                    /** @description Số giây nên chờ trước khi gửi lại. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "rate_limited",
+                     *       "message": "Gửi quá nhanh, thử lại sau ít phút."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listProjectSessions: {
+        parameters: {
+            query?: {
+                /** @description Chỉ lấy session của user này. */
+                userId?: components["schemas"]["Id"];
+                /** @description Chỉ lấy session của agent này. */
+                agent?: components["schemas"]["AgentKind"];
+                /** @description Chỉ lấy session có `startedAt` >= mốc này (ISO 8601). */
+                from?: string;
+                /** @description Chỉ lấy session có `startedAt` < mốc này (ISO 8601). */
+                to?: string;
+                /** @description true để trả cả session con (subagent); mặc định chỉ session gốc. */
+                includeSubagents?: boolean;
+                /** @description Số session tối đa mỗi trang. */
+                limit?: number;
+                /** @description Giá trị `nextCursor` của trang trước (chuỗi mờ, không tự tạo). Bỏ trống để lấy trang đầu. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Một trang session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionPage"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Chi tiết session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionDetail"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

@@ -12,7 +12,12 @@
         "cwd_relative": "apps/api",
         "started_at": "2026-11-26T08:00:00Z",
         "ended_at": "2026-11-26T08:12:40Z",
-        "parent_source_id": null
+        "parent_source_id": null,
+        "permission_mode": "accept_edits",
+        "instruction_files": [
+          { "path": "CLAUDE.md", "bytes": 1530 },
+          { "path": ".claude/CLAUDE.md", "bytes": 412 }
+        ]
       },
       "turns": [
         {
@@ -28,6 +33,8 @@
           "kind": "reply",
           "ts": "2026-11-26T08:00:09Z",
           "model": "claude-opus-5-5",
+          "reasoning_effort": null,
+          "interrupted": false,
           "text": "Tôi sẽ đọc src/discount.ts trước để xem cách làm tròn hiện tại.",
           "usage": { "input": 1200, "output": 85, "cache_read": 9000, "cache_write": 0, "estimated": false }
         },

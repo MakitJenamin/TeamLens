@@ -1,17 +1,205 @@
-# KHUNG — chưa có endpoint. Task: M1.1 (ingest), M2.2 (config), M3.3 (heartbeat).
+# Nhóm `agent`: endpoint cho CLI (xác thực `deviceToken`), spec mục 7.2 và 7.3.
+# - POST /agent/v1/ingest (M1.1): gửi một batch session theo session.v1.schema.json (`IngestBatch`).
+# - POST /agent/v1/heartbeat (M3.3), GET /agent/v1/config (M2.2): chưa viết.
 #
-# Endpoint cho CLI (xác thực `deviceToken`), spec mục 7.2 và 7.3:
-# - POST /agent/v1/ingest: gửi một batch session theo session.v1.schema.json (IngestBatch),
-#   nén gzip, tối đa 10 MB; idempotent theo batch_id; trả 202; 426 khi schema_version không hỗ trợ.
-# - POST /agent/v1/heartbeat: trạng thái daemon, phiên bản CLI, agent phát hiện được, lỗi parse, kích thước hàng đợi.
-# - GET /agent/v1/config: pattern remote, pattern redaction, ngưỡng cắt, phiên bản văn bản đồng ý, phiên bản CLI tối thiểu.
-#
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './agent.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# Payload ingest dùng snake_case theo `session.v1.schema.json` (file đó là nguồn chân lý, OpenAPI
+# chỉ tham chiếu `$defs/IngestBatch`); response dùng camelCase như mọi REST API khác.
+paths:
+  /agent/v1/ingest:
+    post:
+      operationId: agentIngest
+      tags: [agent]
+      summary: Gửi một batch session đã chuẩn hóa
+      description: |
+        CLI gửi batch session đã lọc phạm vi theo git remote, đã che secret và đã cắt output (spec mục 6).
+
+        **Giới hạn:** body tối đa 10 MB (tính sau khi giải nén); nên nén gzip và gửi kèm
+        `Content-Encoding: gzip`. Tối đa 60 request/phút mỗi thiết bị.
+
+        **Ngữ nghĩa (spec 7.3):**
+        - Idempotent theo `batch_id`: gửi lại batch đã nhận thì server không ghi lại mà trả lại kết quả
+          của lần đầu, kèm `duplicate: true`.
+        - Session upsert theo `(user_id, source_id)`; turn upsert theo `(session_id, seq)`, nên gửi tăng dần
+          (chỉ các turn mới) và gửi lại đều an toàn.
+        - Mỗi session được kiểm tra riêng: `repo_remote` phải khớp repo pattern của một project mà user là
+          thành viên (pattern cụ thể nhất thắng). Session không đạt nằm trong `rejected`, các session khác
+          vẫn được nhận; cả batch vẫn trả `202`.
+        - `parent_source_id` trỏ tới session chưa có trên server thì vẫn nhận; liên kết cha–con được nối
+          khi session cha tới sau.
+        - Session được nhận sinh job `session.ingested` (pg-boss) trong cùng transaction để chạy rule.
+
+        **Phiên bản:** server đọc `schema_version` trước khi validate chi tiết; giá trị không hỗ trợ trả `426`
+        kèm phiên bản CLI tối thiểu để CLI tự cập nhật.
+      security:
+        - deviceToken: []
+      parameters:
+        - name: Content-Encoding
+          in: header
+          required: false
+          description: '`gzip` khi body được nén (khuyến nghị). Bỏ trống khi gửi JSON thô.'
+          schema:
+            type: string
+            enum: [gzip]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../session.v1.schema.json#/$defs/IngestBatch'
+      responses:
+        '202':
+          description: Batch đã được nhận (có thể một phần, xem `rejected`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResult'
+              example:
+                batchId: 0b6f3a3e-2f5d-4c1b-9a8e-6d1f7c2e4a10
+                duplicate: false
+                accepted:
+                  - sourceId: claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60
+                    sessionId: 3f1e2d4c-5b6a-4789-8a0b-1c2d3e4f5a6b
+                    turnsUpserted: 6
+                rejected:
+                  - sourceId: claude_code:9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d
+                    error: repo_not_in_project
+                    message: Repo github.com/acme/private-tool không thuộc project nào bạn là thành viên.
+        '400':
+          description: |
+            Body không hợp lệ theo `session.v1.schema.json`, JSON hỏng hoặc gzip hỏng
+            (`error`: `validation_error`). Cả batch bị từ chối; CLI không nên gửi lại nguyên văn.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: validation_error
+                message: 'Batch không hợp lệ: /sessions/0/turns/3/seq phải là số nguyên không âm.'
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+        '403':
+          description: |
+            Thiết bị chưa đồng ý hoặc đã rút đồng ý gửi dữ liệu (`error`: `consent_required`).
+            Cả batch bị từ chối; CLI dừng gửi và nhắc người dùng chạy `tl consent`.
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: consent_required
+                message: Thiết bị này chưa đồng ý chia sẻ dữ liệu. Chạy `tl consent` để xem và đồng ý.
+        '413':
+          description: 'Body vượt 10 MB (`error`: `payload_too_large`). CLI cần chia nhỏ batch.'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: payload_too_large
+                message: Batch vượt quá 10 MB, hãy chia nhỏ rồi gửi lại.
+        '426':
+          description: |
+            `schema_version` không được hỗ trợ (`error`: `unsupported_schema_version`).
+            CLI cần cập nhật lên tối thiểu `minCliVersion`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnsupportedSchemaVersionError'
+              example:
+                error: unsupported_schema_version
+                message: Phiên bản dữ liệu 2 không được hỗ trợ. Hãy cập nhật tl lên bản 0.2.0 trở lên.
+                supportedSchemaVersions: [1]
+                minCliVersion: 0.2.0
+        '429':
+          description: 'Vượt 60 request/phút của thiết bị (`error`: `rate_limited`). Thử lại sau `Retry-After` giây.'
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi gửi lại.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: rate_limited
+                message: Gửi quá nhanh, thử lại sau ít phút.
+
+components:
+  schemas:
+    IngestResult:
+      type: object
+      description: Kết quả ingest một batch. Mỗi session trong batch nằm ở đúng một trong `accepted` hoặc `rejected`.
+      required: [batchId, duplicate, accepted, rejected]
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+          format: uuid
+          description: '`batch_id` của batch vừa gửi.'
+        duplicate:
+          type: boolean
+          description: true khi batch này đã được nhận trước đó; kết quả là kết quả của lần nhận đầu tiên.
+        accepted:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestAccepted'
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestRejected'
+
+    IngestAccepted:
+      type: object
+      required: [sourceId, sessionId, turnsUpserted]
+      additionalProperties: false
+      properties:
+        sourceId:
+          type: string
+          description: '`source_id` của session trong batch.'
+        sessionId:
+          type: string
+          format: uuid
+          description: Id session trên server (dùng cho link dashboard `/sessions/{sessionId}`).
+        turnsUpserted:
+          type: integer
+          minimum: 0
+          description: Số turn được thêm hoặc cập nhật.
+
+    IngestRejected:
+      type: object
+      required: [sourceId, error, message]
+      additionalProperties: false
+      properties:
+        sourceId:
+          type: string
+          description: '`source_id` của session bị từ chối.'
+        error:
+          type: string
+          description: |
+            Mã lý do:
+            - `repo_not_in_project`: `repo_remote` không khớp repo pattern của project nào user là thành viên;
+            - `invalid_session`: hợp lệ theo schema nhưng sai về ngữ nghĩa (vd. `seq` trùng nhau trong batch,
+              `ended_at` trước `started_at`).
+            CLI không gửi lại session bị từ chối cho tới khi cấu hình hoặc dữ liệu thay đổi.
+          enum: [repo_not_in_project, invalid_session]
+        message:
+          type: string
+          description: Mô tả tiếng Việt cho người dùng.
+
+    UnsupportedSchemaVersionError:
+      description: Lỗi `426` khi `schema_version` không được hỗ trợ.
+      allOf:
+        - $ref: './common.yaml#/components/schemas/Error'
+        - type: object
+          required: [supportedSchemaVersions, minCliVersion]
+          properties:
+            supportedSchemaVersions:
+              type: array
+              items:
+                type: integer
+              examples: [[1]]
+            minCliVersion:
+              type: string
+              description: Phiên bản `tl` tối thiểu gửi được schema mà server hỗ trợ.
+              examples: [0.2.0]

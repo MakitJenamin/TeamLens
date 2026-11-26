@@ -22,6 +22,31 @@ export type DeviceStatus = Schemas['DeviceStatus'];
 export type DeviceRef = Schemas['DeviceRef'];
 export type Device = Schemas['Device'];
 
+// Session trên dashboard (REST, camelCase).
+export type AgentKind = Schemas['AgentKind'];
+export type PermissionMode = Schemas['PermissionMode'];
+export type TokenUsage = Schemas['TokenUsage'];
+export type SessionSummary = Schemas['SessionSummary'];
+export type SessionPage = Schemas['SessionPage'];
+export type SessionDetail = Schemas['SessionDetail'];
+export type SessionTurn = Schemas['SessionTurn'];
+export type InstructionFile = Schemas['InstructionFile'];
+
+// Payload ingest của CLI (session.v1.schema.json, snake_case). Tên gốc trong `Schemas` là
+// `Session`, `Turn`... nên export lại với tiền tố `Ingest` cho rõ.
+export type IngestBatch = Schemas['IngestBatch'];
+export type IngestSessionEnvelope = Schemas['SessionEnvelope'];
+export type IngestSession = Schemas['Session'];
+export type IngestTurn = Schemas['Turn'];
+export type IngestTool = Schemas['Tool'];
+export type IngestOutput = Schemas['Output'];
+export type IngestDiff = Schemas['Diff'];
+export type IngestUsage = Schemas['Usage'];
+export type IngestAttachment = Schemas['Attachment'];
+export type IngestRedaction = Schemas['Redaction'];
+export type IngestResult = Schemas['IngestResult'];
+export type IngestRejectedCode = Schemas['IngestRejected']['error'];
+
 type JsonContent<T> = T extends { content: { 'application/json': infer B } } ? B : never;
 
 /** Body JSON của request theo operationId, vd. `RequestBody<'login'>`. */
@@ -43,5 +68,7 @@ export type MeResponse = ResponseBody<'getMe', 200>;
 export type DeviceCodeResponse = ResponseBody<'agentDeviceCode', 200>;
 /** Kết quả `GET /agent/v1/whoami`. */
 export type WhoamiResponse = ResponseBody<'agentWhoami', 200>;
+/** Query của `GET /api/v1/projects/{projectId}/sessions`. */
+export type ListProjectSessionsQuery = NonNullable<operations['listProjectSessions']['parameters']['query']>;
 /** Mã lỗi khi poll `POST /agent/v1/device/token`. */
 export type DeviceTokenErrorCode = ResponseBody<'agentDeviceToken', 400>['error'];

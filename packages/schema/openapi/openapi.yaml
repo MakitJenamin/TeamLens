@@ -5,8 +5,8 @@
 # (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   agent.yaml (ingest, heartbeat, config) · sessions.yaml · invites.yaml · consent.yaml
-#   rules.yaml · stats.yaml · admin.yaml
+#   invites.yaml · consent.yaml · rules.yaml · stats.yaml · admin.yaml
+# agent.yaml mới có ingest (heartbeat, config viết sau).
 openapi: 3.1.0
 info:
   title: TeamLens API
@@ -42,6 +42,10 @@ tags:
     description: Duyệt device login và quản lý thiết bị (dashboard).
   - name: agent-auth
     description: Device login, whoami và logout của CLI.
+  - name: agent
+    description: CLI gửi dữ liệu (ingest session).
+  - name: sessions
+    description: Xem session trên dashboard.
 
 paths:
   # health.yaml
@@ -98,7 +102,17 @@ paths:
   /agent/v1/logout:
     $ref: './agent-auth.yaml#/paths/~1agent~1v1~1logout'
 
-  # agent.yaml, sessions.yaml, invites.yaml, consent.yaml, rules.yaml, stats.yaml, admin.yaml:
+  # agent.yaml
+  /agent/v1/ingest:
+    $ref: './agent.yaml#/paths/~1agent~1v1~1ingest'
+
+  # sessions.yaml
+  /api/v1/projects/{projectId}/sessions:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1projects~1{projectId}~1sessions'
+  /api/v1/sessions/{sessionId}:
+    $ref: './sessions.yaml#/paths/~1api~1v1~1sessions~1{sessionId}'
+
+  # invites.yaml, consent.yaml, rules.yaml, stats.yaml, admin.yaml:
   # thêm `$ref` ở đây khi các file đó có path.
 
 components:
@@ -152,3 +166,47 @@ components:
       $ref: './common.yaml#/components/schemas/Device'
     UserCode:
       $ref: './common.yaml#/components/schemas/UserCode'
+
+    # session.v1.schema.json (payload ingest, snake_case). Bundler tự thêm các `$defs` con với tên gốc
+    # (`Session`, `SessionEnvelope`, `Turn`, `Tool`, `Output`, `Diff`, `Usage`, ...); src/index.ts export
+    # lại dưới tên có tiền tố `Ingest` để không nhầm với type REST (`SessionSummary`, `SessionTurn`...).
+    IngestBatch:
+      $ref: '../session.v1.schema.json#/$defs/IngestBatch'
+
+    # agent.yaml
+    IngestResult:
+      $ref: './agent.yaml#/components/schemas/IngestResult'
+    IngestAccepted:
+      $ref: './agent.yaml#/components/schemas/IngestAccepted'
+    IngestRejected:
+      $ref: './agent.yaml#/components/schemas/IngestRejected'
+    UnsupportedSchemaVersionError:
+      $ref: './agent.yaml#/components/schemas/UnsupportedSchemaVersionError'
+
+    # sessions.yaml
+    AgentKind:
+      $ref: './sessions.yaml#/components/schemas/AgentKind'
+    PermissionMode:
+      $ref: './sessions.yaml#/components/schemas/PermissionMode'
+    TokenUsage:
+      $ref: './sessions.yaml#/components/schemas/TokenUsage'
+    SessionSummary:
+      $ref: './sessions.yaml#/components/schemas/SessionSummary'
+    SessionPage:
+      $ref: './sessions.yaml#/components/schemas/SessionPage'
+    InstructionFile:
+      $ref: './sessions.yaml#/components/schemas/InstructionFile'
+    SessionDetail:
+      $ref: './sessions.yaml#/components/schemas/SessionDetail'
+    SessionTurn:
+      $ref: './sessions.yaml#/components/schemas/SessionTurn'
+    TurnTool:
+      $ref: './sessions.yaml#/components/schemas/TurnTool'
+    TurnOutput:
+      $ref: './sessions.yaml#/components/schemas/TurnOutput'
+    TurnDiff:
+      $ref: './sessions.yaml#/components/schemas/TurnDiff'
+    TurnUsage:
+      $ref: './sessions.yaml#/components/schemas/TurnUsage'
+    TurnCount:
+      $ref: './sessions.yaml#/components/schemas/TurnCount'
