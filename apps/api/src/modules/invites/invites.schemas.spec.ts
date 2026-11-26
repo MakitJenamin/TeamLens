@@ -1,3 +1,4 @@
+import { CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
 import { createInviteSchema, joinSchema } from './invites.controller.js';
 
 const valid = {
@@ -6,7 +7,7 @@ const valid = {
   deviceName: 'LAPTOP-01',
   os: 'windows',
   cliVersion: '0.1.0',
-  consent: { textVersion: '2026-11-27', backfill: false },
+  consent: { textVersion: CONSENT_TEXT_VERSION, backfill: false },
 };
 
 describe('joinSchema', () => {
