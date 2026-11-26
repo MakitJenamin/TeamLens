@@ -24,7 +24,7 @@ Nếu shell không thấy `cargo`, dùng `%USERPROFILE%\.cargo\bin\cargo.exe`. C
 | `crates/tl-core` | Logic thuần: `session` (M1.2), `scope` (M1.4), `redact` (M1.5, M2.1), `truncate` (M1.5) | **Không** phụ thuộc tokio, reqwest, không đọc/ghi file |
 | `crates/tl-adapters` | Trait `Adapter` (spec 5.2), `AgentKind`, `SourceFile`, `Offset`, `RawEvent`, `ParseError`; `claude_code/` (M1.3, M2.3, M2.4), `codex/` (M2.5) | Fixtures ở `tests/fixtures/`, phải che trước khi commit |
 | `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler là task M3.8 |
-| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7) | Test tích hợp ở `tests/` |
+| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `state/` (`state.db`, M2.3), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7) | Test tích hợp ở `tests/` |
 
 Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.dependencies]` của `Cargo.toml` gốc. Crate con chỉ thêm dòng `ten = { workspace = true }` cho thứ nó dùng. Cần thư viện mới ngoài danh sách thì sửa `Cargo.toml` gốc bằng PR riêng (vùng nền).
 
@@ -41,6 +41,6 @@ Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENT
 - **Lỗi API:** server luôn trả `{ "error": "<mã>", "message": "<mô tả>" }`; `api_client` chuyển thành `ApiError::Api { status, code: ApiErrorCode, message }`. Mã mới chưa có biến thể thì rơi vào `ApiErrorCode::Other`.
 - **JSON:** REST `/agent/v1` dùng camelCase (`#[serde(rename_all = "camelCase")]`); payload session ingest theo schema v1 snake_case.
 - **Token:** chỉ nằm trong Credential Manager (`tl_platform::CredentialStore`, service `teamlens`, account = server URL). Không ghi vào `config.toml`, không in ra log (`Debug` của kiểu chứa token phải che).
-- **Config/state:** `%LOCALAPPDATA%\teamlens\` (`config.toml`, sau này `state.db`), lấy qua `Platform::data_dir()`.
+- **Config/state:** `%LOCALAPPDATA%\teamlens\` (`config.toml`, `state.db`; `state.db` nằm cạnh `config.toml` nên theo `TL_DATA_DIR`), lấy qua `Platform::data_dir()`.
 - **Test:** lệnh nhận `&AppContext` và `&mut dyn Write` để test thay được: `MemoryCredentialStore` thay Credential Manager, config trong `tempfile`, `poll_unit` 1 ms, mock server bằng `wiremock`. Test không bao giờ đụng Credential Manager thật hay mở trình duyệt.
 - Comment và thông báo tiếng Việt; tên biến, hàm, file tiếng Anh.
