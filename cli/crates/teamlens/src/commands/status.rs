@@ -1,24 +1,27 @@
-//! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`).
-//!
-//! Phần daemon, agent phát hiện được thuộc task M3.2, M3.3. Số file đang chờ ổn định
-//! (M2.3) và hàng đợi (M3.1) chỉ đọc metadata file log và `state.db`.
+//! `tl status` — server, trạng thái đăng nhập, tài khoản và project (qua `GET /agent/v1/whoami`),
+//! đồng ý, trạng thái thu thập (`tl pause`), heartbeat gần nhất, agent phát hiện được, file chờ
+//! ổn định, hàng đợi, lỗi parse (M3.3). Phần cục bộ chỉ đọc metadata file log và `state.db`.
+//! Dòng "Daemon" để M3.2 điền.
 
 use std::io::Write;
 use std::time::SystemTime;
 
+use chrono::{DateTime, Utc};
 use clap::Args;
 use serde::Serialize;
 
-use crate::api_client::{ApiClient, ApiErrorCode, WhoamiResponse};
+use crate::api_client::{ApiClient, ApiErrorCode, HeartbeatAgent, WhoamiResponse};
 use crate::consent::{self, ConsentState};
 use crate::context::AppContext;
 use crate::error::AppError;
+use crate::heartbeat::{self, LastHeartbeat};
 use crate::queue::{self, format_bytes, QueueStats};
 use crate::state::{state_path, StateDb};
 use crate::sync::incremental::{classify, FileStatus};
 use crate::sync::Sources;
 
-const PENDING_DAEMON: &str = "chưa có (task M3.3)";
+/// TODO(M3.2): daemon chưa có; khi có thì kiểm tra named mutex để biết daemon đang chạy.
+const DAEMON_UNKNOWN: &str = "chưa chạy";
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
@@ -44,17 +47,35 @@ pub struct StatusReport {
     /// Bản đồng ý cục bộ cho server hiện tại, `null` nếu chưa đồng ý.
     pub consent: Option<ConsentState>,
     pub daemon: &'static str,
-    pub agents: &'static str,
+    /// Đang `tl pause` (không quét, không gửi).
+    pub paused: bool,
+    /// Lúc bắt đầu tạm dừng (khi `paused`).
+    pub paused_since: Option<DateTime<Utc>>,
+    /// Heartbeat gần nhất (ghi trong `state.db`).
+    pub last_heartbeat: LastHeartbeat,
+    /// Agent có file log trên máy.
+    pub agents: Vec<HeartbeatAgent>,
     /// Hàng đợi batch chờ gửi (M3.1), `null` khi không đọc được `state.db`.
     pub queue: Option<QueueStats>,
+    /// Tổng lỗi parse đang ghi nhận, `None` khi không đọc được `state.db`.
+    pub parse_errors: Option<u64>,
     /// Số file log đã đổi nhưng chưa ổn định (sửa chưa tới 2 phút) nên `tl sync` chưa gửi.
     pub waiting_files: Option<usize>,
 }
 
 pub async fn run(ctx: &AppContext, args: StatusArgs, out: &mut dyn Write) -> Result<(), AppError> {
+    run_with(ctx, args, &Sources::from_env(), out).await
+}
+
+/// Như [`run`] nhưng nhận nguồn log (để test).
+pub async fn run_with(
+    ctx: &AppContext,
+    args: StatusArgs,
+    sources: &Sources,
+    out: &mut dyn Write,
+) -> Result<(), AppError> {
     let mut report = collect(ctx).await?;
-    report.waiting_files = waiting_files(ctx, &Sources::from_env());
-    report.queue = read_queue(ctx);
+    fill_local(ctx, sources, &mut report);
     if args.json {
         let text = serde_json::to_string_pretty(&report).expect("StatusReport luôn serialize được");
         let _ = writeln!(out, "{text}");
@@ -62,6 +83,37 @@ pub async fn run(ctx: &AppContext, args: StatusArgs, out: &mut dyn Write) -> Res
         print_text(out, &report);
     }
     Ok(())
+}
+
+/// Phần đọc từ máy: `state.db` (tạm dừng, heartbeat, lỗi parse, hàng đợi) và file log.
+fn fill_local(ctx: &AppContext, sources: &Sources, report: &mut StatusReport) {
+    report.waiting_files = waiting_files(ctx, sources);
+    let path = state_path(&ctx.config_path);
+    let exists = path.exists();
+    let db = if exists {
+        StateDb::open(&path).ok()
+    } else {
+        None
+    };
+    report.agents = heartbeat::detect_agents(sources, db.as_ref());
+    let Some(db) = db else {
+        // Chưa có `state.db`: chưa quét lần nào, hàng đợi trống.
+        if !exists {
+            report.parse_errors = Some(0);
+            report.queue = Some(QueueStats::default());
+        }
+        return;
+    };
+    report.paused = db.is_paused().unwrap_or(false);
+    if report.paused {
+        report.paused_since = db
+            .pause_windows()
+            .ok()
+            .and_then(|w| w.last().filter(|w| w.end.is_none()).map(|w| w.start));
+    }
+    report.last_heartbeat = heartbeat::last(&db);
+    report.queue = queue::queue_stats(&db).ok();
+    report.parse_errors = db.parse_error_total().ok();
 }
 
 /// Đếm file log đã đổi so với `state.db` nhưng chưa ổn định (chỉ đọc metadata file).
@@ -89,15 +141,6 @@ pub fn waiting_files(ctx: &AppContext, sources: &Sources) -> Option<usize> {
     Some(n)
 }
 
-/// Số liệu hàng đợi; chưa có `state.db` thì hàng đợi trống.
-pub fn read_queue(ctx: &AppContext) -> Option<QueueStats> {
-    let path = state_path(&ctx.config_path);
-    if !path.exists() {
-        return Some(QueueStats::default());
-    }
-    queue::queue_stats(&StateDb::open(&path).ok()?).ok()
-}
-
 /// Thu thập trạng thái. Lỗi mạng/token không làm lệnh thất bại, chỉ ghi vào `account_error`.
 pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
     let config = ctx.load_config()?;
@@ -108,9 +151,13 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         account: None,
         account_error: None,
         consent: consent::current(&config).cloned(),
-        daemon: PENDING_DAEMON,
-        agents: PENDING_DAEMON,
+        daemon: DAEMON_UNKNOWN,
+        paused: false,
+        paused_since: None,
+        last_heartbeat: LastHeartbeat::default(),
+        agents: Vec::new(),
         queue: None,
+        parse_errors: None,
         waiting_files: None,
     };
 
@@ -141,6 +188,12 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
         }
     }
     Ok(report)
+}
+
+fn local_time(t: DateTime<Utc>) -> String {
+    t.with_timezone(&chrono::Local)
+        .format("%d/%m/%Y %H:%M")
+        .to_string()
 }
 
 fn print_text(out: &mut dyn Write, r: &StatusReport) {
@@ -199,9 +252,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
                     p.project_name,
                     p.project_slug,
                     p.text_version,
-                    p.accepted_at
-                        .with_timezone(&chrono::Local)
-                        .format("%d/%m/%Y %H:%M"),
+                    local_time(p.accepted_at),
                     if p.backfill {
                         "gửi cả lịch sử cũ"
                     } else {
@@ -215,14 +266,78 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     let mut w = |label: &str, value: &str| {
         let _ = writeln!(out, "{label:<12}{value}");
     };
+    let state = match (r.paused, r.paused_since) {
+        (false, _) => "đang thu thập".to_owned(),
+        (true, Some(t)) => format!(
+            "tạm dừng từ {} — không quét, không gửi; `tl resume` để tiếp tục",
+            local_time(t)
+        ),
+        (true, None) => "tạm dừng — không quét, không gửi; `tl resume` để tiếp tục".to_owned(),
+    };
+    w("Trạng thái:", &state);
     w("Daemon:", r.daemon);
-    w("Agent:", r.agents);
-    w("Hàng đợi:", &queue_text(r.queue.as_ref()));
-    if let Some(n) = r.waiting_files.filter(|n| *n > 0) {
+    let hb = match (r.last_heartbeat.at, &r.last_heartbeat.status) {
+        (Some(at), Some(st)) => {
+            format!("{} (server ghi nhận: {})", local_time(at), status_label(st))
+        }
+        (Some(at), None) => local_time(at),
+        (None, _) => "chưa gửi".to_owned(),
+    };
+    w("Heartbeat:", &hb);
+    if let Some(err) = &r.last_heartbeat.error {
+        w("", &format!("lần gửi gần nhất lỗi: {err}"));
+    }
+    if r.agents.is_empty() {
         w(
+            "Agent:",
+            "chưa thấy log của Claude Code hay Codex trên máy này",
+        );
+    } else {
+        let list: Vec<String> = r
+            .agents
+            .iter()
+            .map(|a| match &a.version {
+                Some(v) => format!("{} {v} ({} file log)", agent_label(&a.agent), a.files),
+                None => format!("{} ({} file log)", agent_label(&a.agent), a.files),
+            })
+            .collect();
+        w("Agent:", &list.join(", "));
+    }
+    match r.waiting_files {
+        Some(0) => w("Chờ gửi:", "không có"),
+        Some(n) => w(
             "Chờ gửi:",
             &format!("{n} file log đang được ghi, `tl sync` gửi khi không đổi đủ 2 phút"),
-        );
+        ),
+        None => w("Chờ gửi:", "không đọc được state.db"),
+    }
+    w("Hàng đợi:", &queue_text(r.queue.as_ref()));
+    match r.parse_errors {
+        Some(0) => w("Lỗi parse:", "không có"),
+        Some(n) => w(
+            "Lỗi parse:",
+            &format!(
+                "{n} (bản ghi log không nhận ra hoặc file đọc lỗi, đã bỏ qua; định dạng log của agent có thể đã đổi)"
+            ),
+        ),
+        None => w("Lỗi parse:", "không đọc được state.db"),
+    }
+}
+
+fn agent_label(agent: &str) -> &str {
+    match agent {
+        "claude_code" => "Claude Code",
+        "codex" => "Codex",
+        other => other,
+    }
+}
+
+fn status_label(status: &str) -> &str {
+    match status {
+        "online" => "đang thu thập",
+        "paused" => "tạm dừng",
+        "consent_revoked" => "đã rút đồng ý",
+        other => other,
     }
 }
 

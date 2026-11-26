@@ -2,4 +2,4 @@ Endpoint cho CLI (`/agent/v1`, xác thực bằng device token).
 
 - `POST /agent/v1/ingest` (M1.6): `ingest.controller.ts`, `ingest.service.ts`; đọc body gzip ở `ingest-body.ts`, validate ở `ingest-validator.ts`, khớp repo ở `repo-match.ts`, giới hạn tốc độ ở `rate-limiter.ts`.
 - `GET /agent/v1/config` (M2.2): `agent-config.controller.ts`, `agent-config.service.ts`; đọc và ghép `settings` (`redaction_patterns`, `truncation`) ở `agent-config.ts`. `min_cli_version` lấy từ env `MIN_CLI_VERSION` (mặc định `0.1.0`), `consent_text_version` từ `consent/consent-text.ts`.
-- Chưa làm: `POST /agent/v1/heartbeat` (M3.3).
+- `POST /agent/v1/heartbeat` (M3.3): `heartbeat.controller.ts`, `heartbeat.service.ts`; zod body, giới hạn 20 request/phút (`HeartbeatRateLimiter`) và `effectiveDeviceStatus` ở `heartbeat.ts`. Ghi `devices.last_seen_at`, `cli_version`, `status` (`online`/`paused`, không ghi đè `consent_revoked`) và số liệu gần nhất vào `devices.last_heartbeat` (jsonb). "offline" **tính khi đọc**: `effectiveDeviceStatus(status, lastSeenAt)` trả `offline` khi chưa từng heartbeat hoặc heartbeat cuối cũ hơn 30 phút (`DEVICE_OFFLINE_AFTER_MS`); không có job định kỳ.

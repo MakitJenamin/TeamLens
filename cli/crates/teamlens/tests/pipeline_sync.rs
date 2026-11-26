@@ -1299,3 +1299,167 @@ async fn hang_doi_chua_dong_y_thi_khong_gui_va_giu_hang_doi() {
         "không xóa hàng đợi"
     );
 }
+
+// ---- M3.3: tạm dừng và heartbeat cuối `tl sync` ----
+
+/// Mock `POST /agent/v1/heartbeat`, ghi lại body.
+async fn mock_heartbeat(server: &MockServer) -> Arc<Mutex<Vec<Value>>> {
+    let bodies: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let seen = bodies.clone();
+    Mock::given(method("POST"))
+        .and(path("/agent/v1/heartbeat"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(move |req: &Request| {
+            seen.lock()
+                .unwrap()
+                .push(serde_json::from_slice::<Value>(&req.body).unwrap());
+            ResponseTemplate::new(200).set_body_json(json!({
+                "status": "online", "consent_text_version": CONSENT_VERSION,
+                "min_cli_version": "0.1.0"
+            }))
+        })
+        .mount(server)
+        .await;
+    bodies
+}
+
+fn state_db(ctx: &AppContext) -> teamlens::state::StateDb {
+    teamlens::state::StateDb::open(&teamlens::state::state_path(&ctx.config_path)).unwrap()
+}
+
+#[tokio::test]
+async fn sync_gui_heartbeat_cuoi_luot() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let beats = mock_heartbeat(&server).await;
+    let ctx = env.ctx(&server.uri());
+    let (r, out) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("server nhận 1 session"), "{out}");
+    let beats = beats.lock().unwrap();
+    assert_eq!(beats.len(), 1);
+    let b = &beats[0];
+    assert_eq!(b["status"], "online");
+    assert_eq!(b["agents"][0]["agent"], "claude_code");
+    assert_eq!(b["agents"][0]["files"], 3);
+    // Phiên bản lấy từ session trong phạm vi (fixture 2.1.332).
+    assert_eq!(b["agents"][0]["version"], "2.1.332");
+    assert_eq!(b["queue"]["batches"], 0);
+    let text = b.to_string();
+    assert!(!text.contains(OUT_MARKER) && !text.contains(IN_SESSION));
+    assert!(teamlens::heartbeat::last(&state_db(&ctx)).at.is_some());
+}
+
+#[tokio::test]
+async fn sync_dang_tam_dung_khong_quet_khong_goi_server() {
+    let env = Env::new();
+    let server = MockServer::start().await; // không mock gì: gọi server là lỗi
+    let ctx = env.ctx(&server.uri());
+    state_db(&ctx).set_paused(true, chrono::Utc::now()).unwrap();
+    let (r, out) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("đang tạm dừng"), "{out}");
+    assert!(server.received_requests().await.unwrap().is_empty());
+    // Không quét: chưa ghi offset file nào.
+    let file = env
+        .dir
+        .path()
+        .join("claude/projects/shop")
+        .join(format!("{IN_SESSION}.jsonl"));
+    assert_eq!(state_db(&ctx).file(&file).unwrap(), None);
+}
+
+#[tokio::test]
+async fn sync_bo_turn_trong_khoang_tam_dung_giu_seq_goc() {
+    // Lần 1 (server khác) để biết ts các turn của session trong phạm vi.
+    let env = Env::new();
+    let probe = Ingest::new(vec![]);
+    let server = server_with(probe.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    run_sync(&env, &ctx, false, 8 << 20).await.0.unwrap();
+    let all: Vec<(u64, String)> = probe.bodies.lock().unwrap()[0]["sessions"][0]["turns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| {
+            (
+                t["seq"].as_u64().unwrap(),
+                t["ts"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    let mid: chrono::DateTime<chrono::Utc> = all[all.len() / 2].1.parse().unwrap();
+
+    // Lần 2: môi trường mới, khoảng tạm dừng [mid, bây giờ).
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    state_db(&ctx).set_paused(true, mid).unwrap();
+    state_db(&ctx)
+        .set_paused(false, chrono::Utc::now())
+        .unwrap();
+    let (r, out) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    let expected_dropped = all
+        .iter()
+        .filter(|(_, ts)| ts.parse::<chrono::DateTime<chrono::Utc>>().unwrap() >= mid)
+        .count();
+    assert!(expected_dropped > 0);
+    assert!(
+        out.contains(&format!(
+            "Bỏ {expected_dropped} turn phát sinh trong lúc tạm dừng"
+        )),
+        "{out}"
+    );
+    let body = ingest.bodies.lock().unwrap()[0].clone();
+    assert_valid_batch(&body);
+    let sent: Vec<u64> = body["sessions"][0]["turns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["seq"].as_u64().unwrap())
+        .collect();
+    let kept: Vec<u64> = all
+        .iter()
+        .filter(|(_, ts)| ts.parse::<chrono::DateTime<chrono::Utc>>().unwrap() < mid)
+        .map(|(seq, _)| *seq)
+        .collect();
+    assert_eq!(
+        sent, kept,
+        "giữ nguyên seq gốc của turn ngoài khoảng tạm dừng"
+    );
+
+    // Lần sau: file không đổi → không gửi lại turn đã bỏ.
+    let (r, out) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("không đổi"), "{out}");
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 1);
+
+    // `tl preview` cũng bỏ các turn đó.
+    let (r, preview_out) = run_preview(&env, &ctx, Some(IN_SESSION.to_owned())).await;
+    r.unwrap();
+    let batch: Value = serde_json::from_str(&preview_out).unwrap();
+    assert_eq!(
+        batch["sessions"][0]["turns"].as_array().unwrap().len(),
+        kept.len()
+    );
+}
+
+#[tokio::test]
+async fn sync_moi_turn_trong_khoang_tam_dung_thi_khong_gui_session() {
+    let env = Env::new();
+    let ingest = Ingest::new(vec![]);
+    let server = server_with(ingest.clone()).await;
+    let ctx = env.ctx(&server.uri());
+    let start = chrono::DateTime::<chrono::Utc>::UNIX_EPOCH;
+    state_db(&ctx).set_paused(true, start).unwrap();
+    state_db(&ctx)
+        .set_paused(false, chrono::Utc::now())
+        .unwrap();
+    let (r, out) = run_sync(&env, &ctx, false, 8 << 20).await;
+    r.unwrap();
+    assert!(out.contains("Không có session nào mới"), "{out}");
+    assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
+}

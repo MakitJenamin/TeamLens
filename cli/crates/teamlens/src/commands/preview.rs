@@ -26,6 +26,7 @@ use crate::pipeline::batch::new_batch;
 use crate::pipeline::collect::{source_file, CollectStats, Pipeline, PreparedSession};
 use crate::pipeline::prepare::build_redactor;
 use crate::pipeline::scope::ScopeFilter;
+use crate::state::{state_path, StateDb};
 use crate::sync::agent_config;
 use crate::sync::{connect, Sources};
 
@@ -87,6 +88,34 @@ pub async fn run_with(
             pipeline.process_file(adapter, &file)
         }
     };
+
+    // Như `tl sync`: turn phát sinh lúc `tl pause` không bao giờ gửi.
+    let mut sessions = sessions;
+    let state_file = state_path(&ctx.config_path);
+    let windows = if state_file.exists() {
+        StateDb::open(&state_file)?
+            .pause_windows()
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let mut dropped_paused = 0usize;
+    if !windows.is_empty() {
+        for p in &mut sessions {
+            let before = p.envelope.turns.len();
+            p.envelope
+                .turns
+                .retain(|t| !windows.iter().any(|w| w.contains(t.ts)));
+            dropped_paused += before - p.envelope.turns.len();
+        }
+        sessions.retain(|p| !p.envelope.turns.is_empty());
+    }
+    if dropped_paused > 0 {
+        let _ = writeln!(
+            note,
+            "Đã bỏ {dropped_paused} turn phát sinh trong lúc tạm dừng (`tl pause`): không bao giờ gửi."
+        );
+    }
 
     if sessions.is_empty() {
         match (&args.session, stats.out_of_scope) {
