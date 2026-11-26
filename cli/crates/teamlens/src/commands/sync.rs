@@ -10,13 +10,13 @@ use std::io::Write;
 use std::time::SystemTime;
 
 use clap::Args;
-use tl_core::redact::Redactor;
 
 use crate::consent;
 use crate::context::AppContext;
 use crate::error::AppError;
 use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
+use crate::pipeline::prepare::build_redactor;
 use crate::pipeline::scope::ScopeFilter;
 use crate::state::{state_path, StateDb};
 use crate::sync::agent_config::{self, ConfigSource};
@@ -94,6 +94,10 @@ pub async fn run_with(
     }
 
     let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
+    let (redactor, warnings) = build_redactor(&prepare.server_redaction_patterns);
+    for warning in &warnings {
+        let _ = writeln!(out, "Cảnh báo: {warning}");
+    }
     let mut filter = ScopeFilter::new(agent_config::repo_patterns(server_config));
     let consent = consent::current(&local).cloned();
 
@@ -110,8 +114,7 @@ pub async fn run_with(
     let now = SystemTime::now();
     let mut pipeline = Pipeline {
         filter: &mut filter,
-        // M2.1: dựng Redactor từ `prepare.server_redaction_patterns` thay cho bộ có sẵn.
-        redactor: Redactor::shared(),
+        redactor: &redactor,
         options: &prepare,
         now,
     };
