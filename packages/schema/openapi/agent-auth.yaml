@@ -181,3 +181,34 @@ paths:
           description: Đã thu hồi token.
         '401':
           $ref: './common.yaml#/components/responses/InvalidToken'
+
+  /agent/v1/web-login:
+    post:
+      operationId: agentWebLogin
+      tags: [agent-auth]
+      summary: Xin link đăng nhập dashboard một lần cho `tl open`
+      description: |
+        Member không có mật khẩu: `tl open` gọi endpoint này bằng device token rồi mở `url` trên trình
+        duyệt. Ticket sống 60 giây, dùng một lần; DB chỉ lưu SHA-256 (bảng `web_login_tickets`).
+      security:
+        - deviceToken: []
+      responses:
+        '200':
+          description: Link đăng nhập một lần.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expiresIn]
+                additionalProperties: false
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: '`${TEAMLENS_PUBLIC_URL}/auth/cli?ticket=<ticket>`'
+                    examples: [http://localhost:3000/auth/cli?ticket=abc]
+                  expiresIn:
+                    type: integer
+                    examples: [60]
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'

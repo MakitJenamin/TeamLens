@@ -90,3 +90,50 @@ paths:
                       $ref: './common.yaml#/components/schemas/Membership'
         '401':
           $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/auth/ticket:
+    post:
+      operationId: exchangeLoginTicket
+      tags: [auth]
+      summary: Đổi ticket của `tl open` lấy cookie phiên dashboard
+      description: Trang web `/auth/cli` gọi endpoint này. Ticket dùng một lần, hết hạn sau 60 giây.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              additionalProperties: false
+              properties:
+                ticket:
+                  type: string
+                  minLength: 10
+                  maxLength: 200
+      responses:
+        '200':
+          description: Đăng nhập thành công; cookie `tl_session` được đặt.
+          headers:
+            Set-Cookie:
+              $ref: './common.yaml#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                additionalProperties: false
+                properties:
+                  user:
+                    $ref: './common.yaml#/components/schemas/User'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          description: 'Ticket sai, đã dùng hoặc hết hạn (`error`: `invalid_ticket`). Chạy lại `tl open`.'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: invalid_ticket
+                message: Link đăng nhập đã hết hạn hoặc đã dùng. Chạy lại `tl open`.

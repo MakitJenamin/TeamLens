@@ -48,6 +48,8 @@ tags:
     description: Xem session trên dashboard.
   - name: rules
     description: Rule và nhận xét về session.
+  - name: invites
+    description: Link mời chung và tham gia bằng `tl join`.
 
 paths:
   # health.yaml
@@ -67,6 +69,8 @@ paths:
     $ref: './auth.yaml#/paths/~1api~1v1~1auth~1logout'
   /api/v1/auth/me:
     $ref: './auth.yaml#/paths/~1api~1v1~1auth~1me'
+  /api/v1/auth/ticket:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1ticket'
 
   # projects.yaml
   /api/v1/projects:
@@ -87,6 +91,8 @@ paths:
     $ref: './users.yaml#/paths/~1api~1v1~1users'
   /api/v1/users/{userId}:
     $ref: './users.yaml#/paths/~1api~1v1~1users~1{userId}'
+  /api/v1/users/{userId}/merge:
+    $ref: './users.yaml#/paths/~1api~1v1~1users~1{userId}~1merge'
 
   # devices.yaml
   /api/v1/device/approve:
@@ -105,6 +111,8 @@ paths:
     $ref: './agent-auth.yaml#/paths/~1agent~1v1~1whoami'
   /agent/v1/logout:
     $ref: './agent-auth.yaml#/paths/~1agent~1v1~1logout'
+  /agent/v1/web-login:
+    $ref: './agent-auth.yaml#/paths/~1agent~1v1~1web-login'
 
   # agent.yaml
   /agent/v1/ingest:
@@ -119,7 +127,17 @@ paths:
   /api/v1/sessions/{sessionId}/findings:
     $ref: './rules.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1findings'
 
-  # invites.yaml, consent.yaml, stats.yaml, admin.yaml:
+  # invites.yaml
+  /api/v1/projects/{projectId}/invites:
+    $ref: './invites.yaml#/paths/~1api~1v1~1projects~1{projectId}~1invites'
+  /api/v1/projects/{projectId}/invites/{inviteId}:
+    $ref: './invites.yaml#/paths/~1api~1v1~1projects~1{projectId}~1invites~1{inviteId}'
+  /agent/v1/invites/{code}:
+    $ref: './invites.yaml#/paths/~1agent~1v1~1invites~1{code}'
+  /agent/v1/join:
+    $ref: './invites.yaml#/paths/~1agent~1v1~1join'
+
+  # consent.yaml, stats.yaml, admin.yaml:
   # thêm `$ref` ở đây khi các file đó có path.
 
 components:
@@ -189,6 +207,22 @@ components:
       $ref: './agent.yaml#/components/schemas/IngestRejected'
     UnsupportedSchemaVersionError:
       $ref: './agent.yaml#/components/schemas/UnsupportedSchemaVersionError'
+
+    # invites.yaml
+    InviteStatus:
+      $ref: './invites.yaml#/components/schemas/InviteStatus'
+    Invite:
+      $ref: './invites.yaml#/components/schemas/Invite'
+    CreatedInvite:
+      $ref: './invites.yaml#/components/schemas/CreatedInvite'
+    ConsentText:
+      $ref: './invites.yaml#/components/schemas/ConsentText'
+    InvitePreview:
+      $ref: './invites.yaml#/components/schemas/InvitePreview'
+    JoinRequest:
+      $ref: './invites.yaml#/components/schemas/JoinRequest'
+    JoinResult:
+      $ref: './invites.yaml#/components/schemas/JoinResult'
 
     SessionFinding:
       $ref: './rules.yaml#/components/schemas/SessionFinding'

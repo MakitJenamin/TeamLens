@@ -1,15 +1,396 @@
-# KHUNG — chưa có endpoint. Task: M3.6.
+# Nhóm `invites`: link mời chung và tham gia bằng một lệnh `tl join` (SPEC 7.1). Mốc 1.5: J.1, J.3.
 #
-# Invite theo project, spec mục 7.1:
-# - GET/POST /api/v1/projects/{projectId}/invites, DELETE .../invites/{inviteId}
-# - Endpoint công khai đọc và nhận invite cho trang /i/[code] (tạo tài khoản từ invite).
+# - Dashboard (cookie, chỉ leader): tạo, liệt kê, thu hồi link mời của project.
+# - CLI (công khai): xem trước link mời; `POST /agent/v1/join` đổi mã mời + đồng ý lấy device token.
 #
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './invites.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# Mã mời sinh ngẫu nhiên 32 byte (base64url), DB chỉ lưu SHA-256, nên mã chỉ trả về một lần lúc tạo.
+# Link: `${TEAMLENS_PUBLIC_URL}/i/<code>`. Hai endpoint công khai giới hạn 10 request/phút mỗi IP.
+paths:
+  /api/v1/projects/{projectId}/invites:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectInvites
+      tags: [invites]
+      summary: Danh sách link mời của project (leader)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Mọi link mời của project, mới nhất trước (kể cả đã hết hạn, hết lượt, thu hồi).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invite'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: createProjectInvite
+      tags: [invites]
+      summary: Tạo link mời chung cho project (leader)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expiresInDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                  default: 7
+                maxUses:
+                  description: Số lượt dùng tối đa; bỏ trống hoặc `null` là không giới hạn.
+                  oneOf:
+                    - type: integer
+                      minimum: 1
+                      maximum: 1000
+                    - type: 'null'
+      responses:
+        '201':
+          description: Link vừa tạo. `code`, `url`, `installCommand` chỉ trả đúng lần này.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedInvite'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/invites/{inviteId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - name: inviteId
+        in: path
+        required: true
+        schema:
+          $ref: './common.yaml#/components/schemas/Id'
+    delete:
+      operationId: revokeProjectInvite
+      tags: [invites]
+      summary: Thu hồi link mời (leader)
+      description: Đặt `revokedAt`; link không dùng được nữa. Gọi lại trên link đã thu hồi vẫn trả 204.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã thu hồi.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /agent/v1/invites/{code}:
+    parameters:
+      - $ref: '#/components/parameters/InviteCode'
+    get:
+      operationId: previewInvite
+      tags: [invites]
+      summary: Xem trước link mời (công khai, cho màn hình đồng ý của `tl join`)
+      security: []
+      responses:
+        '200':
+          description: Link còn dùng được.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePreview'
+        '404':
+          $ref: '#/components/responses/InviteNotFound'
+        '410':
+          $ref: '#/components/responses/InviteUnusable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /agent/v1/join:
+    post:
+      operationId: joinWithInvite
+      tags: [invites]
+      summary: Tham gia project bằng mã mời và bản đồng ý
+      description: |
+        Công khai. Trong một transaction: khóa invite và kiểm tra lại → tạo user (`role = member`,
+        không email, không mật khẩu) → `project_members` → thiết bị (kèm token) → `consents` →
+        tăng `usedCount` → audit `member.join`. Trả device token đúng một lần (`201`).
+
+        Nếu request kèm `Authorization: Bearer tld_...` hợp lệ (máy đã tham gia), server không tạo
+        user/thiết bị mới mà chỉ thêm user đó vào project và ghi bản đồng ý, trả `200` không có token.
+        Đã là thành viên project rồi thì vẫn `200`, không tăng `usedCount`.
+      security:
+        - {}
+        - deviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequest'
+      responses:
+        '201':
+          description: Máy mới tham gia; có `accessToken`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinResult'
+        '200':
+          description: Máy đã có token, được thêm vào project; không có `accessToken`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinResult'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+        '404':
+          $ref: '#/components/responses/InviteNotFound'
+        '409':
+          description: 'Văn bản đồng ý đã đổi phiên bản (`error`: `consent_outdated`); CLI xem trước lại rồi hỏi đồng ý lại.'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: consent_outdated
+                message: Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại.
+        '410':
+          $ref: '#/components/responses/InviteUnusable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+components:
+  parameters:
+    InviteCode:
+      name: code
+      in: path
+      required: true
+      description: Mã mời lấy từ link `/i/<code>`.
+      schema:
+        type: string
+        minLength: 10
+        maxLength: 100
+        pattern: '^[A-Za-z0-9_-]+$'
+
+  schemas:
+    InviteStatus:
+      type: string
+      enum: [active, expired, used_up, revoked]
+      description: Tính từ `expiresAt`, `maxUses`/`usedCount`, `revokedAt` (thu hồi ưu tiên nhất).
+
+    Invite:
+      type: object
+      required: [id, projectId, status, expiresAt, maxUses, usedCount, revokedAt, createdAt, createdBy]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        projectId:
+          $ref: './common.yaml#/components/schemas/Id'
+        status:
+          $ref: '#/components/schemas/InviteStatus'
+        expiresAt:
+          type: string
+          format: date-time
+        maxUses:
+          oneOf:
+            - type: integer
+            - type: 'null'
+        usedCount:
+          type: integer
+        revokedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          description: Leader tạo link; `null` nếu user đó đã bị xóa.
+          oneOf:
+            - $ref: './common.yaml#/components/schemas/UserRef'
+            - type: 'null'
+
+    CreatedInvite:
+      type: object
+      required: [invite, code, url, installCommand]
+      additionalProperties: false
+      properties:
+        invite:
+          $ref: '#/components/schemas/Invite'
+        code:
+          type: string
+          description: Mã mời gốc (chỉ trả lần này).
+        url:
+          type: string
+          format: uri
+          description: '`${TEAMLENS_PUBLIC_URL}/i/<code>`; thành viên chạy `tl join <url>`.'
+          examples: [http://localhost:3000/i/Zm9vYmFy]
+        installCommand:
+          type: string
+          description: Câu lệnh PowerShell cài `tl.exe` rồi tự `tl join` (dùng khi máy chưa có `tl`).
+          examples: ['irm http://localhost:3000/install.ps1?code=Zm9vYmFy | iex']
+
+    ConsentText:
+      type: object
+      required: [version, text]
+      additionalProperties: false
+      properties:
+        version:
+          type: string
+          description: Phiên bản văn bản đồng ý; CLI gửi lại đúng giá trị này khi `join`.
+          examples: ['2026-11-26']
+        text:
+          type: string
+          description: Nội dung tiếng Việt hiển thị trên màn hình đồng ý (spec 4.3).
+
+    InvitePreview:
+      type: object
+      required: [serverUrl, project, repoPatterns, consent, expiresAt]
+      additionalProperties: false
+      properties:
+        serverUrl:
+          type: string
+          format: uri
+          description: '`TEAMLENS_PUBLIC_URL` của server.'
+        project:
+          type: object
+          required: [id, name, slug]
+          additionalProperties: false
+          properties:
+            id:
+              $ref: './common.yaml#/components/schemas/Id'
+            name:
+              type: string
+            slug:
+              $ref: './common.yaml#/components/schemas/ProjectSlug'
+        repoPatterns:
+          type: array
+          description: Repo sẽ được thu thập; session ngoài các repo này không bao giờ rời máy.
+          items:
+            $ref: './common.yaml#/components/schemas/RemotePattern'
+        consent:
+          $ref: '#/components/schemas/ConsentText'
+        expiresAt:
+          type: string
+          format: date-time
+
+    JoinRequest:
+      type: object
+      required: [code, name, deviceName, os, cliVersion, consent]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 10
+          maxLength: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Tên hiển thị thành viên tự nhập (bỏ qua khi máy đã có token).
+        deviceName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          examples: [LAPTOP-01]
+        os:
+          type: string
+          minLength: 1
+          maxLength: 50
+          examples: [windows]
+        cliVersion:
+          type: string
+          minLength: 1
+          maxLength: 50
+          examples: [0.1.0]
+        consent:
+          type: object
+          required: [textVersion, backfill]
+          additionalProperties: false
+          properties:
+            textVersion:
+              type: string
+              description: Phải bằng `consent.version` của server, sai thì `409 consent_outdated`.
+            backfill:
+              type: boolean
+              description: Có gửi cả session cũ trên máy không.
+
+    JoinResult:
+      type: object
+      required: [userId, deviceId, role, project]
+      additionalProperties: false
+      properties:
+        accessToken:
+          type: string
+          description: Device token `tld_...`; chỉ có khi máy mới tham gia (`201`). CLI lưu vào Credential Manager.
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        deviceId:
+          $ref: './common.yaml#/components/schemas/Id'
+        role:
+          $ref: './common.yaml#/components/schemas/Role'
+        project:
+          type: object
+          required: [id, name, slug, repoPatterns]
+          additionalProperties: false
+          properties:
+            id:
+              $ref: './common.yaml#/components/schemas/Id'
+            name:
+              type: string
+            slug:
+              $ref: './common.yaml#/components/schemas/ProjectSlug'
+            repoPatterns:
+              type: array
+              items:
+                $ref: './common.yaml#/components/schemas/RemotePattern'
+
+  responses:
+    InviteNotFound:
+      description: 'Mã mời không tồn tại (`error`: `invite_not_found`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: invite_not_found
+            message: Link mời không đúng. Hãy xin leader link mới.
+    InviteUnusable:
+      description: 'Link không dùng được nữa (`error`: `invite_expired`, `invite_used_up` hoặc `invite_revoked`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: invite_expired
+            message: Link mời đã hết hạn. Hãy xin leader link mới.
+    RateLimited:
+      description: 'Quá 10 request/phút từ một IP (`error`: `rate_limited`). Thử lại sau `Retry-After` giây.'
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: rate_limited
+            message: Thử lại sau ít phút.
