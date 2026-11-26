@@ -48,7 +48,7 @@ Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song so
 
 ## Mốc 1.5 · Tối giản tham gia (đổi luồng, chốt 2026-11-26)
 
-Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`, gộp Admin vào Leader (SPEC mục 7.1, 11.1). Hai quyết định đã chốt: link mời dùng chung cho cả nhóm; user trùng (máy thứ hai, cài lại Windows) do leader gộp trên web. Làm trước Mốc 2 vì đụng vùng nền (`auth`, `device`, `access`, DB) mà mọi việc sau đều dựa vào. Mốc này thay phần lớn M3.5–M3.7 cũ.
+Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`, gộp Admin vào Leader (SPEC mục 7.1, 11.1). Hai quyết định đã chốt: link mời dùng chung cho cả nhóm; user trùng (máy thứ hai, cài lại Windows) do leader gộp trên web. Làm càng sớm càng tốt, xen với phần Mốc 2 còn lại (M2.6, M2.7 đã xong trước khi chốt mốc này), vì đụng vùng nền (`auth`, `device`, `access`, DB) mà mọi việc sau đều dựa vào. Mốc này thay phần lớn M3.5–M3.7 cũ.
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
