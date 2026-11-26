@@ -5,7 +5,7 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 - **Mốc 1 chạy hết luồng trước, các mốc sau nâng cấp từng khúc.** Giống làm đường: mở con đường đất nối hai đầu trước (session thật đi từ máy lên dashboard, mỗi khúc ở mức tối thiểu), rồi mới trải nhựa từng đoạn. Lỗi ghép nối lộ ra ngay tuần đầu.
 - **Contract trước:** task ghi "PR contract" thì merge trước để người kia code theo.
 - **Mỗi mốc kết thúc bằng demo chung** trên máy thật. Mỗi người cập nhật phần mình trong [FLOW.md](FLOW.md) và giải thích cho người kia.
-- **Mỗi người tự test được phần mình** nhờ dữ liệu seed, server local (`pnpm dev`), device login thật và file mẫu `packages/schema/examples/`. Mỗi ô có dòng "Tự test" ghi cách làm.
+- **Mỗi người tự test được phần mình** nhờ dữ liệu seed, server local (`pnpm dev`), `tl join` với link mời local (từ Mốc 1.5; trước đó là device login) và file mẫu `packages/schema/examples/`. Mỗi ô có dòng "Tự test" ghi cách làm.
 - **Mỗi task là một nhánh** `feat/<mã>-<tên-ngắn>` (ví dụ `feat/m1.3-claude-adapter`) và một PR; CI phải xanh cả `validate` và `rust-windows` mới merge.
 
 ## Hai người, hai nhóm tính năng
@@ -18,7 +18,7 @@ Vùng file chi tiết của từng người nằm ở [AGENTS.md](../AGENTS.md) 
 
 ## Giai đoạn nền — xong
 
-Monorepo, contract, API (auth, project, quyền, audit, device login), web (login/setup/device, layout), CLI (`tl login`/`logout`/`status`), CI. Chi tiết ở PR #1.
+Monorepo, contract, API (auth, project, quyền, audit, device login), web (login/setup/device, layout), CLI (`tl login`/`logout`/`status`), CI. Chi tiết ở PR #1. Device login và vai trò admin của giai đoạn này được thay ở Mốc 1.5.
 
 ---
 
@@ -46,6 +46,24 @@ Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song so
 
 ---
 
+## Mốc 1.5 · Tối giản tham gia (đổi luồng, chốt 2026-11-26)
+
+Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`, gộp Admin vào Leader (SPEC mục 7.1, 11.1). Hai quyết định đã chốt: link mời dùng chung cho cả nhóm; user trùng (máy thứ hai, cài lại Windows) do leader gộp trên web. Làm càng sớm càng tốt, xen với phần Mốc 2 còn lại (M2.6, M2.7 đã xong trước khi chốt mốc này), vì đụng vùng nền (`auth`, `device`, `access`, DB) mà mọi việc sau đều dựa vào. Mốc này thay phần lớn M3.5–M3.7 cũ.
+
+| Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
+| --- | --- | --- |
+| 1 | **J.2** Migration vùng nền, **chỉ thêm, chưa xóa gì** để code cũ vẫn build và chạy (PR riêng chỉ có migration): thêm `users.role` (`leader`/`member`, điền từ dữ liệu cũ: `is_admin` hoặc là leader của bất kỳ project nào → `leader`, còn lại `member`); `email`/`password_hash` cho phép null; `invites.revoked_at`; bảng `web_login_tickets`. Cột và bảng cũ xóa ở J.10<br>**Tự test:** `db:migrate` trên DB trống và trên DB dev cũ; `pnpm test` và `test:e2e` vẫn xanh | **J.1** 📜 Contract: `openapi/invites.yaml` (leader tạo/liệt kê/thu hồi; `GET /agent/v1/invites/{code}`), `agent-auth.yaml` (`POST /agent/v1/join`, `POST /agent/v1/web-login`; bỏ `device/code`, `device/token`), `auth.yaml` (`POST /api/v1/auth/ticket`; `/setup` nhận thêm project + repo), `users.yaml` (`POST /api/v1/users/{id}/merge`, thêm leader); bỏ `device/approve`<br>**Tự test:** `pnpm --filter @teamlens/schema build test` |
+| 2 | **J.4** Hai vai trò toàn server: `AccessService` (leader thấy hết, member chỉ của mình), bỏ `@ProjectRoles` theo project, guard leader cho route quản trị; sửa `sessions`/findings theo quyền mới<br>**Tự test:** e2e quyền với leader và member seed | **J.3** API `invites` + `join`: tạo/thu hồi link; xem trước công khai; `join` trong một transaction tạo user + `project_members` + device + `consents` + tăng `used_count` + audit `member.join`; máy đã có token thì chỉ thêm project; giới hạn 10 request/phút/IP<br>**Tự test:** curl `join` hai lần với cùng link; link hết hạn/hết lượt/đã thu hồi trả lỗi |
+| 3 | **J.6** `tl open` + `POST /agent/v1/web-login` + trang web `/auth/cli` đổi ticket lấy cookie (60 giây, dùng một lần)<br>**Tự test:** `tl open` mở web đã đăng nhập; dùng lại URL lần hai bị từ chối | **J.5** CLI `tl join <url>` (alias `tl login <url>`): xem trước → màn hình đồng ý trong terminal (tên, backfill, `yes`) → `join` → lưu token + server; module `consent` trong CLI (`may_send()` đọc trạng thái thật). Bỏ luồng device code trong `login.rs`<br>**Tự test:** `tl join` với link local từ seed; từ chối thì không có request `join` nào |
+| 4 | **J.8** Gộp user: API `merge` (chuyển devices/sessions/consents/project_members, xử lý trùng `source_id`, audit, xóa user thừa, phát job chấm lại) + nút "Gộp vào…" trên trang Thành viên<br>**Tự test:** join hai lần thành hai user, gộp, kiểm tra session và điểm về một người | **J.7** Web: wizard `/setup` (leader + project + repo → link mời + câu lệnh), quản lý link mời trong trang quản trị, trang `/i/[code]` chỉ hiện hướng dẫn cài; bỏ trang `/device` và form tạo user bằng email cho member; thêm leader<br>**Tự test:** DB trống → `/setup` → copy lệnh → `tl join` chạy được |
+| 5 | **J.10** Dọn luồng cũ (sau khi J.4–J.7 đã merge): migration xóa `users.is_admin`, `project_members.role`, `invites.role`, bảng `device_codes`; xóa endpoint `device/code`, `device/token`, `device/approve`, trang `/device`; seed mới: chỉ `leader@teamlens.local` có mật khẩu, member không email/mật khẩu, seed in device token của member ra console; cập nhật `AGENTS.md` mục 2<br>**Tự test:** DB trống → `db:migrate` + `db:seed` → `tl` dùng token seed gửi được; mọi test xanh | **J.9** Ingest kiểm tra `consents` (thay TODO M3.7 trong `ingest.service.ts`): chưa đồng ý hoặc đã rút → 403 `consent_required`; seed và test e2e ingest có sẵn bản đồng ý<br>**Tự test:** rút đồng ý trong DB rồi `tl sync` |
+
+**Thứ tự:** J.1 (contract) và J.2 (migration chỉ thêm) merge trước, hai người code theo. J.4 đổi quyền mà J.3, J.7, J.8 dùng. J.5 gọi `join` của J.3; J.9 dùng module `consent` mà J.5 viết. J.10 làm cuối cùng, khi không còn code nào dùng luồng cũ.
+**Vùng sở hữu:** J.2, J.4, J.6, J.10 và trang `/setup` của J.7 nằm trong vùng nền (`AGENTS.md` mục 3): mỗi task một PR riêng, merge sớm rồi báo người kia `git pull`.
+**Demo chung:** DB trống → leader chạy wizard → gửi link → thành viên chạy đúng một lệnh `tl join` → `tl sync` → session hiện trên dashboard của leader; thành viên `tl open` thấy session của mình.
+
+---
+
 ## Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
@@ -64,13 +82,13 @@ Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song so
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
-| 1 | **M3.1** Hàng đợi batch trong SQLite (đã che mới được ghi), retry backoff tối đa 30 phút, giới hạn 500 MB, xử lý `426`; trước khi gửi, hỏi module `consent` của Người 2<br>**Tự test:** tắt API rồi bật lại: không mất, không trùng | **M3.5** 📜 `openapi/invites.yaml`, `openapi/consent.yaml` (`POST /agent/v1/consent`); chốt cùng Người 1 hàm của module `consent` trong CLI<br>**Tự test:** `pnpm --filter @teamlens/schema build` |
-| 2 | **M3.2** `tl daemon`: named mutex, watch file (`notify`), quét lại 10 phút<br>**Tự test:** chạy `tl daemon`, dùng Claude Code, session tự lên | **M3.6** Invite: API tạo/thu hồi + trang `/i/[code]` (tạo tài khoản hoặc đăng nhập rồi vào project)<br>**Tự test:** mở link bằng trình duyệt ẩn danh |
-| 3 | **M3.3** Heartbeat (CLI 15 phút + API cập nhật `devices`); `tl pause`/`resume`; `tl status` đầy đủ<br>**Tự test:** `tl pause` → trạng thái thiết bị đổi | **M3.7** `tl join <url>`: lưu server → device login (dùng lại `login`) → màn hình đồng ý (spec 4.3, hỏi backfill) → `POST /agent/v1/consent`; module `consent` trong CLI; `tl consent revoke`, `tl uninstall`<br>**Tự test:** `tl join` với invite local; kiểm tra bản ghi đồng ý trong DB |
+| 1 | **M3.1** Hàng đợi batch trong SQLite (đã che mới được ghi), retry backoff tối đa 30 phút, giới hạn 500 MB, xử lý `426`; trước khi gửi, hỏi module `consent` (đã có từ J.5)<br>**Tự test:** tắt API rồi bật lại: không mất, không trùng | **M3.5** 📜 `openapi/consent.yaml`: `POST /agent/v1/consent` (đồng ý lại khi văn bản đổi, rút đồng ý). Phần invite và join đã chuyển sang J.1<br>**Tự test:** `pnpm --filter @teamlens/schema build` |
+| 2 | **M3.2** `tl daemon`: named mutex, watch file (`notify`), quét lại 10 phút<br>**Tự test:** chạy `tl daemon`, dùng Claude Code, session tự lên | **M3.6** `install.ps1?code=<code>` phía server sinh script gọi `tl join` (phần tải và kiểm SHA-256 làm ở M5.2). Phần invite đã chuyển sang J.3 và J.7<br>**Tự test:** chạy script trên máy Windows khác |
+| 3 | **M3.3** Heartbeat (CLI 15 phút + API cập nhật `devices`); `tl pause`/`resume`; `tl status` đầy đủ<br>**Tự test:** `tl pause` → trạng thái thiết bị đổi | **M3.7** `tl consent` (đồng ý lại khi văn bản đổi), `tl consent revoke`, `tl uninstall`. Luồng `tl join` đã chuyển sang J.5<br>**Tự test:** rút đồng ý → daemon dừng, `devices.status` = `consent_revoked` |
 | 4 | **M3.4** Xem session nâng cao: diff tô màu (`react-diff-view`), session con lồng trong session cha, ghi chú của leader theo turn<br>**Tự test:** xem session có subagent và diff lớn | **M3.8** Task Scheduler "At log on" trong `tl-platform`; `tl join` đăng ký `tl daemon`, `uninstall` gỡ<br>**Tự test:** đăng xuất Windows rồi đăng nhập lại, task tồn tại |
 
-**Điểm chạm:** module `consent` trong CLI — Người 2 viết (M3.7), Người 1 gọi (M3.1); chốt chữ ký hàm ở bước 1.
-**Demo chung:** người mới nhận link invite → `tl join` → đồng ý → làm việc bình thường, session tự lên dashboard.
+**Điểm chạm:** module `consent` trong CLI — Người 2 viết (J.5, M3.7), Người 1 gọi (M3.1).
+**Demo chung:** người mới nhận link mời → một lệnh cài + `tl join` → đồng ý → làm việc bình thường, session tự lên dashboard.
 
 ---
 
@@ -80,7 +98,7 @@ Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song so
 | --- | --- | --- |
 | 1 | **M4.1** Full-text search session (`tsvector`)<br>**Tự test:** tìm theo nội dung prompt | **M4.3** Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
 | 2 | **M4.2** Trang thành viên (`members/`): danh sách kèm trạng thái thiết bị (online, offline N ngày, tạm dừng, đã rút đồng ý)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | **M4.4** Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
-| 3 | _Làm trước M5.1, M5.2_ | **M4.5** Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình) + trang audit cho admin<br>**Tự test:** đăng nhập 2 tài khoản |
+| 3 | _Làm trước M5.1, M5.2_ | **M4.5** Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình; member vào bằng `tl open`) + trang audit cho leader<br>**Tự test:** leader đăng nhập bằng mật khẩu, member vào bằng `tl open` |
 | 4 | | **M4.6** Cài đặt server trong trang quản trị: pattern redaction riêng, retention, LLM provider (chỉ lưu, chấm bằng LLM ở phase 2)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về |
 
 **Demo chung:** leader xem tổng quan, hồ sơ, leaderboard, tìm kiếm; member chỉ thấy dữ liệu của mình.
@@ -93,6 +111,6 @@ Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song so
 | --- | --- | --- |
 | 1 | **M5.1** Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** tạo tag thử | **M5.4** `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
 | 2 | **M5.2** `GET /install.ps1` + script: tải, kiểm SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm PATH, chạy `tl join`<br>**Tự test:** cài trên máy Windows khác | **M5.5** Job retention hằng đêm (drop partition `turns`, tạo partition mới)<br>**Tự test:** chạy với retention 1 ngày |
-| 3 | **M5.3** `self_update` từ GitHub Releases khi server trả `426` hoặc có bản mới<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Admin xóa toàn bộ dữ liệu của một người (spec 6.4)<br>**Tự test:** xóa member2 rồi kiểm tra DB |
+| 3 | **M5.3** `self_update` từ GitHub Releases khi server trả `426` hoặc có bản mới<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Leader xóa toàn bộ dữ liệu của một người (spec 6.4)<br>**Tự test:** xóa member2 rồi kiểm tra DB |
 
 **Nghiệm thu chung:** chạy đủ tiêu chí mục 12.3 của [SPEC.md](SPEC.md) (cài server < 15 phút, ngắt mạng 24 giờ, RAM daemon < 30 MB với > 1.000 session, 30 loại secret, session ngoài phạm vi không rời máy).

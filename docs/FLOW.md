@@ -8,20 +8,21 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
  ① Log của agent ──► ② Adapter ──► ③ Lọc phạm vi ──► ④ Che secret, cắt ──► ⑤ Hàng đợi ──► ⑥ Gửi ──► ⑦ Ingest ──► ⑧ Rule + điểm ──► ⑨ Dashboard
     (.jsonl)            chuẩn hóa      (git remote)        output               (SQLite)      HTTPS      (DB)        (pg-boss)          (leader/member)
 
- ⓪ Danh tính: tl login (device login) → token trong Credential Manager → mọi request /agent/v1 kèm Bearer token
+ ⓪ Danh tính: tl join <link mời> → đồng ý → mã mời đổi lấy device token trong Credential Manager → mọi request /agent/v1 kèm Bearer token
 ```
 
-## ⓪ Danh tính và quyền — xong ở giai đoạn nền (vùng chung)
+## ⓪ Danh tính và quyền — giai đoạn nền, đổi ở Mốc 1.5 (J.1–J.10)
 
-- **Làm gì:** máy nhận device token qua luồng giống `gh auth login`; dashboard dùng cookie; mọi chỗ xem dữ liệu đi qua `AccessService` và ghi audit.
+- **Làm gì (đích Mốc 1.5, SPEC 7.1 và 11.1):** chỉ hai vai trò toàn server: leader (làm mọi thứ, đăng nhập web bằng email + mật khẩu) và member (không email, không mật khẩu). Device token là danh tính của member; member vào dashboard bằng `tl open` (ticket một lần → cookie). Mọi chỗ xem dữ liệu đi qua `AccessService` và ghi audit.
+- **Hiện trạng trên `main` (trước Mốc 1.5):** máy nhận token qua device login giống `gh auth login` (`device_codes`, trang `/device`); vai trò admin + leader/member theo project.
 - **Code:** `cli/crates/teamlens/src/commands/{login,logout,status}.rs`, `cli/crates/tl-platform/src/credentials.rs`; `apps/api/src/modules/{device,auth,access,projects}/`; `apps/web/src/app/[locale]/(auth)/`.
-- **Thử ngay:** `pnpm dev`, rồi `tl login --server http://localhost:3000`, duyệt mã bằng `member1@teamlens.local`, rồi `tl status`.
+- **Thử ngay (hiện trạng):** `pnpm dev`, rồi `tl login --server http://localhost:3000`, duyệt mã bằng `member1@teamlens.local`, rồi `tl status`.
 
-## ⓪+ Tham gia và đồng ý — Người 2, mốc 3 (M3.5–M3.8)
+## ⓪+ Tham gia và đồng ý — Người 2, Mốc 1.5 (J.1, J.3, J.5, J.7, J.9) và mốc 3 (M3.5–M3.8)
 
-- **Làm gì:** leader tạo invite → thành viên mở `/i/[code]`, chạy `tl join` → device login → màn hình đồng ý (spec 4.3) → ghi bản đồng ý lên server → đăng ký daemon bằng Task Scheduler. Không đồng ý thì CLI không gửi gì.
+- **Làm gì:** leader chạy wizard `/setup` (tài khoản + project + repo) → nhận link mời chung → gửi cho nhóm → thành viên chạy đúng một lệnh `tl join <link>` (hoặc `install.ps1?code=…`): xem trước link (`GET /agent/v1/invites/{code}`) → màn hình đồng ý trong terminal (tên, backfill, `yes`) → `POST /agent/v1/join` tạo user + thành viên project + thiết bị + bản đồng ý trong một transaction, trả device token → đăng ký daemon bằng Task Scheduler. Không đồng ý thì CLI không gửi gì. Máy thứ hai hoặc cài lại Windows tạo user mới; leader gộp trên trang Thành viên (J.8, Người 1).
 - **Code:** `apps/api/src/modules/{invites,consent}/`, `apps/web/src/app/[locale]/(auth)/i/[code]/`, `cli/crates/teamlens/src/commands/{join,consent,uninstall}.rs`, `cli/crates/teamlens/src/consent/`, `cli/crates/tl-platform/`.
-- **Ghi chú của người làm:** _(điền sau mốc 3)_
+- **Ghi chú của người làm:** _(điền sau Mốc 1.5 và mốc 3)_
 
 ## ① → ② Đọc log và chuẩn hóa — Người 1, mốc 1 (M1.3), mốc 2 (M2.3–M2.5)
 
@@ -64,7 +65,7 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
   - Turn upsert theo `(session_id, seq)` bằng xóa seq cũ rồi ghi lại (PK thật có `ts`). Tổng token và `turn_count` tính lại từ mọi turn của session.
   - Cha–con: lưu `parent_source_id`; cha tới sau thì `UPDATE` nối các con đang chờ.
   - Job `session.ingested` enqueue cùng transaction qua `fromDrizzle(tx, sql)` của pg-boss; mỗi lần session được nhận (kể cả gửi tăng dần) sinh một job.
-  - Chưa kiểm tra consent: TODO M3.7 trong `ingest.service.ts`.
+  - Chưa kiểm tra consent: TODO M3.7 trong `ingest.service.ts` (chuyển thành task J.9 ở Mốc 1.5).
 
 ## ⑧ Rule và điểm — Người 2, mốc 1 (M1.10–M1.11), mốc 2 (M2.6–M2.8), mốc 4 (M4.4)
 
