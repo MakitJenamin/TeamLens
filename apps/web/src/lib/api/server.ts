@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { ApiError, apiPath, parseResponse } from "./client";
 import { SESSION_COOKIE } from "@/lib/auth-paths";
 import type { InvitePreview } from "./types";
@@ -61,16 +61,38 @@ export type InvitePreviewResult =
   | { ok: false; error: string };
 
 /**
+ * IP thật của người xem trang (để API tính hạn mức theo từng người, không dồn về IP server web).
+ *
+ * Lấy phần tử CUỐI của `x-forwarded-for`: đó là địa chỉ do proxy gần nhất ghi (Caddy khi
+ * production ghi đè header bằng IP kết nối; Next tự điền IP kết nối khi header chưa có).
+ * Phần đầu chuỗi do client tự gửi nên không tin. Không có thì thử `x-real-ip`.
+ */
+export function clientIpFrom(h: Pick<Headers, "get">): string | null {
+  const forwarded = h.get("x-forwarded-for");
+  if (forwarded) {
+    const last = forwarded.split(",").map((part) => part.trim()).filter(Boolean).pop();
+    if (last) return last;
+  }
+  const realIp = h.get("x-real-ip")?.trim();
+  return realIp || null;
+}
+
+/**
  * Xem trước link mời (`GET /agent/v1/invites/{code}`, công khai) cho trang `/i/<mã>`.
  * Không ném lỗi: trả mã lỗi máy đọc để trang hiện thông báo phù hợp.
  */
 export async function fetchInvitePreview(code: string): Promise<InvitePreviewResult> {
   if (!INVITE_CODE_PATTERN.test(code)) return { ok: false, error: "invite_not_found" };
+  const clientIp = clientIpFrom(await headers());
   let res: Response;
   try {
     res = await fetch(`${apiInternalUrl()}/agent/v1/invites/${encodeURIComponent(code)}`, {
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      // API chỉ tin `X-Forwarded-For` khi request tới từ mạng nội bộ (trust proxy), tức từ server web này.
+      headers: {
+        Accept: "application/json",
+        ...(clientIp ? { "X-Forwarded-For": clientIp } : {}),
+      },
     });
   } catch {
     return { ok: false, error: "network_error" };
