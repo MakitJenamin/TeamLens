@@ -10,5 +10,5 @@ export type JobName = (typeof JOBS)[keyof typeof JOBS];
 
 export interface JobPayloads {
   'session.ingested': { sessionId: string };
-  'project.rescore': { projectId: string };
+  'project.rescore': { projectId: string; runId: string };
 }

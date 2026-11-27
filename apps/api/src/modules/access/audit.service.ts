@@ -30,7 +30,8 @@ export class AuditService {
     targetType: AuditTargetType,
     targetId: string,
     db: Pick<Database, 'insert'> = this.db,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
-    await db.insert(auditLog).values({ actorId, action, targetType, targetId });
+    await db.insert(auditLog).values({ actorId, action, targetType, targetId, metadata });
   }
 }
