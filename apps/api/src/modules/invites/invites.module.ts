@@ -3,7 +3,6 @@ import { DeviceModule } from '../device/device.module.js';
 import {
   AgentInvitesController,
   DashboardInvitesController,
-  InstallScriptController,
   InviteRateLimiter,
 } from './invites.controller.js';
 import { InvitesService } from './invites.service.js';
@@ -14,8 +13,7 @@ import { InvitesService } from './invites.service.js';
   controllers: [
     DashboardInvitesController,
     AgentInvitesController,
-    InstallScriptController,
-  ],
+    ],
   providers: [
     InvitesService,
     { provide: InviteRateLimiter, useFactory: () => new InviteRateLimiter() },

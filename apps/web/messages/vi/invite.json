@@ -6,12 +6,6 @@
   "reposHint": "Chỉ session làm trong các repo này mới được gửi đi; mọi thứ khác không rời máy bạn. Bạn sẽ xem lại và đồng ý trước khi tham gia.",
   "noRepos": "Project chưa khai báo repo nào.",
   "expiresAt": "Link hết hạn {date}.",
-  "newMachine": "Máy chưa có tl",
-  "newMachineHint": "Mở PowerShell rồi chạy lệnh sau. Lệnh cài tl và tự tham gia project.",
-  "hasTl": "Máy đã có tl",
-  "hasTlHint": "Chạy lệnh sau trong terminal.",
-  "installCommand": "Lệnh cài đặt và tham gia",
-  "joinCommand": "Lệnh tham gia",
   "errorTitle": "Không dùng được link mời",
   "errors": {
     "invite_not_found": "Link mời không đúng. Hãy xin leader link mới.",

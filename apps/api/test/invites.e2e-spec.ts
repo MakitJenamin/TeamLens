@@ -136,10 +136,9 @@ describe('Link mời, tl join, tl open, wizard setup (e2e)', () => {
       expect(invite.url).toMatch(/^https?:\/\/[^/]+\/i\/[A-Za-z0-9_-]{43}$/);
       setupCode = codeOf(invite.url);
       expect(invite.code).toBe(setupCode);
-      expect(invite.installCommand).toMatch(
-        new RegExp(
-          `^irm https?://[^ ]+/install\\.ps1\\?code=${setupCode} \\| iex$`,
-        ),
+      // Lệnh cài `tl` chung, không kèm mã mời; tham gia là bước riêng `tl join <url>`.
+      expect(invite.installCommand).toBe(
+        'irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex',
       );
       expect(invite.invite).toMatchObject({
         projectId,

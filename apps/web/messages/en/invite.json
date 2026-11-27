@@ -6,12 +6,6 @@
   "reposHint": "Only sessions in these repositories are sent; everything else stays on your machine. You will review and consent before joining.",
   "noRepos": "This project has no repositories yet.",
   "expiresAt": "The link expires {date}.",
-  "newMachine": "No tl on this machine yet",
-  "newMachineHint": "Open PowerShell and run the command below. It installs tl and joins the project.",
-  "hasTl": "Already have tl",
-  "hasTlHint": "Run the command below in a terminal.",
-  "installCommand": "Install and join command",
-  "joinCommand": "Join command",
   "errorTitle": "This invite link cannot be used",
   "errors": {
     "invite_not_found": "This invite link is not valid. Ask your leader for a new one.",

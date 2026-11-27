@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { installCommand, installCommandCmd } from "@/lib/invite-commands";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 import { SetupForm, suggestSlug } from "./setup-form";
 
@@ -27,7 +28,7 @@ const invite = {
   },
   code: "Zm9vYmFyYmF6cXV4",
   url: "http://localhost:3130/i/Zm9vYmFyYmF6cXV4",
-  installCommand: "irm http://localhost:3130/install.ps1?code=Zm9vYmFyYmF6cXV4 | iex",
+  installCommand: "irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex",
 };
 
 async function fillAccount(u: ReturnType<typeof userEvent.setup>) {
@@ -70,7 +71,8 @@ describe("SetupForm", () => {
     await u.click(screen.getByRole("button", { name: "Tạo và lấy link mời" }));
 
     expect(await screen.findByText(invite.url)).toBeInTheDocument();
-    expect(screen.getByText(invite.installCommand)).toBeInTheDocument();
+    expect(screen.getByText(installCommand)).toBeInTheDocument();
+    expect(screen.getByText(installCommandCmd)).toBeInTheDocument();
     expect(screen.getByText(`tl join ${invite.url}`)).toBeInTheDocument();
     expect(screen.getByText(/Gửi link này cho cả nhóm/)).toBeInTheDocument();
 
@@ -87,7 +89,7 @@ describe("SetupForm", () => {
       },
     });
 
-    await u.click(screen.getByRole("button", { name: "Sao chép: Máy đã có tl" }));
+    await u.click(screen.getByRole("button", { name: "Sao chép: Lệnh tham gia" }));
     expect(await navigator.clipboard.readText()).toBe(`tl join ${invite.url}`);
 
     expect(replace).not.toHaveBeenCalled();
