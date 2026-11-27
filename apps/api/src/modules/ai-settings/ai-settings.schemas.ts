@@ -14,8 +14,8 @@ const baseUrl = z
   .optional();
 
 /**
- * `apiKey` cho phép chuỗi rỗng (lệch nhẹ so với `minLength: 1` của contract): Ollama và nhiều server
- * OpenAI-compatible tự host không cần key. `LlmKeyService` chỉ nhận chuỗi rỗng với `openai_compatible`.
+ * `apiKey` cho phép chuỗi rỗng (contract `ai.yaml`): Ollama và nhiều server OpenAI-compatible tự host
+ * không cần key. `LlmKeyService` chỉ nhận chuỗi rỗng với `openai_compatible`.
  */
 const apiKey = z.string().max(1000, 'API key quá dài').optional();
 
