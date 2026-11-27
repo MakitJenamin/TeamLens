@@ -1,6 +1,6 @@
 //! Tô màu output của `tl` khi in ra terminal.
 //!
-//! Lệnh vẫn ghi chữ thường vào `&mut dyn Write`; `main` bọc stdout/stderr bằng [`Painter`] để
+//! Lệnh vẫn ghi chữ thường vào `&mut dyn Write`; `main` bọc stdout bằng [`Painter`] (stderr chỉ tô dòng lỗi qua [`write_line`]) để
 //! tô màu theo dạng dòng (tiêu đề, nhãn, lệnh trong dấu backtick, câu hỏi...). Test ghi vào
 //! buffer nên không bị ảnh hưởng. Tắt màu khi không phải terminal hoặc đặt `NO_COLOR`.
 

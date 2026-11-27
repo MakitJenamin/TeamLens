@@ -356,8 +356,8 @@ async fn may_da_co_token_giu_token_cu() {
     ctx.credentials.set_token(&server.uri(), OLD_TOKEN).unwrap();
     let mut a = args(&link(&server));
     a.no_backfill = true;
-    // Không hỏi tên (đã có), không hỏi backfill (cờ): không hỏi gì.
-    let (r, printed) = run_join(&ctx, a, &[], "").await;
+    // Không hỏi tên (đã có), không hỏi backfill (cờ): chỉ hỏi "Tham gia?", Enter là có.
+    let (r, printed) = run_join(&ctx, a, &[], "\n").await;
     let outcome = r.expect("thêm project cho máy đã có token phải thành công");
     assert!(!outcome.new_token);
     assert!(!outcome.backfill);
@@ -436,6 +436,24 @@ async fn khong_co_stdin_thi_khong_tham_gia() {
     assert!(r.is_err());
     let reqs = server.received_requests().await.unwrap();
     assert_eq!(requests_to(&reqs, "/agent/v1/join"), 0);
+}
+
+#[tokio::test]
+async fn co_name_va_no_backfill_van_phai_xac_nhan_tham_gia() {
+    let server = MockServer::start().await;
+    mount_preview(&server, "2026-11-26").await;
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    let mut a = args(&link(&server));
+    a.name = Some("An".to_owned());
+    a.no_backfill = true;
+    // Không có câu hỏi tên/backfill nào: phải hỏi "Tham gia?", hết input thì không tham gia.
+    let (r, printed) = run_join(&ctx, a, &[], "").await;
+    assert!(r.is_err());
+    assert!(printed.contains("Tham gia?"), "{printed}");
+    let reqs = server.received_requests().await.unwrap();
+    assert_eq!(requests_to(&reqs, "/agent/v1/join"), 0);
+    assert!(!ctx.config_path.exists());
 }
 
 #[tokio::test]

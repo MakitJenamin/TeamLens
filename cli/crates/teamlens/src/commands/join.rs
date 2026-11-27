@@ -48,8 +48,8 @@ pub struct JoinArgs {
     #[arg(long, value_name = "TÊN")]
     pub name: Option<String>,
 
-    /// Không hỏi lại khi văn bản đồng ý vừa đổi
-    #[arg(long, hide = true)]
+    /// Đồng ý luôn, không hỏi xác nhận
+    #[arg(long)]
     pub yes: bool,
 
     /// Gửi cả session cũ trên máy
@@ -223,6 +223,8 @@ pub async fn run_with(
     };
 
     let mut attempt = 0;
+    // Người dùng đã trả lời ít nhất một câu hỏi (tên hoặc backfill) chưa.
+    let mut answered = false;
     let (preview, result) = loop {
         attempt += 1;
         let preview = public
@@ -242,7 +244,10 @@ pub async fn run_with(
             None => {
                 let n = match args.name.as_deref() {
                     Some(n) => validate_name(n)?,
-                    None => ask_name(input, out)?,
+                    None => {
+                        answered = true;
+                        ask_name(input, out)?
+                    }
                 };
                 name = Some(n.clone());
                 n
@@ -251,17 +256,28 @@ pub async fn run_with(
         let chosen_backfill = match backfill {
             Some(b) => b,
             None => {
+                answered |= local_history(adapters).0 > 0;
                 let b = ask_backfill(input, out, adapters, true)?;
                 backfill = Some(b);
                 b
             }
         };
-        // Lần đầu: xem văn bản, nhập tên, chọn backfill là đồng ý. Văn bản đổi giữa chừng thì hỏi lại.
-        if attempt > 1 && !args.yes && !ask_accept_new(input, out)? {
-            return Err(AppError::user(
-                "Đã hủy tham gia. Không gửi gì.",
-                "Tham gia lại: `tl join <link mời>`.",
-            ));
+        // Trả lời câu hỏi tên/backfill là đồng ý. Không có câu nào để trả lời, hoặc văn bản
+        // đổi giữa chừng, thì hỏi xác nhận để luôn có một thao tác đồng ý của người dùng.
+        let question = if attempt > 1 {
+            Some("Đồng ý bản mới? (Enter: có, no: hủy): ")
+        } else if !answered {
+            Some("Tham gia? (Enter: có, no: hủy): ")
+        } else {
+            None
+        };
+        if let Some(q) = question.filter(|_| !args.yes) {
+            if !ask_accept(input, out, q)? {
+                return Err(AppError::user(
+                    "Đã hủy tham gia. Không gửi gì.",
+                    "Tham gia lại: `tl join <link mời>`.",
+                ));
+            }
         }
 
         let body = JoinRequest {
@@ -472,7 +488,7 @@ pub(super) fn read_line(input: &mut dyn BufRead) -> Result<Option<String>, AppEr
 
 /// Gợi ý khi không đọc được câu trả lời (dùng chung cho `tl join` và `tl consent`).
 const NO_INPUT_HINT: &str =
-    "Chạy lại trong cửa sổ terminal, hoặc trả lời bằng cờ `--yes`, `--backfill`, `--no-backfill`.";
+    "Chạy lại trong cửa sổ terminal, hoặc trả lời bằng cờ `--name`, `--yes`, `--backfill`, `--no-backfill`.";
 
 pub(super) fn no_input() -> AppError {
     AppError::user("Không đọc được câu trả lời từ bàn phím.", NO_INPUT_HINT)
@@ -559,9 +575,13 @@ pub(super) fn ask_backfill(
     })
 }
 
-/// Văn bản đồng ý đổi trong lúc tham gia: hỏi lại, Enter là đồng ý bản mới.
-fn ask_accept_new(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<bool, AppError> {
-    prompt(out, "Đồng ý bản mới? (Enter: có, no: hủy): ");
+/// Hỏi xác nhận tham gia, Enter là đồng ý. Hết input thì lỗi, không coi là đồng ý.
+fn ask_accept(
+    input: &mut dyn BufRead,
+    out: &mut dyn Write,
+    question: &str,
+) -> Result<bool, AppError> {
+    prompt(out, question);
     let answer = read_line(input)?.ok_or_else(no_input)?;
     Ok(matches!(
         answer.to_lowercase().as_str(),

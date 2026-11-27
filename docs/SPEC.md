@@ -103,7 +103,7 @@ Màn hình đồng ý là một phần của `tl join`, chạy trong terminal, k
 2. Liệt kê dữ liệu sẽ gửi: toàn bộ prompt, câu trả lời, tool call, diff code; output bị cắt; secret bị che.
 3. Hỏi tên hiển thị (để leader biết ai là ai; không hỏi email, không đặt mật khẩu).
 4. Hỏi riêng: có gửi toàn bộ lịch sử session cũ trên máy không (kèm số lượng và khoảng ngày). Enter là có, `no` là không.
-5. Trả lời xong các câu hỏi là đồng ý, không có bước gõ `yes` riêng (văn bản đã hiện đủ ở trên). Muốn từ chối thì thoát (Ctrl+C) trước khi trả lời: CLI không gọi server, không cài daemon, không gửi gì. Văn bản đồng ý đổi giữa chừng thì CLI hiện bản mới và hỏi lại (Enter là đồng ý, `no` là hủy).
+5. Trả lời xong các câu hỏi là đồng ý, không có bước gõ `yes` riêng (văn bản đã hiện đủ ở trên). Không có câu nào để trả lời (đã có tên và không có session cũ, hoặc dùng cờ `--name` và `--backfill`/`--no-backfill`) thì CLI hỏi "Tham gia?" (Enter là có), trừ khi có `--yes`. Muốn từ chối thì thoát (Ctrl+C) trước khi trả lời: CLI không gọi server, không cài daemon, không gửi gì. Văn bản đồng ý đổi giữa chừng thì CLI hiện bản mới và hỏi lại (Enter là đồng ý, `no` là hủy).
 6. Bản ghi đồng ý (phiên bản văn bản, thời điểm, lựa chọn backfill) được gửi cùng request `POST /agent/v1/join`, nên không có trạng thái "đã có token nhưng chưa đồng ý".
 
 Khi văn bản đồng ý thay đổi trên server, daemon dừng gửi cho tới khi người dùng đồng ý lại qua `tl consent` (ghi bằng `POST /agent/v1/consent`).
