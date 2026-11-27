@@ -339,7 +339,7 @@ Danh mục đầy đủ (24 rule MVP, ngưỡng, nguồn, rule bị loại và l
 | Quản lý session | Session kéo dài qua nhiều chủ đề không liên quan; bị compaction từ 2 lần; dùng model đắt tiền cho việc vặt |
 | Kiểm chứng kết quả | Agent sửa code nhưng session không chạy test hay build; chấp nhận diff lớn (trên 500 dòng) mà không có lượt review nào |
 
-Điểm nhóm = 100 trừ tổng trọng số các finding theo mức độ (low 5, medium 10, high 20), tối thiểu 0. Điểm theo tuần của một người là trung bình có trọng số theo số turn của các session trong tuần.
+Điểm nhóm = 100 trừ tổng trọng số các finding theo mức độ (low 5, medium 10, high 20), tối thiểu 0. Điểm theo tuần của một người là trung bình có trọng số theo số turn của các session gốc trong tuần, rồi trừ điểm phạt của các finding phạm vi `user_week` cùng nhóm trong tuần đó (cùng thang low 5, medium 10, high 20, tối thiểu 0). Token của tuần cộng cả session con.
 
 Prompt trong session con (subagent) do agent chính viết, không phải người viết. Vì vậy rule nhóm "Chất lượng prompt" chỉ chạy trên session gốc; session con chỉ dùng cho thống kê token, chi phí và tool call. Điểm tuần và leaderboard chỉ tính session gốc.
 

@@ -1,4 +1,15 @@
-import { eq, inArray, isNull, or, and, sql, gte, lt } from 'drizzle-orm';
+import {
+  eq,
+  inArray,
+  isNull,
+  or,
+  and,
+  sql,
+  gte,
+  gt,
+  lt,
+  asc,
+} from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   findings,
@@ -12,6 +23,11 @@ import {
   type RuleTurn,
   type SessionRule,
 } from './session-engine.js';
+import {
+  refreshWeeklyStats,
+  weekWindow,
+} from '../stats/refresh-weekly-stats.js';
+import { CATEGORIES, PENALTIES } from '../stats/weekly-stats.js';
 import { sessionRules } from './session-rules.js';
 import {
   weeklyRules,
@@ -22,14 +38,8 @@ import {
 
 const catalog = [...sessionRules, ...weeklyRules];
 
-const categories = [
-  'prompt_quality',
-  'context',
-  'correction_loop',
-  'session_management',
-  'verification',
-];
-const penalties = { low: 5, medium: 10, high: 20 };
+const categories = CATEGORIES;
+const penalties = PENALTIES;
 
 export async function installDefaultRules(db: Database) {
   await db
@@ -82,7 +92,27 @@ export function scoreSession(db: Database, sessionId: string) {
     await tx
       .delete(sessionScores)
       .where(eq(sessionScores.sessionId, sessionId));
-    if (isChild) return true;
+    // Tuần UTC của session. Khóa tuần cũng bảo vệ `user_weekly_stats`, kể cả khi session là session con:
+    // token của session con vẫn cộng vào thống kê tuần của người đó (M2.8).
+    const { start, end } = weekWindow(new Date(session.startedAt));
+    const weekKey = [
+      session.projectId,
+      session.userId,
+      start.toISOString(),
+    ].join('/');
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${weekKey}, 0))`,
+    );
+    const weekOwner = {
+      userId: session.userId,
+      projectId: session.projectId,
+      start,
+      end,
+    };
+    if (isChild) {
+      await refreshWeeklyStats(tx, weekOwner);
+      return true;
+    }
 
     const rows = await tx
       .select()
@@ -149,18 +179,6 @@ export function scoreSession(db: Database, sessionId: string) {
         ),
       })),
     );
-    const start = new Date(session.startedAt);
-    start.setUTCHours(0, 0, 0, 0);
-    start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
-    const end = new Date(start.getTime() + 7 * 86400000);
-    const weekKey = [
-      session.projectId,
-      session.userId,
-      start.toISOString(),
-    ].join('/');
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${weekKey}, 0))`,
-    );
     const group = await tx
       .select({ id: sessions.id, turnCount: sessions.turnCount })
       .from(sessions)
@@ -192,8 +210,11 @@ export function scoreSession(db: Database, sessionId: string) {
     );
     for (const row of weekTurns)
       inputs.get(row.id)!.turns.push({ ...row, ts: row.ts.toISOString() });
-    if (group.some((row) => inputs.get(row.id)!.turns.length < row.turnCount))
+    // Thiếu turn do retention: giữ finding tuần cũ, nhưng vẫn tính lại thống kê tuần từ điểm đã lưu.
+    if (group.some((row) => inputs.get(row.id)!.turns.length < row.turnCount)) {
+      await refreshWeeklyStats(tx, weekOwner);
       return true;
+    }
     const weekDefinitions = active
       .filter((row) => weeklyRules.some((rule) => rule.key === row.key))
       .map((row) => ({
@@ -232,6 +253,31 @@ export function scoreSession(db: Database, sessionId: string) {
           };
         }),
       );
+    await refreshWeeklyStats(tx, weekOwner);
     return true;
   });
+}
+
+/**
+ * Chấm lại mọi session của project theo rule hiện hành (M2.8): finding, điểm 5 nhóm, `user_weekly_stats`.
+ * Duyệt theo `id` từng lô 100 session; chạy lại nhiều lần không tạo bản ghi trùng.
+ */
+export async function rescoreProject(db: Database, projectId: string) {
+  let cursor: string | undefined;
+  let total = 0;
+  while (true) {
+    const batch = await db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(
+        cursor
+          ? and(eq(sessions.projectId, projectId), gt(sessions.id, cursor))
+          : eq(sessions.projectId, projectId),
+      )
+      .orderBy(asc(sessions.id))
+      .limit(100);
+    if (!batch.length) return total;
+    for (const row of batch) if (await scoreSession(db, row.id)) total++;
+    cursor = batch[batch.length - 1].id;
+  }
 }
