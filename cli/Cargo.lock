@@ -2639,6 +2639,7 @@ dependencies = [
 name = "teamlens"
 version = "0.2.2"
 dependencies = [
+ "anstyle-query",
  "chrono",
  "clap",
  "flate2",
