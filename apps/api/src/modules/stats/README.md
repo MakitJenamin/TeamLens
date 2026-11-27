@@ -26,3 +26,13 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 - **`usageStats` không tính điểm**, không vào điểm hay leaderboard (RULES.md mục 2): `cacheHitRate` = cache đọc / (input + cache đọc + cache ghi); `premiumModelRate` = tỉ lệ lượt dùng model cao cấp (cờ `premium` trong `pricing.ts`, trên các lượt có ghi model); `highReasoningRate` = tỉ lệ lượt `reasoning_effort` là `high`/`xhigh` trên các lượt có ghi mức suy luận; `avgOutputTokensPerTurn` = output trung bình mỗi lượt assistant.
 - `topFindings`: tối đa 10 rule, theo số finding giảm dần, kèm số thành viên mắc. Gồm cả finding tuần.
 - Bảng trạng thái thành viên (online, offline, tạm dừng...) không nằm ở đây; thuộc trang Thành viên (M4.2).
+
+### Hồ sơ thành viên (M2.10)
+
+`GET /api/v1/users/{userId}/profile?project=&from=&to=` (contract `stats.yaml`). Code: `profile.controller.ts`, `profile.service.ts` (quyền, audit, truy vấn), `profile-math.ts` (tính thuần, có test).
+
+- **Quyền:** leader xem được mọi thành viên của project và **ghi audit `profile.view`** (đoạn trích prompt là nội dung riêng); member chỉ xem của mình (xem người khác `403`, không ghi audit khi xem của chính mình). `404` khi project không tồn tại hoặc user không thuộc project; `400` khi thiếu `project`.
+- **Khoảng thời gian:** mặc định **2 tuần** gần nhất (gồm tuần hiện tại), làm tròn ra tuần UTC như tổng quan; giao diện cho chọn 2/4/8/12/26 tuần. Docs không yêu cầu số tuần nào, đây là lựa chọn của Người 2.
+- `scores` (radar) = trung bình điểm tuần của thành viên, trọng số là số session mỗi tuần. `teamScores` = trung bình điểm tuần của **mọi thành viên project** cùng khoảng (cùng trọng số), mỗi tuần trong `weeks` cũng có `teamScores`. **`teamScores` hiện cho cả leader lẫn member, không ẩn.** Đã cân nhắc: team rất nhỏ (2 người) thì member có thể suy ra điểm người kia; quyết định chấp nhận, nếu cần giới hạn thì chỉ đổi ở `profile.service.ts`.
+- `patterns`: tối đa 10 rule thành viên vi phạm nhiều nhất trong khoảng (gộp theo rule, mức độ lấy mức nặng nhất đã gặp, gồm cả finding tuần). `advice` lấy từ `rules.definition.advice`. Mỗi rule tối đa 3 ví dụ mới nhất (`turnSeq`, nhận xét, `excerpt` tối đa 160 ký tự lấy từ turn còn lưu, `null` khi retention đã xóa turn).
+- Danh sách session gần nhất của thành viên không có endpoint riêng: web gọi `GET /projects/{id}/sessions?userId=`.
