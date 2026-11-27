@@ -161,12 +161,14 @@ export class AgentInvitesController {
 @Controller()
 export class InstallScriptController {
   private readonly publicUrl: string;
+  private readonly releaseUrl: string;
 
   constructor(
     config: ConfigService<Env, true>,
     private readonly limiter: InviteRateLimiter,
   ) {
     this.publicUrl = config.get('TEAMLENS_PUBLIC_URL', { infer: true });
+    this.releaseUrl = config.get('TEAMLENS_CLI_RELEASE_URL', { infer: true });
   }
 
   @Public()
@@ -183,6 +185,10 @@ export class InstallScriptController {
     // Đặt header ở đây (không dùng @Header) để lỗi phía trên vẫn trả JSON đúng kiểu.
     res.type('text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
-    return renderInstallScript({ publicUrl: this.publicUrl, code });
+    return renderInstallScript({
+      publicUrl: this.publicUrl,
+      code,
+      releaseUrl: this.releaseUrl,
+    });
   }
 }
