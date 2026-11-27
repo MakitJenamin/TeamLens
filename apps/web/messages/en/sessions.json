@@ -148,5 +148,50 @@
     "deletedAuthor": "(deleted account)",
     "createFailed": "Could not save the note",
     "deleteFailed": "Could not delete the note"
+  },
+  "ai": {
+    "title": "AI",
+    "addKey": "Add an API key to use AI",
+    "openSettings": "Open AI settings",
+    "summarize": "Summarize",
+    "evaluate": "Evaluate outcome",
+    "explain": "Explain",
+    "running": "Running…",
+    "redo": "Redo: {action}",
+    "privateNote": "Only you can see this result",
+    "turn": "Turn {seq}",
+    "outcomeLabel": "Outcome",
+    "filesTouched": "Files touched",
+    "keyTurns": "Key turns",
+    "evidence": "Evidence",
+    "workType": {
+      "bugfix": "Bug fix",
+      "feature": "Feature",
+      "refactor": "Refactor",
+      "question": "Question",
+      "ops": "Ops",
+      "docs": "Docs",
+      "test": "Test",
+      "other": "Other"
+    },
+    "status": {
+      "completed": "Completed",
+      "abandoned": "Abandoned",
+      "stuck_loop": "Stuck in a loop",
+      "unclear": "Unclear"
+    },
+    "errors": {
+      "llm_key_missing": "You have not added an API key yet. Add one in AI settings to use this feature.",
+      "llm_key_invalid": "The AI provider rejected your API key. Check it in AI settings.",
+      "llm_model_not_found": "The selected model does not exist. Change the model in AI settings.",
+      "llm_quota_exceeded": "Quota exceeded or rate limited by the AI provider. Try again later.",
+      "llm_timeout": "The AI took too long to respond (over 60 seconds). Try again later.",
+      "llm_provider_error": "Could not reach the AI provider. Try again later.",
+      "llm_bad_output": "The AI returned output in the wrong format. Try again, or pick a stronger model.",
+      "forbidden": "You are not allowed to use AI on this session.",
+      "not_found": "Data not found.",
+      "network_error": "Could not connect to the server.",
+      "unknown": "Something went wrong while running AI. Try again later."
+    }
   }
 }

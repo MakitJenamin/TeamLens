@@ -80,7 +80,7 @@ const session: SessionDetail = {
 
 describe("SessionDetailView", () => {
   it("hiện metadata, session con và giữ nội dung thô dạng text", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ error: "not_found", message: "x" }, 404));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse({ error: "not_found", message: "x" }, 404));
     const { container } = renderWithProviders(<SessionDetailView session={session} />);
 
     expect(screen.getByRole("heading", { name: "Thêm endpoint /health" })).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe("SessionDetailView", () => {
   });
 
   it("tool call thu gọn mặc định, bấm để xem input và output bị cắt", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse([]));
     renderWithProviders(<SessionDetailView session={session} />);
 
     expect(screen.getByText("pnpm test")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("SessionDetailView", () => {
   });
 
   it("diff ngắn tô màu bằng react-diff-view, mở sẵn", () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse([]));
     renderWithProviders(<SessionDetailView session={session} />);
 
     const diff = screen.getByTestId("diff");
@@ -127,7 +127,7 @@ describe("SessionDetailView", () => {
   });
 
   it("diff lớn thu gọn mặc định, bấm mới render", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([]));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse([]));
     const lines = Array.from({ length: 3000 }, (_, i) => `+dòng ${i}`);
     const big: SessionDetail = {
       ...session,
@@ -150,7 +150,7 @@ describe("SessionDetailView", () => {
   });
 
   it("hiện finding và đánh dấu turn dính finding", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       jsonResponse([
         { id: "f-1", ruleId: "yolo-mode", severity: "high", message: "Chạy ở chế độ bypass", turnSeq: 2 },
         { bogus: true },
