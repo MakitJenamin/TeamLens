@@ -780,10 +780,12 @@ export interface paths {
          *     (`text/plain; charset=utf-8`, không cache) đã nhúng sẵn địa chỉ server (`TEAMLENS_PUBLIC_URL`) và
          *     mã mời, rồi script chạy `tl join <server>/i/<mã>`.
          *
-         *     **Phạm vi hiện tại (M3.6):** script chỉ tìm `tl.exe` (trong PATH hoặc
-         *     `%LOCALAPPDATA%\teamlens\bin\tl.exe`) rồi chạy `tl join`; chưa có `tl.exe` thì báo rõ và dừng,
-         *     không đóng cửa sổ PowerShell. Phần tải `tl.exe` từ GitHub Releases, kiểm SHA-256, đặt vào thư mục
-         *     và thêm PATH là M5.2.
+         *     Script tìm `tl.exe` (trong PATH hoặc `%LOCALAPPDATA%\teamlens\bin\tl.exe`). Chưa có thì tải
+         *     `SHA256SUMS` và `tl-x86_64-pc-windows-msvc.zip` từ `TEAMLENS_CLI_RELEASE_URL` (mặc định GitHub
+         *     Releases bản mới nhất), kiểm SHA-256 trước khi giải nén (sai thì dừng, không cài), cài vào
+         *     `%LOCALAPPDATA%\teamlens\bin` và thêm thư mục đó vào PATH của user (M5.2). Đã có `tl.exe` thì không
+         *     tải lại; cập nhật do `tl` tự lo (M5.3). Lỗi ở bước nào cũng báo rõ và dừng, không đóng cửa sổ
+         *     PowerShell.
          *
          *     Server **không** kiểm tra link còn dùng được hay không (việc đó là của `tl join`, qua
          *     `GET /agent/v1/invites/{code}`); chỉ kiểm tra `code` đúng định dạng (chống nhúng chuỗi lạ vào script).
