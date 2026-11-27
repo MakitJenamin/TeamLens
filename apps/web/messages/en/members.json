@@ -1,4 +1,42 @@
 {
   "title": "Members",
-  "description": "Manage project members, roles and repo patterns; per-member profile with a 5-skill radar, weekly score trend and frequent anti-patterns."
+  "description": "Project members with their devices and collection status. Revoke leaked devices, remove strangers from the project, merge duplicate accounts (second machine, Windows reinstall) into the original one.",
+  "recent": {
+    "title": "Recently joined ({days} days)",
+    "description": "People who just joined through the invite link. If you don't recognize someone, remove them and revoke the invite link.",
+    "empty": "Nobody joined in this period."
+  },
+  "list": {
+    "title": "All members ({count})",
+    "empty": "This project has no members yet."
+  },
+  "role": {
+    "leader": "Leader",
+    "member": "Member"
+  },
+  "newBadge": "New",
+  "joinedOn": "Joined {date}",
+  "lastSession": "Last session {date}",
+  "noSession": "No sessions yet",
+  "deviceCount": "{active}/{total} devices active",
+  "devices": "Devices",
+  "noDevices": "No devices yet.",
+  "lastSeen": "last seen {date}",
+  "profile": "Profile",
+  "remove": "Remove from project",
+  "confirmRemove": "Remove {name} from the project? Data already sent is kept; their devices stop sending sessions for this project.",
+  "removeDone": "Removed {name} from the project.",
+  "revoke": "Revoke",
+  "confirmRevoke": "Revoke device {name}? Its token stops working; to use it again they must run `tl join` again.",
+  "revokeDone": "Revoked device {name}.",
+  "status": {
+    "online": "Running",
+    "paused": "Paused",
+    "consentRevoked": "Consent withdrawn",
+    "revoked": "Revoked",
+    "neverSeen": "Never connected",
+    "offlineRecent": "Offline under 1 hour",
+    "offlineHours": "Offline {count, plural, one {# hour} other {# hours}}",
+    "offlineDays": "Offline {count, plural, one {# day} other {# days}}"
+  }
 }

@@ -1,4 +1,42 @@
 {
   "title": "Thành viên",
-  "description": "Quản lý thành viên, vai trò và repo pattern của project; hồ sơ từng thành viên với radar 5 nhóm kỹ năng, xu hướng điểm theo tuần và anti-pattern hay mắc."
+  "description": "Thành viên của project kèm thiết bị và trạng thái thu thập. Thu hồi thiết bị bị lộ, xóa người lạ khỏi project, gộp tài khoản trùng (máy thứ hai, cài lại Windows) vào tài khoản cũ.",
+  "recent": {
+    "title": "Mới tham gia ({days} ngày)",
+    "description": "Người vừa tham gia bằng link mời. Không nhận ra ai thì xóa khỏi project và thu hồi link mời.",
+    "empty": "Không có ai tham gia trong thời gian này."
+  },
+  "list": {
+    "title": "Tất cả thành viên ({count})",
+    "empty": "Project chưa có thành viên nào."
+  },
+  "role": {
+    "leader": "Leader",
+    "member": "Thành viên"
+  },
+  "newBadge": "Mới",
+  "joinedOn": "Tham gia {date}",
+  "lastSession": "Session gần nhất {date}",
+  "noSession": "Chưa có session",
+  "deviceCount": "{active}/{total} thiết bị đang hoạt động",
+  "devices": "Thiết bị",
+  "noDevices": "Chưa có thiết bị nào.",
+  "lastSeen": "kết nối lần cuối {date}",
+  "profile": "Hồ sơ",
+  "remove": "Xóa khỏi project",
+  "confirmRemove": "Xóa {name} khỏi project? Dữ liệu đã gửi vẫn giữ lại; thiết bị của họ ngừng gửi session cho project này.",
+  "removeDone": "Đã xóa {name} khỏi project.",
+  "revoke": "Thu hồi",
+  "confirmRevoke": "Thu hồi thiết bị {name}? Token của máy này không dùng được nữa; muốn dùng lại phải chạy lại `tl join`.",
+  "revokeDone": "Đã thu hồi thiết bị {name}.",
+  "status": {
+    "online": "Đang chạy",
+    "paused": "Tạm dừng",
+    "consentRevoked": "Đã rút đồng ý",
+    "revoked": "Đã thu hồi",
+    "neverSeen": "Chưa từng kết nối",
+    "offlineRecent": "Offline dưới 1 giờ",
+    "offlineHours": "Offline {count} giờ",
+    "offlineDays": "Offline {count} ngày"
+  }
 }
