@@ -6,7 +6,7 @@ import { createTestApp, resetDatabase } from './helpers.js';
 
 const CODE = 'Zm9vYmFyYmF6cXV4';
 
-describe('GET /install.ps1 (M3.6)', () => {
+describe('GET /install.ps1 (M3.6, M5.2)', () => {
   let app: INestApplication<App>;
   let publicUrl: string;
   beforeAll(async () => {
@@ -29,6 +29,13 @@ describe('GET /install.ps1 (M3.6)', () => {
     expect(res.text).toContain(`$link = '${publicUrl}/i/${CODE}'`);
     expect(res.text).toContain('& $tl join $link');
     expect(res.text).not.toMatch(/^\s*exit\b/m);
+    // M5.2: base URL release lấy từ TEAMLENS_CLI_RELEASE_URL (mặc định GitHub Releases).
+    const releaseUrl = String(
+      app.get(ConfigService).get('TEAMLENS_CLI_RELEASE_URL'),
+    );
+    expect(releaseUrl).toMatch(/^https:\/\//);
+    expect(res.text).toContain(`$releaseUrl = '${releaseUrl}'`);
+    expect(res.text).toContain('Get-FileHash');
   });
 
   it('không kiểm tra link còn dùng được: mã hợp lệ về hình thức nhưng không tồn tại vẫn nhận script', async () => {
