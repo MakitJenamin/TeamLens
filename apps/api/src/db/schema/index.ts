@@ -7,3 +7,4 @@ export * from './scoring.js';
 export * from './notes.js';
 export * from './audit.js';
 export * from './settings.js';
+export * from './ai.js';
