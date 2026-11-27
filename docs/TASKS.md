@@ -22,8 +22,7 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
 1. Người 1: hết việc Mốc 2 và Mốc 3, làm trước **M4.1** (full-text search) → **M4.2** (trang thành viên kèm trạng thái thiết bị, dùng `devices.last_heartbeat` của M3.3) → M5.1 → M5.2 → M5.3.
-2. Người 2: hết việc Mốc 2. Còn **M3.6** (`GET /install.ps1?code=`; cần PR nền cho `next.config` chuyển `/install.ps1` sang API). Sau khi #70 merge, **mọi thiết bị phải chạy `tl consent` một lần** vì phiên bản văn bản đồng ý tăng lên `2026-11-27.3`. `user_weekly_stats` của M2.8 đã sẵn cho M4.3 (leaderboard).
-3. Người 2: **M3.8** (Task Scheduler) đăng ký `tl daemon --background` (M3.2 đã có). Lưu ý: `tl.exe` là ứng dụng console, nên đăng ký kiểu ẩn (vd. `conhost.exe --headless`) hoặc gọi `FreeConsole` để không hiện cửa sổ.
+2. Người 2: hết việc Mốc 2. Còn **M3.6** (`GET /install.ps1?code=`; cần PR nền cho `next.config` chuyển `/install.ps1` sang API). #70 đã merge: **mọi thiết bị phải chạy `tl consent` một lần** vì phiên bản văn bản đồng ý đã tăng lên `2026-11-27.3`. `user_weekly_stats` của M2.8 đã sẵn cho M4.3 (leaderboard).
 
 ## Hai người, hai nhóm tính năng
 
