@@ -1,0 +1,12 @@
+# KHUNG — chưa có endpoint. Task: M6.14 (C2 thư viện prompt). Người 3. Thiết kế: docs/AI_PLAN.md mục 3.2 "C2".
+#
+# Endpoint dự kiến (cookieAuth):
+# - POST /api/v1/projects/{projectId}/ai/prompt-candidates (leader; ứng viên heuristic + AI viết lý do,
+#   kind `prompt_candidates`, subjectType `project`, kết quả riêng của leader)
+# - GET /api/v1/projects/{projectId}/prompt-library (mục đã duyệt; member của project xem được)
+# - POST /api/v1/projects/{projectId}/prompt-library (leader duyệt một session/turn, tùy chọn ẩn tên)
+# - DELETE /api/v1/projects/{projectId}/prompt-library/{itemId} (leader)
+# Nút AI dùng chung mã lỗi `llm_*` của ai.yaml và schema `AiResult`.
+#
+# Cách thêm endpoint: xem admin.yaml hoặc packages/schema/AGENTS.md.
+paths: {}

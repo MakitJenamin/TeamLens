@@ -1,0 +1,47 @@
+{
+  "name": "whoami",
+  "description": "Cho biết token đang dùng thuộc về ai, vai trò gì và thuộc project nào. Agent gọi đầu tiên để biết mình được xem những gì.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["user", "tokenKind", "projects"],
+    "additionalProperties": false,
+    "properties": {
+      "user": {
+        "type": "object",
+        "required": ["id", "name", "role"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "role": { "type": "string", "enum": ["leader", "member"] }
+        }
+      },
+      "tokenKind": {
+        "type": "string",
+        "enum": ["device", "agent"],
+        "description": "`device`: device token `tld_` (qua `tl mcp`); `agent`: token cá nhân `tlp_`."
+      },
+      "projects": {
+        "type": "array",
+        "description": "Project người gọi xem được (member: project mình tham gia; leader: mọi project).",
+        "items": {
+          "type": "object",
+          "required": ["id", "slug", "name"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "format": "uuid" },
+            "slug": { "type": "string" },
+            "name": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

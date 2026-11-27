@@ -1,0 +1,13 @@
+# KHUNG — chưa có endpoint. Task: M6.11 (S0 gom cụm + trang Skill Finder), M6.12 (S1 triage, S2 sinh SKILL.md),
+# M6.13 (S3 catalog nhiều nguồn + chọn skill). Người 3. Thiết kế: docs/AI_PLAN.md mục 3.2 "Skill Finder".
+#
+# Endpoint dự kiến (cookieAuth; leader theo project và theo người, member chỉ của mình):
+# - GET /api/v1/projects/{projectId}/skill-clusters (S0, heuristic, không gọi LLM; lọc theo userId)
+# - POST /api/v1/skill-clusters/{clusterId}/ai/triage (S1, kind `skill_triage`, subjectType `skill_cluster`)
+# - POST /api/v1/skill-clusters/{clusterId}/ai/skill (S2, kind `skill_content`, trả SKILL.md)
+# - GET/POST/PATCH/DELETE /api/v1/skill-catalog-sources (S3, nguồn catalog, leader)
+# - POST /api/v1/projects/{projectId}/ai/catalog-picks (S3, kind `catalog_picks`)
+# Nút AI dùng chung mã lỗi `llm_*` của ai.yaml và schema `AiResult`.
+#
+# Cách thêm endpoint: xem admin.yaml hoặc packages/schema/AGENTS.md.
+paths: {}

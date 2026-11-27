@@ -39,6 +39,27 @@ export type SessionNoteList = Schemas['SessionNoteList'];
 export type CreateSessionNoteRequest = Schemas['CreateSessionNoteRequest'];
 export type InstructionFile = Schemas['InstructionFile'];
 
+// AI (Mốc 6, ai.yaml) và token cho agent (agent-tokens.yaml).
+export type LlmProvider = Schemas['LlmProvider'];
+export type LlmKey = Schemas['LlmKey'];
+export type PutLlmKeyRequest = Schemas['PutLlmKeyRequest'];
+export type TestLlmKeyRequest = Schemas['TestLlmKeyRequest'];
+export type LlmKeyTestResult = Schemas['LlmKeyTestResult'];
+export type AiLocale = Schemas['AiLocale'];
+export type AiKind = Schemas['AiKind'];
+export type AiSubjectType = Schemas['AiSubjectType'];
+export type AiResult = Schemas['AiResult'];
+export type SessionAiResults = Schemas['SessionAiResults'];
+export type RunAiRequest = Schemas['RunAiRequest'];
+export type AiTurnRef = Schemas['AiTurnRef'];
+export type SessionWorkType = Schemas['SessionWorkType'];
+export type SessionSummaryResult = Schemas['SessionSummaryResult'];
+export type SessionOutcomeResult = Schemas['SessionOutcomeResult'];
+export type FindingExplainResult = Schemas['FindingExplainResult'];
+export type AgentToken = Schemas['AgentToken'];
+export type CreateAgentTokenRequest = Schemas['CreateAgentTokenRequest'];
+export type CreatedAgentToken = Schemas['CreatedAgentToken'];
+
 // Payload ingest của CLI (session.v1.schema.json, snake_case). Tên gốc trong `Schemas` là
 // `Session`, `Turn`... nên export lại với tiền tố `Ingest` cho rõ.
 export type IngestBatch = Schemas['IngestBatch'];

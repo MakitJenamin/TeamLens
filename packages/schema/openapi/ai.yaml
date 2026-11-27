@@ -1,0 +1,621 @@
+# Nhóm `ai`: API key BYO của người gọi và kết quả AI trên session (docs/AI_PLAN.md). Task: M6.0 (contract),
+# M6.1 (module `llm`), M6.2 (trang Cài đặt AI), M6.5 (A1 tóm tắt, A5 đánh giá kết quả), M6.6 (A4 giải thích finding).
+#
+# - GET/PUT/DELETE /api/v1/me/llm-key, POST /api/v1/me/llm-key/test: key của chính người gọi (leader và member).
+# - GET /api/v1/sessions/{sessionId}/ai: kết quả AI của người gọi cho session và các finding của nó.
+# - POST /api/v1/sessions/{sessionId}/ai/summary, .../ai/outcome, POST /api/v1/findings/{findingId}/ai/explain.
+#
+# Nguyên tắc (AI_PLAN mục 1): không có key chung của server; tính năng AI chỉ chạy khi người dùng bấm;
+# kết quả lưu ở `ai_results`, chỉ người bấm đọc được, bấm lại thì ghi đè; API không bao giờ trả lại key.
+#
+# Mã lỗi LLM dùng chung mọi nút AI (`{ error, message }`):
+# | HTTP | `error`              | Khi nào                                                        |
+# | 409  | `llm_key_missing`    | Người gọi chưa nhập key                                        |
+# | 422  | `llm_key_invalid`    | Provider báo key sai (401/403)                                 |
+# | 429  | `llm_quota_exceeded` | Provider báo hết quota / rate limit (429, `insufficient_quota`) |
+# | 422  | `llm_model_not_found`| Model không tồn tại (404 / `model_not_found`)                  |
+# | 504  | `llm_timeout`        | Quá thời gian chờ (mặc định 60 giây)                           |
+# | 502  | `llm_provider_error` | Lỗi khác từ provider / không kết nối được                      |
+# | 502  | `llm_bad_output`     | Đầu ra không đúng JSON schema sau 1 lần thử lại                |
+paths:
+  /api/v1/me/llm-key:
+    get:
+      operationId: getMyLlmKey
+      tags: [ai]
+      summary: Cấu hình API key AI của chính người gọi
+      description: 'Trả `key: null` khi chưa nhập key. Không bao giờ trả key nguyên văn, chỉ `keyHint`.'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Cấu hình key hiện tại (hoặc null).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key]
+                properties:
+                  key:
+                    oneOf:
+                      - $ref: '#/components/schemas/LlmKey'
+                      - type: 'null'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    put:
+      operationId: putMyLlmKey
+      tags: [ai]
+      summary: Lưu hoặc đổi API key AI của chính người gọi
+      description: |
+        `apiKey` bắt buộc khi chưa có key; bỏ trống khi đã có key nghĩa là giữ key cũ, chỉ đổi
+        `provider`/`baseUrl`/`model`. `openai_compatible` bắt buộc `baseUrl` (vd. `http://localhost:11434/v1`);
+        `anthropic` bỏ qua `baseUrl` (null = mặc định `https://api.anthropic.com`).
+        Thiếu `apiKey` khi chưa có key, hoặc thiếu `baseUrl` với `openai_compatible`, trả `400 validation_error`.
+        Server lưu không kiểm tra key với provider; muốn kiểm tra dùng `POST /api/v1/me/llm-key/test`.
+        Key mã hóa AES-GCM bằng `TEAMLENS_SECRET_KEY` trước khi lưu.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutLlmKeyRequest'
+      responses:
+        '200':
+          description: Đã lưu.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key]
+                properties:
+                  key:
+                    $ref: '#/components/schemas/LlmKey'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    delete:
+      operationId: deleteMyLlmKey
+      tags: [ai]
+      summary: Xóa API key AI của chính người gọi
+      description: Gọi khi chưa có key cũng trả 204. Kết quả AI đã tạo vẫn giữ.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/me/llm-key/test:
+    post:
+      operationId: testMyLlmKey
+      tags: [ai]
+      summary: Kiểm tra cấu hình key bằng một lời gọi nhỏ tới provider
+      description: |
+        Body giống `PUT /api/v1/me/llm-key` nhưng mọi trường tùy chọn; trường thiếu lấy từ key đã lưu
+        (body rỗng = kiểm tra key đang lưu). Không lưu gì. Thiếu key ở cả body lẫn DB trả `409 llm_key_missing`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestLlmKeyRequest'
+      responses:
+        '200':
+          description: Provider trả lời được.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmKeyTestResult'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: '#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: '#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: '#/components/responses/LlmProviderError'
+        '504':
+          $ref: '#/components/responses/LlmTimeout'
+
+  /api/v1/sessions/{sessionId}/ai:
+    parameters:
+      - $ref: './sessions.yaml#/components/parameters/SessionId'
+    get:
+      operationId: getSessionAiResults
+      tags: [ai]
+      summary: Kết quả AI của người gọi cho một session
+      description: |
+        Chỉ kết quả CỦA NGƯỜI GỌI (kind `session_summary`, `session_outcome` của session và
+        `finding_explain` của các finding thuộc session), đúng `locale`. Chưa có thì `null`/mảng rỗng.
+        Quyền xem như `GET /api/v1/sessions/{sessionId}`: member chỉ session của mình, leader mọi session
+        (ghi audit khi xem session của người khác).
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AiLocaleQuery'
+      responses:
+        '200':
+          description: Kết quả AI đã lưu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionAiResults'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/sessions/{sessionId}/ai/summary:
+    parameters:
+      - $ref: './sessions.yaml#/components/parameters/SessionId'
+    post:
+      operationId: runSessionSummary
+      tags: [ai]
+      summary: A1 · tóm tắt session bằng key của người gọi
+      description: |
+        Trả `AiResult` kind `session_summary`, subjectType `session`, `result` theo `SessionSummaryResult`.
+        Ghi đè bản cũ của người gọi (cùng session, cùng locale). Quyền như xem session.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunAiRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: '#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: '#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: '#/components/responses/LlmProviderError'
+        '504':
+          $ref: '#/components/responses/LlmTimeout'
+
+  /api/v1/sessions/{sessionId}/ai/outcome:
+    parameters:
+      - $ref: './sessions.yaml#/components/parameters/SessionId'
+    post:
+      operationId: runSessionOutcome
+      tags: [ai]
+      summary: A5 · đánh giá kết quả session bằng key của người gọi
+      description: |
+        Trả `AiResult` kind `session_outcome`, subjectType `session`, `result` theo `SessionOutcomeResult`.
+        Ghi đè bản cũ của người gọi (cùng session, cùng locale). Quyền như xem session.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunAiRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: '#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: '#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: '#/components/responses/LlmProviderError'
+        '504':
+          $ref: '#/components/responses/LlmTimeout'
+
+  /api/v1/findings/{findingId}/ai/explain:
+    parameters:
+      - $ref: '#/components/parameters/FindingId'
+    post:
+      operationId: runFindingExplain
+      tags: [ai]
+      summary: A4 · giải thích một finding bằng key của người gọi
+      description: |
+        Trả `AiResult` kind `finding_explain`, subjectType `finding`, `result` theo `FindingExplainResult`.
+        Ghi đè bản cũ của người gọi (cùng finding, cùng locale). Quyền như xem session chứa finding.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunAiRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: '#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: '#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: '#/components/responses/LlmProviderError'
+        '504':
+          $ref: '#/components/responses/LlmTimeout'
+
+components:
+  parameters:
+    FindingId:
+      name: findingId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+    AiLocaleQuery:
+      name: locale
+      in: query
+      required: false
+      description: Ngôn ngữ của kết quả, mặc định `vi`.
+      schema:
+        $ref: '#/components/schemas/AiLocale'
+
+  responses:
+    AiResultOk:
+      description: Kết quả AI vừa tạo (đã lưu, ghi đè bản cũ của người gọi).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AiResult'
+    LlmKeyMissing:
+      description: 'Người gọi chưa nhập API key AI (`error`: `llm_key_missing`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: llm_key_missing
+            message: Bạn chưa nhập API key AI. Vào Cài đặt AI để nhập key.
+    LlmKeyRejected:
+      description: |
+        Provider từ chối cấu hình key (`error`: `llm_key_invalid` khi provider báo key sai 401/403,
+        `llm_model_not_found` khi model không tồn tại).
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          examples:
+            llm_key_invalid:
+              value:
+                error: llm_key_invalid
+                message: Provider báo API key không hợp lệ.
+            llm_model_not_found:
+              value:
+                error: llm_model_not_found
+                message: Model không tồn tại ở provider.
+    LlmQuotaExceeded:
+      description: 'Provider báo hết quota hoặc vượt giới hạn tần suất (`error`: `llm_quota_exceeded`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: llm_quota_exceeded
+            message: Provider báo hết quota hoặc gọi quá nhanh. Thử lại sau.
+    LlmProviderError:
+      description: |
+        Lỗi phía provider (`error`: `llm_provider_error` khi provider lỗi hoặc không kết nối được,
+        `llm_bad_output` khi đầu ra không đúng JSON schema sau 1 lần thử lại).
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          examples:
+            llm_provider_error:
+              value:
+                error: llm_provider_error
+                message: Không gọi được provider AI.
+            llm_bad_output:
+              value:
+                error: llm_bad_output
+                message: AI trả kết quả sai định dạng. Thử lại sau.
+    LlmTimeout:
+      description: 'Provider không trả lời trong thời gian chờ, mặc định 60 giây (`error`: `llm_timeout`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: llm_timeout
+            message: AI trả lời quá lâu. Thử lại sau.
+
+  schemas:
+    LlmProvider:
+      type: string
+      enum: [anthropic, openai_compatible]
+      description: |
+        `anthropic`: Messages API của Anthropic. `openai_compatible`: mọi server theo Chat Completions của OpenAI
+        (OpenAI, OpenRouter, Ollama, LM Studio...), cần `baseUrl`.
+
+    LlmKey:
+      type: object
+      description: Cấu hình key AI của một người. Không bao giờ chứa key nguyên văn.
+      required: [provider, baseUrl, model, keyHint, createdAt, updatedAt]
+      properties:
+        provider:
+          $ref: '#/components/schemas/LlmProvider'
+        baseUrl:
+          type: [string, 'null']
+          description: URL gốc của provider; null = mặc định của provider (chỉ với `anthropic`).
+          examples: ['http://localhost:11434/v1']
+        model:
+          type: string
+          minLength: 1
+          examples: [claude-sonnet-5-5]
+        keyHint:
+          type: string
+          description: 4 ký tự cuối của key để người dùng nhận ra, vd. `…a1B2`.
+          examples: ['…a1B2']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PutLlmKeyRequest:
+      type: object
+      required: [provider, model]
+      additionalProperties: false
+      properties:
+        provider:
+          $ref: '#/components/schemas/LlmProvider'
+        baseUrl:
+          type: [string, 'null']
+          format: uri
+          description: Bắt buộc với `openai_compatible`; `anthropic` để null để dùng mặc định.
+        model:
+          type: string
+          minLength: 1
+        apiKey:
+          type: string
+          minLength: 1
+          description: Bắt buộc khi chưa có key; bỏ trống để giữ key cũ.
+
+    TestLlmKeyRequest:
+      type: object
+      additionalProperties: false
+      description: Như `PutLlmKeyRequest` nhưng mọi trường tùy chọn; trường thiếu lấy từ key đã lưu.
+      properties:
+        provider:
+          $ref: '#/components/schemas/LlmProvider'
+        baseUrl:
+          type: [string, 'null']
+          format: uri
+        model:
+          type: string
+          minLength: 1
+        apiKey:
+          type: string
+          minLength: 1
+
+    LlmKeyTestResult:
+      type: object
+      required: [ok, provider, model, latencyMs]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        provider:
+          $ref: '#/components/schemas/LlmProvider'
+        model:
+          type: string
+        latencyMs:
+          type: integer
+          minimum: 0
+
+    AiLocale:
+      type: string
+      enum: [vi, en]
+      description: Ngôn ngữ của kết quả AI.
+
+    AiKind:
+      type: string
+      enum:
+        - session_summary
+        - session_outcome
+        - finding_explain
+        - weekly_user
+        - weekly_team
+        - context_suggestions
+        - skill_triage
+        - skill_content
+        - catalog_picks
+        - prompt_candidates
+      description: Loại kết quả AI (AI_PLAN mục 5).
+
+    AiSubjectType:
+      type: string
+      enum: [session, finding, user_week, project_week, project, skill_cluster]
+      description: Loại đối tượng mà kết quả AI nói về.
+
+    AiResult:
+      type: object
+      description: Một kết quả AI đã lưu ở `ai_results`. Chỉ người tạo đọc được.
+      required:
+        - id
+        - kind
+        - subjectType
+        - subjectId
+        - locale
+        - provider
+        - model
+        - promptVersion
+        - inputTokens
+        - outputTokens
+        - result
+        - createdAt
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        kind:
+          $ref: '#/components/schemas/AiKind'
+        subjectType:
+          $ref: '#/components/schemas/AiSubjectType'
+        subjectId:
+          $ref: './common.yaml#/components/schemas/Id'
+        locale:
+          $ref: '#/components/schemas/AiLocale'
+        provider:
+          $ref: '#/components/schemas/LlmProvider'
+        model:
+          type: string
+        promptVersion:
+          type: string
+          description: Phiên bản prompt, vd. `session_summary@1`.
+          examples: [session_summary@1]
+        inputTokens:
+          type: [integer, 'null']
+          minimum: 0
+        outputTokens:
+          type: [integer, 'null']
+          minimum: 0
+        result:
+          type: object
+          description: |
+            Nội dung kết quả, dạng theo `kind`: `session_summary` → `SessionSummaryResult`,
+            `session_outcome` → `SessionOutcomeResult`, `finding_explain` → `FindingExplainResult`.
+            Các kind khác do task phụ trách định nghĩa sau.
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    SessionAiResults:
+      type: object
+      required: [summary, outcome, findingExplains]
+      properties:
+        summary:
+          description: Kết quả `session_summary` của người gọi, hoặc null.
+          oneOf:
+            - $ref: '#/components/schemas/AiResult'
+            - type: 'null'
+        outcome:
+          description: Kết quả `session_outcome` của người gọi, hoặc null.
+          oneOf:
+            - $ref: '#/components/schemas/AiResult'
+            - type: 'null'
+        findingExplains:
+          type: array
+          description: Các kết quả `finding_explain` của người gọi cho finding thuộc session (`subjectId` = id finding).
+          items:
+            $ref: '#/components/schemas/AiResult'
+
+    RunAiRequest:
+      type: object
+      required: [locale]
+      additionalProperties: false
+      properties:
+        locale:
+          $ref: '#/components/schemas/AiLocale'
+
+    AiTurnRef:
+      type: object
+      description: Trích dẫn một turn bằng `seq` để web nhảy tới đúng turn.
+      required: [seq, note]
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+        note:
+          type: string
+
+    SessionWorkType:
+      type: string
+      enum: [bugfix, feature, refactor, question, ops, docs, test, other]
+      description: Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4.
+
+    SessionSummaryResult:
+      type: object
+      description: '`result` của kind `session_summary` (A1).'
+      required: [title, summary, workType, outcome, filesTouched, keyTurns]
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        workType:
+          $ref: '#/components/schemas/SessionWorkType'
+        outcome:
+          type: string
+        filesTouched:
+          type: array
+          items:
+            type: string
+        keyTurns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiTurnRef'
+
+    SessionOutcomeResult:
+      type: object
+      description: '`result` của kind `session_outcome` (A5).'
+      required: [status, explanation, evidence]
+      properties:
+        status:
+          type: string
+          enum: [completed, abandoned, stuck_loop, unclear]
+        explanation:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiTurnRef'
+
+    FindingExplainResult:
+      type: object
+      description: '`result` của kind `finding_explain` (A4).'
+      required: [why, advice, turns]
+      properties:
+        why:
+          type: string
+        advice:
+          type: string
+        turns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiTurnRef'
