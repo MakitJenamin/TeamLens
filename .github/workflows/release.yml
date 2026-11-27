@@ -96,6 +96,23 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: ./cli/scripts/package-release.ps1 -BinaryPath "cli/target/$env:TARGET/release/tl.exe" -OutDir dist -ExpectedVersion $env:VERSION
 
+      # Script cài chung (irm .../releases/latest/download/install.ps1 | iex và bản CMD) đi kèm mỗi release.
+      # install.ps1 phải là ASCII thuần: GitHub trả asset dạng application/octet-stream và Windows
+      # PowerShell 5.1 giải mã nó bằng Latin-1 khi `irm | iex` (xem comment đầu deploy/install.ps1).
+      - name: Kiểm và chép script cài
+        run: |
+          foreach ($name in 'install.ps1', 'install.cmd') {
+            $path = Join-Path 'deploy' $name
+            $bytes = [IO.File]::ReadAllBytes($path)
+            if (@($bytes | Where-Object { $_ -gt 127 }).Count -gt 0) {
+              throw "$path có ký tự ngoài ASCII; viết tiếng Việt có dấu bằng mã \uXXXX qua Write-Vi."
+            }
+          }
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'deploy/install.ps1').Path, [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { throw "deploy/install.ps1 lỗi cú pháp: $($errors -join '; ')" }
+          Copy-Item deploy/install.ps1, deploy/install.cmd dist/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -103,6 +120,8 @@ jobs:
           path: |
             dist/tl-x86_64-pc-windows-msvc.zip
             dist/SHA256SUMS
+            dist/install.ps1
+            dist/install.cmd
           if-no-files-found: error
 
   release:
@@ -123,16 +142,18 @@ jobs:
           name: tl-${{ env.TARGET }}
           path: dist
 
+      # SHA256SUMS chỉ có dòng của zip (bộ cài và `tl update` chỉ tìm dòng đó).
       - name: Kiểm SHA256SUMS
         working-directory: dist
         run: sha256sum --check --strict SHA256SUMS
 
       # Idempotent: release đã có thì ghi đè asset (--clobber), chưa có thì tạo mới.
+      # Asset: zip, SHA256SUMS, install.ps1, install.cmd (gh lấy tên file làm tên asset).
       # --verify-tag: không bao giờ tự tạo tag mới nếu tag chưa có trên remote.
       - name: Tạo hoặc cập nhật GitHub Release
         run: |
           set -euo pipefail
-          assets=(dist/tl-x86_64-pc-windows-msvc.zip dist/SHA256SUMS)
+          assets=(dist/tl-x86_64-pc-windows-msvc.zip dist/SHA256SUMS dist/install.ps1 dist/install.cmd)
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG đã có, ghi đè asset"
             gh release upload "$TAG" "${assets[@]}" --clobber
