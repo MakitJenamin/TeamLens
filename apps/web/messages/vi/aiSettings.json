@@ -1,0 +1,4 @@
+{
+  "title": "Cài đặt AI",
+  "description": "API key AI của bạn (Anthropic hoặc OpenAI-compatible) và token cho agent gọi MCP."
+}
