@@ -1,15 +1,178 @@
-# KHUNG — chưa có endpoint. Task: M3.7, M4.5.
+# Nhóm `consent`: đồng ý thu thập dữ liệu, spec mục 4.3. Task: M3.5 (contract), M3.7 (code).
+# - GET /agent/v1/consent (deviceToken): văn bản đồng ý hiện hành và trạng thái đồng ý của thiết bị.
+# - POST /agent/v1/consent (deviceToken): đồng ý lại (khi văn bản đổi phiên bản hoặc sau khi đã rút) hoặc rút đồng ý.
+# Ghi đồng ý lần đầu nằm trong `POST /agent/v1/join` (invites.yaml), không qua đây.
+# Còn để sau (M4.5): endpoint dashboard cho trang "Của tôi" (đồng ý đã cấp, ai đã xem session của mình).
 #
-# Đồng ý thu thập dữ liệu, spec mục 4.3:
-# - POST /agent/v1/consent (deviceToken): ghi nhận đồng ý (text_version, backfill) hoặc rút đồng ý.
-# - Endpoint dashboard cho trang "Của tôi": đồng ý đã cấp, audit log ai đã xem session của mình.
-#
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './consent.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# Đồng ý tính theo từng thiết bị (bảng `consents`). JSON dùng camelCase, cùng shape `{ textVersion, backfill }`
+# với trường `consent` của `POST /agent/v1/join`.
+paths:
+  /agent/v1/consent:
+    get:
+      operationId: agentGetConsent
+      tags: [consent]
+      summary: Văn bản đồng ý hiện hành và trạng thái đồng ý của thiết bị
+      description: |
+        `tl consent` gọi để hiện văn bản đang có hiệu lực và cho biết thiết bị này đã đồng ý bản nào.
+
+        `status` cho biết CLI phải làm gì:
+        - `granted`: có bản đồng ý chưa rút, đúng phiên bản hiện hành. Ingest nhận dữ liệu bình thường.
+        - `outdated`: có bản đồng ý chưa rút nhưng là phiên bản cũ. Ingest trả `403 consent_required` cho tới
+          khi đồng ý lại bằng `POST` với `action: grant`.
+        - `revoked`: đã rút đồng ý và chưa đồng ý lại (`devices.status = consent_revoked`). Ingest trả
+          `403 consent_required`.
+        - `none`: chưa có bản đồng ý nào (hiếm: thiết bị không tạo qua `tl join`).
+      security:
+        - deviceToken: []
+      responses:
+        '200':
+          description: Văn bản hiện hành và trạng thái đồng ý của thiết bị.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentStatus'
+              example:
+                textVersion: 2026-11-27.2
+                text: TeamLens sẽ thu thập lịch sử làm việc với AI coding agent trên máy này...
+                status: outdated
+                acceptedVersion: 2026-11-26
+                backfill: false
+                grantedAt: '2026-11-26T08:00:00.000Z'
+                revokedAt: null
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+    post:
+      operationId: agentUpdateConsent
+      tags: [consent]
+      summary: Đồng ý lại hoặc rút đồng ý
+      description: |
+        Chỉ tác động tới thiết bị của device token đang dùng; thành viên của project và thiết bị khác không đổi.
+
+        **`action: grant`** (đồng ý lại): `textVersion` phải đúng phiên bản hiện hành, nếu không trả
+        `409 consent_outdated` (CLI gọi lại `GET` để lấy văn bản mới). Server ghi bản đồng ý mới, các bản
+        chưa rút cũ của thiết bị được coi là đã thay thế, và nếu thiết bị đang `consent_revoked` thì trạng thái
+        trở về `online` (heartbeat kế tiếp cập nhật `paused`/`online` như thường). Gọi lại khi đã `granted`
+        chỉ thay bản đồng ý bằng bản mới, không lỗi.
+
+        **`action: revoke`** (rút đồng ý): mọi bản đồng ý chưa rút của thiết bị được đánh dấu đã rút
+        (`revokedAt`), `devices.status = consent_revoked`. Từ lúc đó ingest trả `403 consent_required`, heartbeat
+        vẫn được nhận và giữ nguyên `consent_revoked`. Gọi lại khi đã rút không lỗi. Token vẫn dùng được nên
+        có thể đồng ý lại sau; muốn thu hồi cả thiết bị thì dùng `POST /agent/v1/logout`. Dữ liệu đã gửi vẫn
+        nằm trên server theo retention (spec 11.2); leader xóa được khi có yêu cầu.
+
+        Cả hai hành động ghi audit (`consent.grant`, `consent.revoke`).
+      security:
+        - deviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+            examples:
+              grant:
+                value:
+                  action: grant
+                  textVersion: 2026-11-27.2
+                  backfill: false
+              revoke:
+                value:
+                  action: revoke
+      responses:
+        '200':
+          description: Trạng thái đồng ý sau khi cập nhật.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentStatus'
+              example:
+                textVersion: 2026-11-27.2
+                text: TeamLens sẽ thu thập lịch sử làm việc với AI coding agent trên máy này...
+                status: revoked
+                acceptedVersion: null
+                backfill: null
+                grantedAt: null
+                revokedAt: '2026-11-27T09:30:00.000Z'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/InvalidToken'
+        '409':
+          description: 'Văn bản đồng ý đã đổi so với `textVersion` gửi lên (`error`: `consent_outdated`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: consent_outdated
+                message: Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại.
+
+components:
+  schemas:
+    ConsentState:
+      type: string
+      description: Trạng thái đồng ý của một thiết bị so với văn bản hiện hành.
+      enum: [granted, outdated, revoked, none]
+
+    ConsentStatus:
+      type: object
+      required: [textVersion, text, status, acceptedVersion, backfill, grantedAt, revokedAt]
+      properties:
+        textVersion:
+          type: string
+          description: Phiên bản văn bản đồng ý hiện hành của server.
+        text:
+          type: string
+          description: Văn bản đồng ý hiện hành (dùng để hiện cho người dùng trước khi họ gõ `yes`).
+        status:
+          $ref: '#/components/schemas/ConsentState'
+        acceptedVersion:
+          type: [string, 'null']
+          description: Phiên bản thiết bị đã đồng ý (bản ghi chưa rút mới nhất); `null` khi không có.
+        backfill:
+          type: [boolean, 'null']
+          description: Lựa chọn gửi lịch sử cũ của bản đồng ý đó; `null` khi không có.
+        grantedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Thời điểm đồng ý của bản ghi đó; `null` khi không có.
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Thời điểm rút đồng ý gần nhất khi `status` là `revoked`; `null` ở các trạng thái khác.
+
+    ConsentGrant:
+      type: object
+      required: [action, textVersion, backfill]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          const: grant
+        textVersion:
+          type: string
+          minLength: 1
+          description: Phiên bản văn bản người dùng đã đọc; phải trùng phiên bản hiện hành.
+        backfill:
+          type: boolean
+          description: Có gửi cả session cũ trên máy (trước lúc đồng ý) không.
+
+    ConsentRevoke:
+      type: object
+      required: [action]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          const: revoke
+
+    ConsentRequest:
+      description: Đồng ý lại hoặc rút đồng ý, phân biệt bằng `action`.
+      oneOf:
+        - $ref: '#/components/schemas/ConsentGrant'
+        - $ref: '#/components/schemas/ConsentRevoke'
+      discriminator:
+        propertyName: action
+        mapping:
+          grant: '#/components/schemas/ConsentGrant'
+          revoke: '#/components/schemas/ConsentRevoke'

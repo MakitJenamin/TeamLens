@@ -830,6 +830,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/v1/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Văn bản đồng ý hiện hành và trạng thái đồng ý của thiết bị
+         * @description `tl consent` gọi để hiện văn bản đang có hiệu lực và cho biết thiết bị này đã đồng ý bản nào.
+         *
+         *     `status` cho biết CLI phải làm gì:
+         *     - `granted`: có bản đồng ý chưa rút, đúng phiên bản hiện hành. Ingest nhận dữ liệu bình thường.
+         *     - `outdated`: có bản đồng ý chưa rút nhưng là phiên bản cũ. Ingest trả `403 consent_required` cho tới
+         *       khi đồng ý lại bằng `POST` với `action: grant`.
+         *     - `revoked`: đã rút đồng ý và chưa đồng ý lại (`devices.status = consent_revoked`). Ingest trả
+         *       `403 consent_required`.
+         *     - `none`: chưa có bản đồng ý nào (hiếm: thiết bị không tạo qua `tl join`).
+         */
+        get: operations["agentGetConsent"];
+        put?: never;
+        /**
+         * Đồng ý lại hoặc rút đồng ý
+         * @description Chỉ tác động tới thiết bị của device token đang dùng; thành viên của project và thiết bị khác không đổi.
+         *
+         *     **`action: grant`** (đồng ý lại): `textVersion` phải đúng phiên bản hiện hành, nếu không trả
+         *     `409 consent_outdated` (CLI gọi lại `GET` để lấy văn bản mới). Server ghi bản đồng ý mới, các bản
+         *     chưa rút cũ của thiết bị được coi là đã thay thế, và nếu thiết bị đang `consent_revoked` thì trạng thái
+         *     trở về `online` (heartbeat kế tiếp cập nhật `paused`/`online` như thường). Gọi lại khi đã `granted`
+         *     chỉ thay bản đồng ý bằng bản mới, không lỗi.
+         *
+         *     **`action: revoke`** (rút đồng ý): mọi bản đồng ý chưa rút của thiết bị được đánh dấu đã rút
+         *     (`revokedAt`), `devices.status = consent_revoked`. Từ lúc đó ingest trả `403 consent_required`, heartbeat
+         *     vẫn được nhận và giữ nguyên `consent_revoked`. Gọi lại khi đã rút không lỗi. Token vẫn dùng được nên
+         *     có thể đồng ý lại sau; muốn thu hồi cả thiết bị thì dùng `POST /agent/v1/logout`. Dữ liệu đã gửi vẫn
+         *     nằm trên server theo retention (spec 11.2); leader xóa được khi có yêu cầu.
+         *
+         *     Cả hai hành động ghi audit (`consent.grant`, `consent.revoke`).
+         */
+        post: operations["agentUpdateConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1235,6 +1281,52 @@ export interface components {
              */
             status: "queued";
         };
+        /**
+         * @description Trạng thái đồng ý của một thiết bị so với văn bản hiện hành.
+         * @enum {string}
+         */
+        ConsentState: "granted" | "outdated" | "revoked" | "none";
+        ConsentStatus: {
+            /** @description Phiên bản văn bản đồng ý hiện hành của server. */
+            textVersion: string;
+            /** @description Văn bản đồng ý hiện hành (dùng để hiện cho người dùng trước khi họ gõ `yes`). */
+            text: string;
+            status: components["schemas"]["ConsentState"];
+            /** @description Phiên bản thiết bị đã đồng ý (bản ghi chưa rút mới nhất); `null` khi không có. */
+            acceptedVersion: string | null;
+            /** @description Lựa chọn gửi lịch sử cũ của bản đồng ý đó; `null` khi không có. */
+            backfill: boolean | null;
+            /**
+             * Format: date-time
+             * @description Thời điểm đồng ý của bản ghi đó; `null` khi không có.
+             */
+            grantedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Thời điểm rút đồng ý gần nhất khi `status` là `revoked`; `null` ở các trạng thái khác.
+             */
+            revokedAt: string | null;
+        };
+        ConsentGrant: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            action: "grant";
+            /** @description Phiên bản văn bản người dùng đã đọc; phải trùng phiên bản hiện hành. */
+            textVersion: string;
+            /** @description Có gửi cả session cũ trên máy (trước lúc đồng ý) không. */
+            backfill: boolean;
+        };
+        ConsentRevoke: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            action: "revoke";
+        };
+        /** @description Đồng ý lại hoặc rút đồng ý, phân biệt bằng `action`. */
+        ConsentRequest: components["schemas"]["ConsentGrant"] | components["schemas"]["ConsentRevoke"];
         /**
          * @description 5 nhóm kỹ năng (SPEC 9.1).
          * @enum {string}
@@ -3570,6 +3662,90 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    agentGetConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Văn bản hiện hành và trạng thái đồng ý của thiết bị. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "textVersion": "2026-11-27.2",
+                     *       "text": "TeamLens sẽ thu thập lịch sử làm việc với AI coding agent trên máy này...",
+                     *       "status": "outdated",
+                     *       "acceptedVersion": "2026-11-26",
+                     *       "backfill": false,
+                     *       "grantedAt": "2026-11-26T08:00:00.000Z",
+                     *       "revokedAt": null
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ConsentStatus"];
+                };
+            };
+            401: components["responses"]["InvalidToken"];
+        };
+    };
+    agentUpdateConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Trạng thái đồng ý sau khi cập nhật. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "textVersion": "2026-11-27.2",
+                     *       "text": "TeamLens sẽ thu thập lịch sử làm việc với AI coding agent trên máy này...",
+                     *       "status": "revoked",
+                     *       "acceptedVersion": null,
+                     *       "backfill": null,
+                     *       "grantedAt": null,
+                     *       "revokedAt": "2026-11-27T09:30:00.000Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ConsentStatus"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["InvalidToken"];
+            /** @description Văn bản đồng ý đã đổi so với `textVersion` gửi lên (`error`: `consent_outdated`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "consent_outdated",
+                     *       "message": "Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
 }
