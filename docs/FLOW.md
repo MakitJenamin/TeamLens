@@ -83,6 +83,7 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
     3. **"Chạy lại" chạy ở nền:** `POST /api/v1/projects/{projectId}/rules/rerun` (chỉ leader, audit `rules.rerun`) trả `202` rồi job `project.rescore` chấm lại mọi session của project. Nút trên UI (M4.4) dùng endpoint này.
   - `user_weekly_stats.scores` là `{}` khi tuần chưa có session nào được chấm; UI nên coi là "chưa có điểm". Cột `week` là ngày thứ Hai (UTC). Tuần xếp theo `started_at` của session.
   - Thêm job `project.rescore` vào `apps/api/src/queue/jobs.ts` (file dùng chung, chỉ thêm một dòng).
+  - Mốc 2 (M2.9, API): `GET /api/v1/projects/{id}/overview` (leader) ở `apps/api/src/modules/stats/`. **Đã chốt:** (1) chi phí chỉ là **ước tính** từ bảng giá cố định theo model trong `pricing.ts` (không phải hóa đơn; model lạ không tính; hết turn do retention thì chi phí `null`); (2) có 4 số liệu **không tính điểm**, không vào điểm hay leaderboard: tỉ lệ cache hit, tỉ lệ dùng model cao cấp, tỉ lệ suy luận mức cao, output trung bình mỗi lượt; (3) bảng trạng thái thành viên để M4.2 (Người 1). Chi tiết ở `modules/stats/README.md`.
 
 ## ⑨ Dashboard — xem session: Người 1 (M1.8, M3.4, M4.1, M4.2); báo cáo: Người 2 (M2.9, M2.10, M4.3)
 

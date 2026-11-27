@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
+import { OverviewController } from './overview.controller.js';
+import { OverviewService } from './overview.service.js';
 
-/** Module rỗng, đã đăng ký sẵn trong AppModule. Xem README.md. */
-@Module({})
+/** Thống kê: tổng quan project (M2.9). Hồ sơ thành viên (M2.10) và leaderboard (M4.3) thêm sau. Xem README.md. */
+@Module({
+  controllers: [OverviewController],
+  providers: [OverviewService],
+})
 export class StatsModule {}
