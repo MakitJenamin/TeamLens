@@ -13,3 +13,7 @@
 *.ico binary
 *.bmp binary
 *.avif binary
+
+# Script CMD giữ CRLF (cmd.exe xử lý file .cmd/.bat dòng LF không ổn định).
+*.cmd text eol=crlf
+*.bat text eol=crlf

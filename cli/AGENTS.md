@@ -45,7 +45,24 @@ Workflow `.github/workflows/release.yml` (M5.1) build `tl.exe` và đưa lên Gi
 
 Asset của mỗi release (tên không chứa phiên bản, tải được qua `releases/latest/download/<asset>` hoặc `releases/download/<tag>/<asset>`):
 - `tl-x86_64-pc-windows-msvc.zip`: đúng một file `tl.exe` ở gốc zip.
-- `SHA256SUMS`: mỗi dòng `<sha256 hex thường>  <tên file>` (kiểu `sha256sum`). Bộ cài (`install.ps1`, self-update) luôn kiểm SHA-256 của zip trước khi giải nén; sai thì dừng.
+- `SHA256SUMS`: mỗi dòng `<sha256 hex thường>  <tên file>` (kiểu `sha256sum`), hiện chỉ có dòng của zip. Bộ cài (`install.ps1`, `tl update`) chỉ tìm dòng của zip và luôn kiểm SHA-256 trước khi giải nén; sai thì dừng.
+- `install.ps1`, `install.cmd`: script cài chung, chép nguyên từ `deploy/install.ps1` và `deploy/install.cmd` của commit được tag.
+
+**Cài `tl` lên máy thành viên** (một lệnh chung, không phụ thuộc server, không kèm mã mời):
+
+```powershell
+# PowerShell (Windows PowerShell 5.1 hoặc 7)
+irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex
+```
+
+```bat
+:: CMD
+curl -fsSL https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.cmd -o install.cmd && install.cmd && del install.cmd
+```
+
+Script tải zip + `SHA256SUMS` từ `releases/latest/download`, kiểm SHA-256 rồi cài `%LOCALAPPDATA%\teamlens\bin\tl.exe`, thêm thư mục đó vào PATH của user (registry `HKCU\Environment`, giữ `REG_EXPAND_SZ`) và cửa sổ đang mở dùng được `tl` ngay. Máy đã có `tl.exe` thì không tải đè (daemon có thể đang giữ file), chỉ in phiên bản và gợi ý `tl update`. Tham gia nhóm là bước riêng: `tl join https://<server>/i/<mã>`.
+
+Sửa `deploy/install.ps1`: file phải là **ASCII thuần** (GitHub trả asset dạng `application/octet-stream`, `irm | iex` trên PowerShell 5.1 giải mã bằng Latin-1, chữ có dấu và BOM đều làm hỏng script), nên comment viết không dấu, còn thông báo tiếng Việt ghi bằng mã `\uXXXX` qua hàm `Write-Vi`; workflow release kiểm ASCII và cú pháp. Thử trên máy: phục vụ thư mục chứa zip, `SHA256SUMS`, `install.ps1`, `install.cmd` bằng `python -m http.server 8766 --bind 127.0.0.1`, đặt `TEAMLENS_INSTALL_BASE_URL=http://127.0.0.1:8766` và `TEAMLENS_INSTALL_TEST_ENV_KEY=Software\TeamLensInstallTest` (ghi PATH vào khóa test thay cho PATH thật), trỏ `LOCALAPPDATA`/`TEMP` sang thư mục tạm, rồi chạy `irm http://127.0.0.1:8766/install.ps1 | iex`. Xong thì xóa khóa `HKCU\Software\TeamLensInstallTest`.
 
 Thử đóng gói trên máy (PowerShell, trong `cli/`):
 
