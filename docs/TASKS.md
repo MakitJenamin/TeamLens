@@ -18,7 +18,7 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
 | Mốc 4 · Báo cáo và minh bạch | 🚧 đang làm | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 còn M4.3–M4.6 |
-| Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87, tag `v0.2.0`). M5.4 do Người 1 làm thay (#PR_M54). Người 2 còn M5.5, M5.6 |
+| Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87, tag `v0.2.0`). M5.4 do Người 1 làm thay (#106). Người 2 còn M5.5, M5.6 |
 | Mốc 6 · Tính năng AI và MCP | 🚧 đang làm | Người 1 xong M6.0 (#97, #98), M6.1 (#99, #101), M6.2 (#103, #104), M6.5 + M6.6 (#102). Người 2, 3 chưa bắt đầu. Thiết kế: [AI_PLAN.md](AI_PLAN.md) |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
@@ -129,7 +129,7 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
-| 1 | ✅ **M5.1** (#81) Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** chạy tay không tag (chỉ build artifact), rồi tag `v0.2.0` tạo release thật | ✅ **M5.4** (#PR_M54, Người 1 làm thay) `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài. Chỉ mở cổng Caddy ra ngoài: web/API sau proxy tin `X-Forwarded-For` cho giới hạn tần suất của link mời, mở thẳng cổng web thì người ngoài giả được header này<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
+| 1 | ✅ **M5.1** (#81) Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** chạy tay không tag (chỉ build artifact), rồi tag `v0.2.0` tạo release thật | ✅ **M5.4** (#106, Người 1 làm thay) `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài. Chỉ mở cổng Caddy ra ngoài: web/API sau proxy tin `X-Forwarded-For` cho giới hạn tần suất của link mời, mở thẳng cổng web thì người ngoài giả được header này<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
 | 2 | ✅ **M5.2** (#83, #85) `GET /install.ps1` + script: tải, kiểm SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm PATH, chạy `tl join`. **Endpoint đã gỡ sau đó**: script cài chung là asset `install.ps1`/`install.cmd` của GitHub Releases (nguồn `deploy/`), chỉ cài `tl`, tham gia bằng `tl join <link>` riêng<br>**Tự test:** cài trên máy Windows khác | **M5.5** Job retention hằng đêm (drop partition `turns`, tạo partition mới)<br>**Tự test:** chạy với retention 1 ngày |
 | 3 | ✅ **M5.3** (#82, #84) `tl update` và daemon tự cập nhật từ GitHub Releases khi server trả `426`, đòi bản mới, hoặc mỗi 24 giờ<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Leader xóa toàn bộ dữ liệu của một người (spec 6.4); nếu Mốc 6 đã có bảng AI thì xóa cả `ai_results`, `user_llm_keys`, `agent_tokens`, mục `prompt_library` liên quan<br>**Tự test:** xóa member2 rồi kiểm tra DB |
 
