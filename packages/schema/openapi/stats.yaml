@@ -1,8 +1,8 @@
 # Nhóm `stats`: thống kê và điểm (cookieAuth), spec mục 7.4 và 10.
 # - GET /api/v1/projects/{projectId}/overview: tổng quan project cho leader (M2.9).
+# - GET /api/v1/users/{userId}/profile?project=: hồ sơ thành viên (M2.10).
 # Còn để sau:
 # - GET /api/v1/projects/{projectId}/leaderboard (M4.3)
-# - GET /api/v1/users/{userId}/profile?project= (M2.10)
 #
 # Số liệu tuần lấy từ `user_weekly_stats` (M2.8, xem docs/FLOW.md mục ⑧). Phân bố model, chi phí và các số liệu
 # không tính điểm lấy từ `turns`, nên chỉ có khi turn còn trong thời hạn lưu (retention).
@@ -103,6 +103,122 @@ paths:
                     severity: high
                     count: 15
                     memberCount: 2
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/users/{userId}/profile:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/UserId'
+    get:
+      operationId: getMemberProfile
+      tags: [stats]
+      summary: Hồ sơ của một thành viên trong một project
+      description: |
+        Leader xem hồ sơ của bất kỳ thành viên nào trong project (ghi audit `profile.view`); member chỉ xem
+        hồ sơ của chính mình (xem của người khác trả `403`). `404` khi project không tồn tại hoặc user không phải
+        thành viên của project.
+
+        - `project` bắt buộc. `from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601; server làm tròn ra biên
+          tuần UTC và trả khoảng thực tế ở `range`. Mặc định: 2 tuần gần nhất, gồm tuần hiện tại.
+        - `scores` là điểm trung bình của thành viên trong khoảng (trọng số là số session mỗi tuần);
+          `teamScores` là điểm trung bình của cả team trong cùng khoảng, trọng số theo số session. Cả member lẫn leader
+          đều thấy `teamScores`. Nhóm chưa có điểm thì vắng mặt; chưa có điểm nào thì `{}`.
+        - `weeks` có một phần tử cho mỗi tuần trong khoảng (tuần không có dữ liệu vẫn có mặt với số 0).
+        - `patterns`: các rule thành viên này vi phạm nhiều nhất trong khoảng, tối đa 10, theo số lần giảm dần. Mỗi mục
+          có lời khuyên của rule và tối đa 3 ví dụ. Đoạn trích (`excerpt`) lấy từ turn còn được lưu, đã che secret, tối đa
+          160 ký tự; là `null` khi turn đã bị xóa theo retention.
+        - Danh sách session gần nhất của thành viên dùng API `GET /api/v1/projects/{projectId}/sessions?userId=`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: project
+          in: query
+          required: true
+          description: Project cần xem hồ sơ.
+          schema:
+            $ref: './common.yaml#/components/schemas/Id'
+        - name: from
+          in: query
+          required: false
+          description: Chỉ tính session có `startedAt` >= mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Chỉ tính session có `startedAt` < mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Hồ sơ thành viên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberProfile'
+              example:
+                user:
+                  id: 3b0b2a4e-6a7f-4a2c-9a3e-1d6d1f2a9a11
+                  name: Thành viên 1
+                projectId: 0d024bea-6aa6-4a9f-8c3d-70292ea86faa
+                range:
+                  from: '2026-11-09T00:00:00.000Z'
+                  to: '2026-11-23T00:00:00.000Z'
+                totals:
+                  sessions: 12
+                  tokens: 19400
+                scores:
+                  prompt_quality: 85
+                  context: 99
+                  correction_loop: 71
+                  session_management: 92
+                  verification: 60
+                teamScores:
+                  prompt_quality: 90
+                  context: 99
+                  correction_loop: 80
+                  session_management: 95
+                  verification: 78
+                weeks:
+                  - week: '2026-11-09'
+                    sessions: 6
+                    tokens: 9700
+                    scores:
+                      prompt_quality: 85
+                      context: 99
+                      correction_loop: 71
+                      session_management: 92
+                      verification: 60
+                    teamScores:
+                      prompt_quality: 90
+                      context: 99
+                      correction_loop: 80
+                      session_management: 95
+                      verification: 78
+                  - week: '2026-11-16'
+                    sessions: 6
+                    tokens: 9700
+                    scores: {}
+                    teamScores: {}
+                patterns:
+                  - ruleKey: lazy-prompting
+                    category: prompt_quality
+                    severity: medium
+                    count: 4
+                    advice: Bổ sung mục tiêu và ngữ cảnh.
+                    examples:
+                      - sessionId: 8b1f1a64-2a27-4d83-a0a7-7d0e1c5f3a10
+                        turnSeq: 3
+                        message: 12/30 prompt trong tuần quá ngắn.
+                        excerpt: fix
         '400':
           $ref: './common.yaml#/components/responses/ValidationError'
         '401':
@@ -297,3 +413,113 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OverviewFinding'
+
+    ProfileUser:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        name:
+          type: string
+
+    ProfileTotals:
+      type: object
+      required: [sessions, tokens]
+      properties:
+        sessions:
+          type: integer
+          minimum: 0
+          description: Số session gốc của thành viên trong khoảng.
+        tokens:
+          type: integer
+          minimum: 0
+          description: Token của mọi session của thành viên, kể cả session con.
+
+    ProfileWeek:
+      type: object
+      required: [week, sessions, tokens, scores, teamScores]
+      properties:
+        week:
+          type: string
+          format: date
+          description: Ngày thứ Hai (UTC) của tuần.
+        sessions:
+          type: integer
+          minimum: 0
+        tokens:
+          type: integer
+          minimum: 0
+        scores:
+          $ref: '#/components/schemas/WeeklyScores'
+        teamScores:
+          $ref: '#/components/schemas/WeeklyScores'
+
+    ProfileExample:
+      type: object
+      required: [sessionId, turnSeq, message, excerpt]
+      properties:
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: [integer, 'null']
+          minimum: 0
+          description: Số thứ tự turn làm bằng chứng; `null` nếu áp dụng cho cả session.
+        message:
+          type: string
+          description: Nhận xét của rule cho lần vi phạm này.
+        excerpt:
+          type: [string, 'null']
+          maxLength: 160
+          description: Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention.
+
+    ProfilePattern:
+      type: object
+      required: [ruleKey, category, severity, count, advice, examples]
+      properties:
+        ruleKey:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/ScoreCategory'
+        severity:
+          type: string
+          enum: [low, medium, high]
+        count:
+          type: integer
+          minimum: 1
+          description: Số lần thành viên này vi phạm rule trong khoảng.
+        advice:
+          type: [string, 'null']
+          description: Lời khuyên của rule; `null` nếu rule không có.
+        examples:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ProfileExample'
+
+    MemberProfile:
+      type: object
+      required: [user, projectId, range, totals, scores, teamScores, weeks, patterns]
+      properties:
+        user:
+          $ref: '#/components/schemas/ProfileUser'
+        projectId:
+          $ref: './common.yaml#/components/schemas/Id'
+        range:
+          $ref: '#/components/schemas/OverviewRange'
+        totals:
+          $ref: '#/components/schemas/ProfileTotals'
+        scores:
+          $ref: '#/components/schemas/WeeklyScores'
+        teamScores:
+          $ref: '#/components/schemas/WeeklyScores'
+        weeks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileWeek'
+        patterns:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ProfilePattern'

@@ -6,7 +6,7 @@
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
 #   consent.yaml · admin.yaml
-# stats.yaml có overview (M2.9); leaderboard và profile thêm sau.
+# stats.yaml có overview (M2.9) và profile (M2.10); leaderboard thêm sau.
 # agent.yaml có ingest, config, heartbeat.
 openapi: 3.1.0
 info:
@@ -147,6 +147,8 @@ paths:
   # stats.yaml
   /api/v1/projects/{projectId}/overview:
     $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1overview'
+  /api/v1/users/{userId}/profile:
+    $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1profile'
 
   # consent.yaml, admin.yaml:
   # thêm `$ref` ở đây khi các file đó có path.
@@ -277,6 +279,18 @@ components:
       $ref: './stats.yaml#/components/schemas/OverviewUsageStats'
     OverviewFinding:
       $ref: './stats.yaml#/components/schemas/OverviewFinding'
+    MemberProfile:
+      $ref: './stats.yaml#/components/schemas/MemberProfile'
+    ProfileUser:
+      $ref: './stats.yaml#/components/schemas/ProfileUser'
+    ProfileTotals:
+      $ref: './stats.yaml#/components/schemas/ProfileTotals'
+    ProfileWeek:
+      $ref: './stats.yaml#/components/schemas/ProfileWeek'
+    ProfilePattern:
+      $ref: './stats.yaml#/components/schemas/ProfilePattern'
+    ProfileExample:
+      $ref: './stats.yaml#/components/schemas/ProfileExample'
     # sessions.yaml
     AgentKind:
       $ref: './sessions.yaml#/components/schemas/AgentKind'

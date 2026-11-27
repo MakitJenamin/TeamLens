@@ -795,6 +795,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{userId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Hồ sơ của một thành viên trong một project
+         * @description Leader xem hồ sơ của bất kỳ thành viên nào trong project (ghi audit `profile.view`); member chỉ xem
+         *     hồ sơ của chính mình (xem của người khác trả `403`). `404` khi project không tồn tại hoặc user không phải
+         *     thành viên của project.
+         *
+         *     - `project` bắt buộc. `from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601; server làm tròn ra biên
+         *       tuần UTC và trả khoảng thực tế ở `range`. Mặc định: 2 tuần gần nhất, gồm tuần hiện tại.
+         *     - `scores` là điểm trung bình của thành viên trong khoảng (trọng số là số session mỗi tuần);
+         *       `teamScores` là điểm trung bình của cả team trong cùng khoảng, trọng số theo số session. Cả member lẫn leader
+         *       đều thấy `teamScores`. Nhóm chưa có điểm thì vắng mặt; chưa có điểm nào thì `{}`.
+         *     - `weeks` có một phần tử cho mỗi tuần trong khoảng (tuần không có dữ liệu vẫn có mặt với số 0).
+         *     - `patterns`: các rule thành viên này vi phạm nhiều nhất trong khoảng, tối đa 10, theo số lần giảm dần. Mỗi mục
+         *       có lời khuyên của rule và tối đa 3 ví dụ. Đoạn trích (`excerpt`) lấy từ turn còn được lưu, đã che secret, tối đa
+         *       160 ký tự; là `null` khi turn đã bị xóa theo retention.
+         *     - Danh sách session gần nhất của thành viên dùng API `GET /api/v1/projects/{projectId}/sessions?userId=`.
+         */
+        get: operations["getMemberProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1290,6 +1325,57 @@ export interface components {
             count: number;
             /** @description Số thành viên khác nhau mắc. */
             memberCount: number;
+        };
+        MemberProfile: {
+            user: components["schemas"]["ProfileUser"];
+            projectId: components["schemas"]["Id"];
+            range: components["schemas"]["OverviewRange"];
+            totals: components["schemas"]["ProfileTotals"];
+            scores: components["schemas"]["WeeklyScores"];
+            teamScores: components["schemas"]["WeeklyScores"];
+            weeks: components["schemas"]["ProfileWeek"][];
+            patterns: components["schemas"]["ProfilePattern"][];
+        };
+        ProfileUser: {
+            id: components["schemas"]["Id"];
+            name: string;
+        };
+        ProfileTotals: {
+            /** @description Số session gốc của thành viên trong khoảng. */
+            sessions: number;
+            /** @description Token của mọi session của thành viên, kể cả session con. */
+            tokens: number;
+        };
+        ProfileWeek: {
+            /**
+             * Format: date
+             * @description Ngày thứ Hai (UTC) của tuần.
+             */
+            week: string;
+            sessions: number;
+            tokens: number;
+            scores: components["schemas"]["WeeklyScores"];
+            teamScores: components["schemas"]["WeeklyScores"];
+        };
+        ProfilePattern: {
+            ruleKey: string;
+            category: components["schemas"]["ScoreCategory"];
+            /** @enum {string} */
+            severity: "low" | "medium" | "high";
+            /** @description Số lần thành viên này vi phạm rule trong khoảng. */
+            count: number;
+            /** @description Lời khuyên của rule; `null` nếu rule không có. */
+            advice: string | null;
+            examples: components["schemas"]["ProfileExample"][];
+        };
+        ProfileExample: {
+            sessionId: components["schemas"]["Id"];
+            /** @description Số thứ tự turn làm bằng chứng; `null` nếu áp dụng cho cả session. */
+            turnSeq: number | null;
+            /** @description Nhận xét của rule cho lần vi phạm này. */
+            message: string;
+            /** @description Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention. */
+            excerpt: string | null;
         };
         /**
          * @description Agent sinh ra session.
@@ -3369,6 +3455,115 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["ProjectOverview"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMemberProfile: {
+        parameters: {
+            query: {
+                /** @description Project cần xem hồ sơ. */
+                project: components["schemas"]["Id"];
+                /** @description Chỉ tính session có `startedAt` >= mốc này (ISO 8601). */
+                from?: string;
+                /** @description Chỉ tính session có `startedAt` < mốc này (ISO 8601). */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hồ sơ thành viên. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "user": {
+                     *         "id": "3b0b2a4e-6a7f-4a2c-9a3e-1d6d1f2a9a11",
+                     *         "name": "Thành viên 1"
+                     *       },
+                     *       "projectId": "0d024bea-6aa6-4a9f-8c3d-70292ea86faa",
+                     *       "range": {
+                     *         "from": "2026-11-09T00:00:00.000Z",
+                     *         "to": "2026-11-23T00:00:00.000Z"
+                     *       },
+                     *       "totals": {
+                     *         "sessions": 12,
+                     *         "tokens": 19400
+                     *       },
+                     *       "scores": {
+                     *         "prompt_quality": 85,
+                     *         "context": 99,
+                     *         "correction_loop": 71,
+                     *         "session_management": 92,
+                     *         "verification": 60
+                     *       },
+                     *       "teamScores": {
+                     *         "prompt_quality": 90,
+                     *         "context": 99,
+                     *         "correction_loop": 80,
+                     *         "session_management": 95,
+                     *         "verification": 78
+                     *       },
+                     *       "weeks": [
+                     *         {
+                     *           "week": "2026-11-09",
+                     *           "sessions": 6,
+                     *           "tokens": 9700,
+                     *           "scores": {
+                     *             "prompt_quality": 85,
+                     *             "context": 99,
+                     *             "correction_loop": 71,
+                     *             "session_management": 92,
+                     *             "verification": 60
+                     *           },
+                     *           "teamScores": {
+                     *             "prompt_quality": 90,
+                     *             "context": 99,
+                     *             "correction_loop": 80,
+                     *             "session_management": 95,
+                     *             "verification": 78
+                     *           }
+                     *         },
+                     *         {
+                     *           "week": "2026-11-16",
+                     *           "sessions": 6,
+                     *           "tokens": 9700,
+                     *           "scores": {},
+                     *           "teamScores": {}
+                     *         }
+                     *       ],
+                     *       "patterns": [
+                     *         {
+                     *           "ruleKey": "lazy-prompting",
+                     *           "category": "prompt_quality",
+                     *           "severity": "medium",
+                     *           "count": 4,
+                     *           "advice": "Bổ sung mục tiêu và ngữ cảnh.",
+                     *           "examples": [
+                     *             {
+                     *               "sessionId": "8b1f1a64-2a27-4d83-a0a7-7d0e1c5f3a10",
+                     *               "turnSeq": 3,
+                     *               "message": "12/30 prompt trong tuần quá ngắn.",
+                     *               "excerpt": "fix"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MemberProfile"];
                 };
             };
             400: components["responses"]["ValidationError"];
