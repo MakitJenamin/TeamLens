@@ -4,6 +4,7 @@
 # Thêm path mới: viết path item trong file nhóm, rồi thêm một dòng `$ref` dưới `paths:`
 # (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
 #
+# members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
 #   admin.yaml
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
@@ -56,6 +57,8 @@ tags:
     description: Thống kê và điểm (tổng quan project, leaderboard, hồ sơ thành viên).
   - name: consent
     description: Đồng ý và rút đồng ý thu thập dữ liệu (CLI).
+  - name: members
+    description: Trang Thành viên (leader) kèm thiết bị và trạng thái.
 
 paths:
   # health.yaml
@@ -158,6 +161,10 @@ paths:
   # consent.yaml
   /agent/v1/consent:
     $ref: './consent.yaml#/paths/~1agent~1v1~1consent'
+
+  # members.yaml
+  /api/v1/projects/{projectId}/member-status:
+    $ref: './members.yaml#/paths/~1api~1v1~1projects~1{projectId}~1member-status'
 
   # admin.yaml:
   # thêm `$ref` ở đây khi file đó có path.
@@ -312,6 +319,12 @@ components:
       $ref: './stats.yaml#/components/schemas/ProfilePattern'
     ProfileExample:
       $ref: './stats.yaml#/components/schemas/ProfileExample'
+    # members.yaml
+    MemberStatusList:
+      $ref: './members.yaml#/components/schemas/MemberStatusList'
+    MemberStatus:
+      $ref: './members.yaml#/components/schemas/MemberStatus'
+
     # sessions.yaml
     AgentKind:
       $ref: './sessions.yaml#/components/schemas/AgentKind'
