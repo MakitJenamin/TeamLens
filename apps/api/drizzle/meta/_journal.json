@@ -57,6 +57,13 @@
       "when": 1795803339937,
       "tag": "0007_ai_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795812523495,
+      "tag": "0008_rule_rescore_runs",
+      "breakpoints": true
     }
   ]
 }

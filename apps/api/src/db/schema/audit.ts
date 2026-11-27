@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
 /** Nhật ký thao tác nhạy cảm (ai làm gì, lên đối tượng nào, lúc nào). */
@@ -12,6 +12,7 @@ export const auditLog = pgTable(
     action: text('action').notNull(),
     targetType: text('target_type').notNull(),
     targetId: text('target_id').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
