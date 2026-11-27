@@ -74,6 +74,8 @@ export function scoreSession(db: Database, sessionId: string) {
             role: turns.role,
             kind: turns.kind,
             text: turns.text,
+            model: turns.model,
+            interrupted: turns.interrupted,
             tool: sql<RuleTurn['tool']>`${turns.tool}`,
             diff: sql<RuleTurn['diff']>`${turns.diff}`,
           })
@@ -200,6 +202,8 @@ export function scoreSession(db: Database, sessionId: string) {
         role: turns.role,
         kind: turns.kind,
         text: turns.text,
+        model: turns.model,
+        interrupted: turns.interrupted,
         ts: turns.ts,
         diff: sql<RuleTurn['diff']>`${turns.diff} - 'patch'`,
       })
@@ -262,7 +266,7 @@ export function scoreSession(db: Database, sessionId: string) {
  * Chấm lại mọi session của project theo rule hiện hành (M2.8): finding, điểm 5 nhóm, `user_weekly_stats`.
  * Duyệt theo `id` từng lô 100 session; chạy lại nhiều lần không tạo bản ghi trùng.
  */
-export async function rescoreProject(db: Database, projectId: string) {
+export async function rescoreProject(db: Database, projectId: string, onBatch?: (processed: number) => Promise<void>) {
   let cursor: string | undefined;
   let total = 0;
   while (true) {
@@ -278,6 +282,7 @@ export async function rescoreProject(db: Database, projectId: string) {
       .limit(100);
     if (!batch.length) return total;
     for (const row of batch) if (await scoreSession(db, row.id)) total++;
+    await onBatch?.(total);
     cursor = batch[batch.length - 1].id;
   }
 }

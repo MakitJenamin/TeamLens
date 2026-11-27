@@ -55,7 +55,10 @@ export type Signal =
   | 'compactions'
   | 'unreviewed'
   | 'vibe'
-  | 'bypass';
+  | 'bypass'
+  | 'vagueFollowup'
+  | 'instructionBloat'
+  | 'pastedLongLog';
 export function measureSignal(
   signal: Signal,
   session: RuleSession,
@@ -67,6 +70,22 @@ export function measureSignal(
   const last = turns.at(-1);
   if (!last) return;
   switch (signal) {
+    case 'vagueFollowup': {
+      const vague = /^(?:fix|làm tiếp|tiếp đi|sai rồi|continue|again|sửa đi)$/iu;
+      const hits = prompts.filter((turn) => vague.test((turn.text ?? '').replace(/[\p{P}\p{S}]/gu, '').trim()));
+      return hits.length ? { count: hits.length, turn: hits.at(-1)! } : undefined;
+    }
+    case 'instructionBloat': {
+      const bytes = session.instructionFiles?.reduce((sum, file) => sum + file.bytes, 0) ?? 0;
+      return bytes > limits.maxBytes ? { count: bytes, turn: first ?? last } : undefined;
+    }
+    case 'pastedLongLog': {
+      const hit = prompts.find((turn) => {
+        const text = turn.text ?? '';
+        return text.split(/\r?\n/u).length >= limits.minLines && /(?:\bat\s+\S+|Error|Traceback|panicked at|npm ERR!)/iu.test(text);
+      });
+      return hit ? { count: hit.text!.split(/\r?\n/u).length, turn: hit } : undefined;
+    }
     case 'shortFirst': {
       const text = first?.text?.trim();
       if (

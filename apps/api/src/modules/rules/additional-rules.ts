@@ -31,7 +31,7 @@ function rule(
   key: string,
   signal: Signal,
   category: string,
-  severity: 'medium' | 'high',
+  severity: 'low' | 'medium' | 'high',
   thresholds: SessionRule['thresholds'],
   message: string,
   advice: string,
@@ -56,6 +56,17 @@ function rule(
 const loop = (n: number) =>
   Array.from({ length: n }, (_, i) => cmd(i + 1, 'ls', i < 5 ? 'error' : 'ok'));
 export const additionalSessionRules = [
+  rule('vague-followup', 'vagueFollowup', 'prompt_quality', 'low', { min: 3 },
+    '{{count}} prompt tiếp theo quá mơ hồ.', 'Nêu rõ kết quả đang sai và điều bạn muốn sửa.',
+    root(p(0, 'fix'), p(1, 'Làm tiếp!'), p(2, 'again')), root(p(0, 'fix'), p(1, 'Sửa src/main.ts giúp tôi'))),
+  rule('instruction-bloat', 'instructionBloat', 'context', 'low', { min: 1, maxBytes: 4000 },
+    'File hướng dẫn có tổng cộng {{count}} byte.', 'Rút gọn hướng dẫn để agent đọc được phần quan trọng.',
+    { ...root(p(0)), instructionFiles: [{ path: 'AGENTS.md', bytes: 4001 }] },
+    { ...root(p(0)), instructionFiles: [{ path: 'AGENTS.md', bytes: 4000 }] }),
+  rule('pasted-long-log', 'pastedLongLog', 'context', 'low', { min: 1, minLines: 40 },
+    'Prompt dán log dài {{count}} dòng.', 'Chỉ đưa phần lỗi liên quan và vài dòng ngữ cảnh.',
+    root(p(0, `Error: failed\n${Array.from({ length: 39 }, () => 'at main.ts:1').join('\n')}`)),
+    root(p(0, `Error: failed\n${Array.from({ length: 38 }, () => 'at main.ts:1').join('\n')}`))),
   rule(
     'vague-first-prompt',
     'shortFirst',

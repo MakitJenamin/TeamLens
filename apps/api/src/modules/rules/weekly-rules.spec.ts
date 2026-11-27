@@ -15,7 +15,7 @@ for (const rule of weeklyRules) {
 }
 
 it('không tính session con; gắn một finding vào session có nhiều bằng chứng nhất', () => {
-  const rule = weeklyRules[0];
+  const rule = weeklyRules.find((item) => item.key === 'lazy-prompting')!;
   const [a] = rule.tests[0].input;
   expect(evaluateWeek([{ ...a, parentSourceId: 'parent' }], [rule])).toEqual(
     [],
@@ -31,8 +31,8 @@ it('không tính session con; gắn một finding vào session có nhiều bằn
   expect(evaluateWeek([atThreshold], [rule])).toEqual([]);
 });
 
-it('đủ 16 khóa rule high/medium riêng biệt', () => {
+it('đủ 16 rule high/medium và 8 rule low, mọi key riêng biệt', () => {
   expect(
     new Set([...sessionRules, ...weeklyRules].map((r) => r.key)).size,
-  ).toBe(16);
+  ).toBe(24);
 });
