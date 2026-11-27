@@ -71,6 +71,20 @@ export class UserMergeService {
         );
       }
 
+      // Kết quả AI về session/finding sắp bị xóa vì trùng (subject_id không có FK nên không cascade).
+      await tx.execute(sql`
+        DELETE FROM ai_results r
+        USING sessions f, sessions i
+        WHERE f.user_id = ${fromId} AND i.user_id = ${intoId}
+          AND f.source_id = i.source_id
+          AND (
+            (r.subject_type = 'session'
+              AND r.subject_id = CASE WHEN f.updated_at > i.updated_at THEN i.id ELSE f.id END)
+            OR (r.subject_type = 'finding' AND r.subject_id IN (
+              SELECT id FROM findings
+              WHERE session_id = CASE WHEN f.updated_at > i.updated_at THEN i.id ELSE f.id END))
+          )`);
+
       // Session trùng source_id: giữ bản updated_at mới hơn (hòa thì giữ bản của user giữ lại),
       // xóa bản kia; turns, findings, scores, notes của bản bị xóa đi theo cascade.
       await tx.execute(sql`
@@ -120,9 +134,30 @@ export class UserMergeService {
       await tx.execute(
         sql`UPDATE invites SET created_by = ${intoId} WHERE created_by = ${fromId}`,
       );
+
+      // Kết quả AI (Mốc 6): bản trùng (cùng kind, đối tượng, locale) giữ của user giữ lại.
+      await tx.execute(sql`
+        DELETE FROM ai_results f
+        USING ai_results i
+        WHERE f.user_id = ${fromId} AND i.user_id = ${intoId}
+          AND f.kind = i.kind AND f.subject_type = i.subject_type
+          AND f.subject_id = i.subject_id AND f.locale = i.locale`);
       await tx.execute(
-        sql`UPDATE llm_reviews SET requested_by = ${intoId} WHERE requested_by = ${fromId}`,
+        sql`UPDATE ai_results SET user_id = ${intoId} WHERE user_id = ${fromId}`,
       );
+      await tx.execute(
+        sql`UPDATE ai_results SET subject_user_id = ${intoId} WHERE subject_user_id = ${fromId}`,
+      );
+      // Token cá nhân `tlp_` cho MCP: chuyển hết.
+      await tx.execute(
+        sql`UPDATE agent_tokens SET user_id = ${intoId} WHERE user_id = ${fromId}`,
+      );
+      // API key LLM: user giữ lại chưa có key thì lấy key của user thừa; có rồi thì key thừa
+      // mất theo cascade khi xóa user.
+      await tx.execute(sql`
+        UPDATE user_llm_keys SET user_id = ${intoId}
+        WHERE user_id = ${fromId}
+          AND NOT EXISTS (SELECT 1 FROM user_llm_keys WHERE user_id = ${intoId})`);
       // Lịch sử audit ("ai đã xem session của ai") phải còn người thực hiện sau khi xóa user cũ.
       await tx.execute(
         sql`UPDATE audit_log SET actor_id = ${intoId} WHERE actor_id = ${fromId}`,
@@ -162,7 +197,7 @@ export class UserMergeService {
       );
 
       // Xóa hẳn user cũ. Phần còn lại cascade: auth_sessions, web_login_tickets,
-      // project_members/ingest_batches trùng, user_weekly_stats. audit_log.actor_id đã chuyển
+      // project_members/ingest_batches/user_llm_keys trùng, user_weekly_stats. audit_log.actor_id đã chuyển
       // sang user giữ lại ở trên; dòng `member.merge` ghi lại id cũ.
       await tx.execute(sql`DELETE FROM users WHERE id = ${fromId}`);
 

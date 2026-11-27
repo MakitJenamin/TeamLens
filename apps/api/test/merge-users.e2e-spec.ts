@@ -29,6 +29,42 @@ const CODEX_SRC = 'codex:0197a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
 const PARENT_SRC = 'claude_code:9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d';
 const CHILD_SRC = 'claude_code:agent-3f9e1d2c';
 
+/** Thêm một kết quả AI thẳng vào DB (Mốc 6), trả id. */
+async function insertAiResult(r: {
+  userId: string;
+  subjectType: string;
+  subjectId: string;
+  subjectUserId?: string | null;
+  kind?: string;
+  locale?: string;
+  model?: string;
+}) {
+  const [row] = await querySql<{ id: string }>(
+    `INSERT INTO ai_results (user_id, kind, subject_type, subject_id, subject_user_id,
+       locale, provider, model, prompt_version, result)
+     VALUES ($1, $2, $3, $4, $5, $6, 'anthropic', $7, 'test@1', '{}'::jsonb) RETURNING id`,
+    [
+      r.userId,
+      r.kind ?? 'session_summary',
+      r.subjectType,
+      r.subjectId,
+      r.subjectUserId ?? null,
+      r.locale ?? 'vi',
+      r.model ?? 'm',
+    ],
+  );
+  return row.id;
+}
+
+/** Thêm API key LLM (BYO) thẳng vào DB; `model` để phân biệt key của ai. */
+async function insertLlmKey(userId: string, model: string) {
+  await querySql(
+    `INSERT INTO user_llm_keys (user_id, provider, model, key_encrypted, key_hint)
+     VALUES ($1, 'anthropic', $2, 'x', '…abcd')`,
+    [userId, model],
+  );
+}
+
 /** Tạo thiết bị cho user thẳng trong DB, trả device token (`tld_...`). */
 async function insertDevice(userId: string, name: string) {
   const token = `tld_${randomToken()}`;
@@ -220,6 +256,60 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
       [fromId, childId],
     );
 
+    // Dữ liệu AI (Mốc 6).
+    const codexId = before.find((s) => s.source_id === CODEX_SRC)!.id;
+    const droppedSimpleId = (await sessionsOf(intoId)).find(
+      (s) => s.source_id === SIMPLE_SRC,
+    )!.id;
+    // Kết quả của user cũ, không trùng → chuyển sang user giữ lại.
+    const movedAi = await insertAiResult({
+      userId: fromId,
+      subjectType: 'session',
+      subjectId: codexId,
+      subjectUserId: fromId,
+    });
+    // Trùng (người bấm, kind, đối tượng, locale) → giữ bản của user giữ lại.
+    const keptAi = await insertAiResult({
+      userId: intoId,
+      subjectType: 'session',
+      subjectId: childId,
+      model: 'into',
+    });
+    await insertAiResult({
+      userId: fromId,
+      subjectType: 'session',
+      subjectId: childId,
+      model: 'from',
+    });
+    // Cùng đối tượng nhưng khác locale → không trùng, chuyển.
+    const otherLocaleAi = await insertAiResult({
+      userId: fromId,
+      subjectType: 'session',
+      subjectId: childId,
+      locale: 'en',
+    });
+    // Leader tóm tắt session của user cũ → chủ dữ liệu đổi sang user giữ lại.
+    const leaderAi = await insertAiResult({
+      userId: leaderId,
+      subjectType: 'session',
+      subjectId: codexId,
+      subjectUserId: fromId,
+    });
+    // Kết quả về session bị xóa vì trùng source_id → xóa theo.
+    await insertAiResult({
+      userId: leaderId,
+      subjectType: 'session',
+      subjectId: droppedSimpleId,
+      subjectUserId: intoId,
+    });
+    for (const name of ['Claude Desktop', 'Cursor'])
+      await querySql(
+        `INSERT INTO agent_tokens (user_id, name, token_hash) VALUES ($1, $2, $3)`,
+        [fromId, name, sha256(`tlp_${randomToken()}`)],
+      );
+    // User giữ lại chưa có key → lấy key của user cũ.
+    await insertLlmKey(fromId, 'from-model');
+
     const res = await leader
       .post(`/api/v1/users/${fromId}/merge`)
       .send({ intoUserId: intoId })
@@ -281,6 +371,44 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
     );
     expect(views).toEqual([{ actor_id: intoId }]);
 
+    // Bảng AI (Mốc 6).
+    const ai = await querySql<{
+      id: string;
+      user_id: string;
+      subject_user_id: string | null;
+      model: string;
+    }>(
+      'SELECT id, user_id, subject_user_id, model FROM ai_results ORDER BY id',
+    );
+    expect(ai).toEqual(
+      [
+        { id: movedAi, user_id: intoId, subject_user_id: intoId, model: 'm' },
+        { id: keptAi, user_id: intoId, subject_user_id: null, model: 'into' },
+        {
+          id: otherLocaleAi,
+          user_id: intoId,
+          subject_user_id: null,
+          model: 'm',
+        },
+        {
+          id: leaderAi,
+          user_id: leaderId,
+          subject_user_id: intoId,
+          model: 'm',
+        },
+      ].sort((a, b) => a.id.localeCompare(b.id)),
+    );
+    const tokens = await querySql<{ user_id: string; name: string }>(
+      'SELECT user_id, name FROM agent_tokens ORDER BY name',
+    );
+    expect(tokens).toEqual([
+      { user_id: intoId, name: 'Claude Desktop' },
+      { user_id: intoId, name: 'Cursor' },
+    ]);
+    expect(
+      await querySql('SELECT user_id, model FROM user_llm_keys', []),
+    ).toEqual([{ user_id: intoId, model: 'from-model' }]);
+
     // Token thiết bị của user cũ vẫn dùng được và giờ thuộc user giữ lại.
     const whoami = await request(server)
       .get('/agent/v1/whoami')
@@ -325,11 +453,20 @@ describe('POST /api/v1/users/:userId/merge (e2e)', () => {
       role: 'leader',
       password: PASSWORD,
     });
+    // Cả hai đã có key → giữ key của user giữ lại, key thừa bị xóa.
+    await insertLlmKey(otherLeader, 'other-model');
+    await insertLlmKey(leaderId, 'leader-model');
     const res = await leader
       .post(`/api/v1/users/${otherLeader}/merge`)
       .send({ intoUserId: leaderId })
       .expect(200);
     expect(res.body.user.id).toBe(leaderId);
     expect(res.body.moved).toEqual({ devices: 0, sessions: 0, projects: 0 });
+    expect(
+      await querySql(
+        'SELECT user_id, model FROM user_llm_keys WHERE user_id = ANY($1) ORDER BY model',
+        [`{${otherLeader},${leaderId}}`],
+      ),
+    ).toEqual([{ user_id: leaderId, model: 'leader-model' }]);
   });
 });
