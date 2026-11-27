@@ -162,6 +162,8 @@ paths:
   # stats.yaml
   /api/v1/projects/{projectId}/overview:
     $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1overview'
+  /api/v1/projects/{projectId}/leaderboard:
+    $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1leaderboard'
   /api/v1/users/{userId}/profile:
     $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1profile'
 
@@ -327,6 +329,10 @@ components:
       $ref: './stats.yaml#/components/schemas/ScoreCategory'
     WeeklyScores:
       $ref: './stats.yaml#/components/schemas/WeeklyScores'
+    Leaderboard:
+      $ref: './stats.yaml#/components/schemas/Leaderboard'
+    LeaderboardEntry:
+      $ref: './stats.yaml#/components/schemas/LeaderboardEntry'
     ProjectOverview:
       $ref: './stats.yaml#/components/schemas/ProjectOverview'
     OverviewRange:

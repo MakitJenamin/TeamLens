@@ -85,6 +85,13 @@ components:
       type: object
       description: Cấu hình riêng của project (jsonb). Các khóa cụ thể bổ sung dần theo tính năng.
       additionalProperties: true
+      properties:
+        leaderboardEnabled:
+          type: boolean
+          description: Cho phép xếp hạng project; mặc định true khi khóa vắng mặt.
+        leaderboardPublic:
+          type: boolean
+          description: Cho member xem bảng xếp hạng ẩn danh khi leaderboardEnabled bật; mặc định false.
 
     ProjectListItem:
       type: object

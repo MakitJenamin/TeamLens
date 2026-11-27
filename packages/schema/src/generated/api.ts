@@ -800,6 +800,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Bảng xếp hạng của project theo tuần hoặc tháng UTC
+         * @description Chỉ xếp hạng người có ít nhất 5 session gốc và có điểm ở nhóm được chọn.
+         *     Tuần dùng user_weekly_stats, tháng tính từ session gốc bắt đầu trong tháng.
+         *     Finding user_week của tháng thuộc về tháng chứa session đại diện của finding.
+         *     Member chỉ xem khi hai công tắc cùng bật; danh tính người khác bị ẩn ngay ở API.
+         */
+        get: operations["getProjectLeaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{userId}/profile": {
         parameters: {
             query?: never;
@@ -1185,6 +1210,11 @@ export interface components {
         ProjectSlug: string;
         /** @description Cấu hình riêng của project (jsonb). Các khóa cụ thể bổ sung dần theo tính năng. */
         ProjectSettings: {
+            /** @description Cho phép xếp hạng project; mặc định true khi khóa vắng mặt. */
+            leaderboardEnabled?: boolean;
+            /** @description Cho member xem bảng xếp hạng ẩn danh khi leaderboardEnabled bật; mặc định false. */
+            leaderboardPublic?: boolean;
+        } & {
             [key: string]: unknown;
         };
         ProjectListItem: {
@@ -1592,6 +1622,36 @@ export interface components {
         /** @description Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt. */
         WeeklyScores: {
             [key: string]: number;
+        };
+        Leaderboard: {
+            projectId: components["schemas"]["Id"];
+            /** @enum {string} */
+            period: "week" | "month";
+            /** @enum {string} */
+            category: "overall" | "prompt_quality" | "context" | "correction_loop" | "session_management" | "verification";
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            leaderboardEnabled: boolean;
+            leaderboardPublic: boolean;
+            mySessions: number;
+            sessionsNeeded: number;
+            entries: components["schemas"]["LeaderboardEntry"][];
+        };
+        LeaderboardEntry: {
+            rank: number;
+            /**
+             * Format: uuid
+             * @description null cho người khác khi người gọi là member.
+             */
+            userId: string | null;
+            /** @description null cho người khác khi người gọi là member. */
+            name: string | null;
+            isSelf: boolean;
+            sessions: number;
+            overall: number | null;
+            scores: components["schemas"]["WeeklyScores"];
         };
         ProjectOverview: {
             range: components["schemas"]["OverviewRange"];
@@ -4138,6 +4198,45 @@ export interface operations {
             400: components["responses"]["ValidationError"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getProjectLeaderboard: {
+        parameters: {
+            query?: {
+                period?: "week" | "month";
+                /** @description Ngày thuộc kỳ, theo UTC; mặc định ngày hiện tại. */
+                at?: string;
+                category?: "overall" | "prompt_quality" | "context" | "correction_loop" | "session_management" | "verification";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bảng xếp hạng hoặc trạng thái đã tắt cho leader. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Leaderboard"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Member không được xem (`leaderboard_disabled`) hoặc không thuộc project (`forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };
