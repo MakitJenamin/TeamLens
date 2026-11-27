@@ -10,20 +10,20 @@
 export const CONSENT_TEXT_VERSION = '2026-11-28.1';
 
 export const CONSENT_TEXT = `Gửi lên server của nhóm (từ Claude Code, Codex trên máy này):
-- Prompt, câu trả lời của agent, lệnh và tool agent gọi, diff code.
+- Toàn bộ prompt, câu trả lời của agent, lệnh và tool agent gọi, diff code.
 - Output của tool, đã cắt ngắn.
 - Agent, model, số token, thời gian, repo, nhánh git.
 
-Che trước khi gửi:
-- Secret (API key, token, mật khẩu, chuỗi kết nối...).
-- Đường dẫn cá nhân trên máy.
+Trước khi gửi:
+- Secret (API key, token, mật khẩu, khóa bí mật, chuỗi kết nối...) bị che.
+- Thư mục home trong đường dẫn được rút gọn thành ~. Tên thư mục và file bên dưới vẫn được gửi.
 
 Phạm vi:
 - Chỉ gửi session trong repo đã đăng ký của project. Session ở repo khác không rời máy, kể cả metadata.
-- Bạn xem dữ liệu của mình. Leader xem dữ liệu của mọi thành viên.
+- Bạn chỉ xem được dữ liệu của mình. Leader xem được dữ liệu của mọi thành viên.
 
-Quyền của bạn:
+Quyền của bạn, bất cứ lúc nào:
 - Tạm dừng: \`tl pause\`. Tiếp tục: \`tl resume\`.
-- Rút đồng ý: \`tl consent revoke\`. Hàng đợi chưa gửi bị xóa. Đồng ý lại: \`tl consent\`.
-- Gỡ khỏi máy: \`tl uninstall\`. Chỉ thu hồi máy này: \`tl logout\`.
-- Dữ liệu đã gửi vẫn ở trên server theo thời hạn lưu. Muốn xóa, nhờ leader.`;
+- Rút đồng ý: \`tl consent revoke\`. Máy dừng gửi ngay, server được báo, hàng đợi chưa gửi bị xóa. Đồng ý lại: \`tl consent\`.
+- Gỡ TeamLens: \`tl uninstall\`. Báo server, thu hồi máy này, xóa cấu hình và token trên máy. Chỉ thu hồi máy này: \`tl logout\`.
+- Dữ liệu đã gửi vẫn ở trên server theo thời hạn lưu. Muốn xóa toàn bộ dữ liệu của bạn, nhờ leader.`;
