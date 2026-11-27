@@ -5,7 +5,8 @@
 # (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   invites.yaml · consent.yaml · stats.yaml · admin.yaml
+#   consent.yaml · admin.yaml
+# stats.yaml có overview (M2.9); leaderboard và profile thêm sau.
 # agent.yaml có ingest, config, heartbeat.
 openapi: 3.1.0
 info:
@@ -50,6 +51,8 @@ tags:
     description: Rule và nhận xét về session.
   - name: invites
     description: Link mời chung và tham gia bằng `tl join`.
+  - name: stats
+    description: Thống kê và điểm (tổng quan project, leaderboard, hồ sơ thành viên).
 
 paths:
   # health.yaml
@@ -141,7 +144,11 @@ paths:
   /agent/v1/join:
     $ref: './invites.yaml#/paths/~1agent~1v1~1join'
 
-  # consent.yaml, stats.yaml, admin.yaml:
+  # stats.yaml
+  /api/v1/projects/{projectId}/overview:
+    $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1overview'
+
+  # consent.yaml, admin.yaml:
   # thêm `$ref` ở đây khi các file đó có path.
 
 components:
@@ -248,6 +255,28 @@ components:
       $ref: './rules.yaml#/components/schemas/SessionFindings'
     RuleRerunAccepted:
       $ref: './rules.yaml#/components/schemas/RuleRerunAccepted'
+
+    # stats.yaml
+    ScoreCategory:
+      $ref: './stats.yaml#/components/schemas/ScoreCategory'
+    WeeklyScores:
+      $ref: './stats.yaml#/components/schemas/WeeklyScores'
+    ProjectOverview:
+      $ref: './stats.yaml#/components/schemas/ProjectOverview'
+    OverviewRange:
+      $ref: './stats.yaml#/components/schemas/OverviewRange'
+    OverviewTotals:
+      $ref: './stats.yaml#/components/schemas/OverviewTotals'
+    OverviewWeek:
+      $ref: './stats.yaml#/components/schemas/OverviewWeek'
+    OverviewAgent:
+      $ref: './stats.yaml#/components/schemas/OverviewAgent'
+    OverviewModel:
+      $ref: './stats.yaml#/components/schemas/OverviewModel'
+    OverviewUsageStats:
+      $ref: './stats.yaml#/components/schemas/OverviewUsageStats'
+    OverviewFinding:
+      $ref: './stats.yaml#/components/schemas/OverviewFinding'
     # sessions.yaml
     AgentKind:
       $ref: './sessions.yaml#/components/schemas/AgentKind'

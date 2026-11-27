@@ -762,6 +762,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Tổng quan project (chỉ leader)
+         * @description Số liệu gộp mọi thành viên của project trong một khoảng thời gian, chia theo tuần UTC (thứ Hai 00:00).
+         *     Chỉ leader (mọi project); member nhận `403`.
+         *
+         *     - `from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601. Server làm tròn ra biên tuần UTC;
+         *       `range` trả khoảng thực tế đã dùng. Mặc định: 8 tuần gần nhất, gồm tuần hiện tại.
+         *     - `sessions` và điểm chỉ tính session gốc; `tokens` tính cả session con (SPEC 9.1).
+         *     - Điểm tuần của project là trung bình điểm tuần của từng thành viên, trọng số là số session của họ
+         *       trong tuần. Tuần chưa có session nào được chấm thì `scores` rỗng (`{}`).
+         *     - Chi phí là **ước tính** từ bảng giá cố định theo model, không phải hóa đơn. Chỉ tính được khi turn
+         *       còn được lưu: `estimatedCostUsd` là `null` khi không còn turn nào của kỳ đó. Token của model chưa có giá
+         *       không được tính vào chi phí.
+         *     - `usageStats` là số liệu tham khảo, **không tính điểm** và không vào leaderboard (RULES.md mục 2).
+         */
+        get: operations["getProjectOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1166,6 +1199,97 @@ export interface components {
              * @enum {string}
              */
             status: "queued";
+        };
+        /**
+         * @description 5 nhóm kỹ năng (SPEC 9.1).
+         * @enum {string}
+         */
+        ScoreCategory: "prompt_quality" | "context" | "correction_loop" | "session_management" | "verification";
+        /** @description Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt. */
+        WeeklyScores: {
+            [key: string]: number;
+        };
+        ProjectOverview: {
+            range: components["schemas"]["OverviewRange"];
+            totals: components["schemas"]["OverviewTotals"];
+            /** @description Mỗi tuần trong khoảng một phần tử, sắp xếp tăng dần; tuần không có dữ liệu vẫn có mặt với số 0. */
+            weeks: components["schemas"]["OverviewWeek"][];
+            byAgent: components["schemas"]["OverviewAgent"][];
+            /** @description Sắp xếp theo `tokens` giảm dần. */
+            byModel: components["schemas"]["OverviewModel"][];
+            usageStats: components["schemas"]["OverviewUsageStats"];
+            topFindings: components["schemas"]["OverviewFinding"][];
+        };
+        OverviewRange: {
+            /**
+             * Format: date-time
+             * @description Thứ Hai 00:00 UTC của tuần đầu tiên (bao gồm).
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description Thứ Hai 00:00 UTC sau tuần cuối cùng (không bao gồm).
+             */
+            to: string;
+        };
+        OverviewTotals: {
+            /** @description Số session gốc trong khoảng. */
+            sessions: number;
+            /** @description Số thành viên có ít nhất một session gốc trong khoảng. */
+            activeMembers: number;
+            /** @description Tổng input + output + cache đọc + cache ghi của mọi session, kể cả session con. */
+            tokens: number;
+            /** @description Chi phí ước tính (USD), `null` khi không còn turn nào để tính. */
+            estimatedCostUsd: number | null;
+        };
+        OverviewWeek: {
+            /**
+             * Format: date
+             * @description Ngày thứ Hai (UTC) của tuần.
+             */
+            week: string;
+            sessions: number;
+            tokens: number;
+            estimatedCostUsd: number | null;
+            scores: components["schemas"]["WeeklyScores"];
+        };
+        OverviewAgent: {
+            agent: components["schemas"]["AgentKind"];
+            /** @description Số session gốc. */
+            sessions: number;
+            /** @description Token của mọi session của agent này, kể cả session con. */
+            tokens: number;
+        };
+        OverviewModel: {
+            /** @description Tên model; `null` với các turn không ghi model. */
+            model: string | null;
+            /** @description Số turn của assistant chạy bằng model này. */
+            turns: number;
+            tokens: number;
+            /** @description Là `null` khi model chưa có trong bảng giá. */
+            estimatedCostUsd: number | null;
+        };
+        /** @description Số liệu tham khảo, không tính điểm. Mỗi trường `null` khi không có dữ liệu để tính. */
+        OverviewUsageStats: {
+            /** @description cache đọc / (input + cache đọc + cache ghi). */
+            cacheHitRate: number | null;
+            /** @description Tỉ lệ turn của assistant chạy bằng model cao cấp. */
+            premiumModelRate: number | null;
+            /** @description Tỉ lệ turn có `reasoning_effort` mức cao, trên các turn có ghi mức suy luận. */
+            highReasoningRate: number | null;
+            /** @description Token output trung bình mỗi turn của assistant. */
+            avgOutputTokensPerTurn: number | null;
+        };
+        /** @description Một anti-pattern hay gặp trong khoảng thời gian. Sắp xếp theo `count` giảm dần, tối đa 10 mục. */
+        OverviewFinding: {
+            ruleKey: string;
+            category: components["schemas"]["ScoreCategory"];
+            /** @enum {string} */
+            severity: "low" | "medium" | "high";
+            /** @description Số finding của rule này. */
+            count: number;
+            /** @description Số thành viên khác nhau mắc. */
+            memberCount: number;
         };
         /**
          * @description Agent sinh ra session.
@@ -3143,6 +3267,114 @@ export interface operations {
             };
             410: components["responses"]["InviteUnusable"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    getProjectOverview: {
+        parameters: {
+            query?: {
+                /** @description Chỉ tính session có `startedAt` >= mốc này (ISO 8601). */
+                from?: string;
+                /** @description Chỉ tính session có `startedAt` < mốc này (ISO 8601). */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tổng quan project. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "range": {
+                     *         "from": "2026-11-02T00:00:00.000Z",
+                     *         "to": "2026-11-16T00:00:00.000Z"
+                     *       },
+                     *       "totals": {
+                     *         "sessions": 36,
+                     *         "activeMembers": 2,
+                     *         "tokens": 4820000,
+                     *         "estimatedCostUsd": 31.4
+                     *       },
+                     *       "weeks": [
+                     *         {
+                     *           "week": "2026-11-02",
+                     *           "sessions": 18,
+                     *           "tokens": 2400000,
+                     *           "estimatedCostUsd": 15.2,
+                     *           "scores": {
+                     *             "prompt_quality": 74,
+                     *             "context": 80,
+                     *             "correction_loop": 68,
+                     *             "session_management": 85,
+                     *             "verification": 60
+                     *           }
+                     *         },
+                     *         {
+                     *           "week": "2026-11-09",
+                     *           "sessions": 18,
+                     *           "tokens": 2420000,
+                     *           "estimatedCostUsd": 16.2,
+                     *           "scores": {}
+                     *         }
+                     *       ],
+                     *       "byAgent": [
+                     *         {
+                     *           "agent": "claude_code",
+                     *           "sessions": 30,
+                     *           "tokens": 4100000
+                     *         },
+                     *         {
+                     *           "agent": "codex",
+                     *           "sessions": 6,
+                     *           "tokens": 720000
+                     *         }
+                     *       ],
+                     *       "byModel": [
+                     *         {
+                     *           "model": "claude-opus-4-6",
+                     *           "turns": 410,
+                     *           "tokens": 3900000,
+                     *           "estimatedCostUsd": 28.9
+                     *         },
+                     *         {
+                     *           "model": null,
+                     *           "turns": 12,
+                     *           "tokens": 90000,
+                     *           "estimatedCostUsd": null
+                     *         }
+                     *       ],
+                     *       "usageStats": {
+                     *         "cacheHitRate": 0.62,
+                     *         "premiumModelRate": 0.8,
+                     *         "highReasoningRate": 0.1,
+                     *         "avgOutputTokensPerTurn": 540
+                     *       },
+                     *       "topFindings": [
+                     *         {
+                     *           "ruleKey": "no-test-after-edit",
+                     *           "category": "verification",
+                     *           "severity": "high",
+                     *           "count": 15,
+                     *           "memberCount": 2
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ProjectOverview"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }
