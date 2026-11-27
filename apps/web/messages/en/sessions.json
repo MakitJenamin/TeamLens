@@ -6,7 +6,9 @@
       "agent": "Agent",
       "user": "Member",
       "allAgents": "All agents",
-      "allUsers": "All members"
+      "allUsers": "All members",
+      "search": "Search content",
+      "searchPlaceholder": "Keywords, \"phrase\", -exclude"
     },
     "columns": {
       "user": "User",
@@ -26,7 +28,10 @@
     "emptyDescription": "Sessions appear here once the CLI uploads them (tl sync). If filters are on, try clearing them.",
     "errorTitle": "Could not load sessions",
     "tokensDetail": "Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}",
-    "children": "{count, plural, one {# subagent session} other {# subagent sessions}}"
+    "children": "{count, plural, one {# subagent session} other {# subagent sessions}}",
+    "noResultsTitle": "No matching sessions",
+    "noResultsDescription": "No session contains “{q}”. Try other keywords or clear the filters.",
+    "matchTurn": "Turn #{seq}:"
   },
   "agents": {
     "claude_code": "Claude Code",

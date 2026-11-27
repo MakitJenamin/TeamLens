@@ -540,6 +540,11 @@ export interface paths {
          * @description Sắp xếp theo `startedAt` giảm dần (mới nhất trước), phân trang bằng cursor.
          *     Member chỉ thấy session của chính mình (lọc `userId` khác mình trả `403`); leader thấy mọi
          *     session trong project. Mặc định chỉ trả session gốc, ẩn session con (subagent).
+         *
+         *     Tìm kiếm full-text (M4.1): có `q` thì chỉ trả session có ít nhất một turn khớp, vẫn theo thứ tự
+         *     và cursor như trên. Quyền giữ nguyên: member chỉ tìm trong session của chính mình. Một session
+         *     cũng khớp nếu từ khóa chỉ nằm trong session con trực tiếp của nó, để với `includeSubagents=false`
+         *     (mặc định) vẫn tìm thấy session gốc (`match` khi đó null). Mỗi phần tử trả về có thêm `match`.
          */
         get: operations["listProjectSessions"];
         put?: never;
@@ -1605,11 +1610,27 @@ export interface components {
             childCount: number;
             /** @description Chế độ quyền của agent; null khi CLI không gửi. */
             permissionMode: components["schemas"]["PermissionMode"] | null;
+            /**
+             * @description Chỉ có khi danh sách được gọi với `q`. Turn khớp đầu tiên (theo `seq`) trong chính session này;
+             *     null khi session chỉ khớp qua session con. Không có trong chi tiết session.
+             */
+            match?: components["schemas"]["SessionSearchMatch"] | null;
         };
         SessionPage: {
             items: components["schemas"]["SessionSummary"][];
             /** @description Truyền vào `cursor` để lấy trang tiếp; null khi đã hết. */
             nextCursor: string | null;
+        };
+        /** @description Turn khớp từ khóa tìm kiếm và đoạn trích quanh từ khóa. */
+        SessionSearchMatch: {
+            /** @description `seq` của turn khớp; trang chi tiết có anchor `#turn-<seq>`. */
+            turnSeq: number;
+            /**
+             * @description Đoạn trích (văn bản đã che secret trong DB) quanh từ khóa, khoảng 8–20 từ. Từ khớp được bao bởi
+             *     `«` và `»`; client hiển thị dạng văn bản thuần (đánh dấu phần trong «…»), không render HTML.
+             * @example sửa lỗi «đăng» «nhập» khi token hết hạn
+             */
+            snippet: string;
         };
         InstructionFile: {
             /**
@@ -3178,6 +3199,14 @@ export interface operations {
                 to?: string;
                 /** @description true để trả cả session con (subagent); mặc định chỉ session gốc. */
                 includeSubagents?: boolean;
+                /**
+                 * @description Từ khóa tìm kiếm full-text trong văn bản các turn (đã che secret), 1–200 ký tự sau khi bỏ khoảng
+                 *     trắng hai đầu. Cú pháp kiểu web search của Postgres (`websearch_to_tsquery('simple', q)`):
+                 *     các từ cách nhau là AND, `"cụm từ"` tìm đúng cụm, `or` là OR, `-từ` là loại trừ. Không phân biệt
+                 *     hoa thường, không bỏ dấu tiếng Việt. Nếu `q` không còn từ nào để tìm (chỉ gồm dấu câu, ký tự lạ)
+                 *     thì trả danh sách rỗng. Rỗng hoặc dài quá 200 ký tự trả `400`.
+                 */
+                q?: string;
                 /** @description Số session tối đa mỗi trang. */
                 limit?: number;
                 /** @description Giá trị `nextCursor` của trang trước (chuỗi mờ, không tự tạo). Bỏ trống để lấy trang đầu. */

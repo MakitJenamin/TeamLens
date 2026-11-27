@@ -2,7 +2,7 @@ import type { AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
 import type { AccessService } from '../access/access.service.js';
 import type { AuditService } from '../access/audit.service.js';
-import { SessionsService } from './sessions.service.js';
+import { normalizeSnippet, SessionsService } from './sessions.service.js';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const SESSION = '33333333-3333-4333-8333-333333333333';
@@ -195,5 +195,35 @@ describe('SessionsService', () => {
       expect(page.nextCursor).toBeNull();
       expect(isLeader).toHaveBeenCalledWith(user(OWNER));
     });
+
+    it('có q: gắn match theo session của trang, null khi không có turn khớp', async () => {
+      const other = { ...sessionRow, id: 'other' };
+      const s = service([
+        [{ id: PROJECT }],
+        [sessionRow, other],
+        [{ sessionId: SESSION, seq: 3, snippet: ' sửa «lỗi»\n đăng nhập ' }],
+      ]);
+      isLeader.mockReturnValue(true);
+      const page = await s.list(user(LEADER, true), PROJECT, {
+        includeSubagents: false,
+        limit: 5,
+        q: 'lỗi',
+      });
+      expect(page.items.map((i) => i.match)).toEqual([
+        { turnSeq: 3, snippet: 'sửa «lỗi» đăng nhập' },
+        null,
+      ]);
+    });
+
+    it('không có q thì không truy vấn đoạn trích, không có match', async () => {
+      const s = service([[{ id: PROJECT }], [sessionRow]]);
+      isLeader.mockReturnValue(true);
+      const page = await s.list(user(LEADER, true), PROJECT, query);
+      expect(page.items[0]).not.toHaveProperty('match');
+    });
+  });
+
+  it('normalizeSnippet gộp khoảng trắng', () => {
+    expect(normalizeSnippet('  a\n\n b\tc ')).toBe('a b c');
   });
 });

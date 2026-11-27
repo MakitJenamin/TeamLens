@@ -336,6 +336,8 @@ components:
       $ref: './sessions.yaml#/components/schemas/SessionSummary'
     SessionPage:
       $ref: './sessions.yaml#/components/schemas/SessionPage'
+    SessionSearchMatch:
+      $ref: './sessions.yaml#/components/schemas/SessionSearchMatch'
     InstructionFile:
       $ref: './sessions.yaml#/components/schemas/InstructionFile'
     SessionDetail:
