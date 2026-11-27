@@ -246,13 +246,20 @@ Server NestJS có hai nhóm API: `/agent/v1/*` cho CLI (xác thực bằng devic
 
 **Link mời** (`https://teamlens.congty.com/i/<code>`): dùng chung cho cả nhóm, gắn với một project. Mặc định hết hạn sau 7 ngày; leader đặt được giới hạn số lượt dùng (`max_uses`) và thu hồi bất cứ lúc nào. Mã sinh ngẫu nhiên 32 byte, DB chỉ lưu SHA-256. Mở link bằng trình duyệt thì trang `/i/<code>` chỉ hiện hướng dẫn cài và câu lệnh cần chạy.
 
-**Thành viên tham gia (một lệnh):**
+**Thành viên tham gia (hai bước):**
 
 ```
+# 1. Cài tl (một lần, bỏ qua nếu máy đã có tl). Lệnh chung, không kèm mã mời, không phụ thuộc server.
+#    PowerShell:
+irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex
+#    hoặc CMD:
+curl -fsSL https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.cmd -o install.cmd && install.cmd && del install.cmd
+
+# 2. Tham gia project bằng link mời:
 tl join https://teamlens.congty.com/i/<code>
-# hoặc, khi chưa cài tl.exe:
-irm https://teamlens.congty.com/install.ps1?code=<code> | iex
 ```
+
+Lệnh cài chỉ cài `tl` (xem mục 11.3); tham gia nhóm luôn là bước riêng `tl join <link>`. Trang `/i/<code>`, bước cuối wizard `/setup` và trang quản lý link mời đều hiện đủ hai bước này kèm nút copy.
 
 1. CLI gọi `GET /agent/v1/invites/{code}` (công khai): nhận tên project, repo pattern, văn bản đồng ý và phiên bản. Link sai, hết hạn, hết lượt hay đã thu hồi thì báo lỗi và dừng.
 2. Màn hình đồng ý trong terminal (mục 4.3): hỏi tên hiển thị, hỏi backfill, người dùng gõ `yes`.
@@ -428,7 +435,7 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 - Cấu hình qua `.env`: `TEAMLENS_PUBLIC_URL`, `DATABASE_URL`, `TEAMLENS_SECRET_KEY`, SMTP (tùy chọn, để gửi invite qua email).
 - Lần chạy đầu: wizard `/setup` tạo tài khoản leader đầu tiên, project đầu tiên và repo pattern, rồi hiện link mời + câu lệnh cài cho thành viên (mục 7.1).
 - Cấu hình tối thiểu ước tính cho team 20 người: VPS 2 vCPU, 4 GB RAM, 40 GB SSD (cần đo lại khi có dữ liệu thật).
-- Server phục vụ `GET /install.ps1?code=<code>`: script tải `tl.exe` từ GitHub Releases, kiểm tra SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm vào PATH của user, rồi chạy `tl join` với link mời tương ứng.
+- Cài `tl` trên máy thành viên bằng lệnh chung `irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex` (hoặc bản CMD với `install.cmd`), không qua server TeamLens: script (nguồn `deploy/install.ps1`, `deploy/install.cmd`, đính kèm làm asset của mỗi GitHub Release) tải `SHA256SUMS` và `tl-x86_64-pc-windows-msvc.zip` từ `releases/latest/download`, kiểm tra SHA-256 trước khi giải nén, đặt `tl.exe` vào `%LOCALAPPDATA%\teamlens\bin`, thêm vào PATH của user. Script không tham gia nhóm; thành viên chạy tiếp `tl join <link mời>`. (Endpoint `GET /install.ps1?code=` cũ đã gỡ.)
 - Backup: hướng dẫn `pg_dump` định kỳ trong tài liệu vận hành.
 
 ### 11.4 Repo và cách làm việc

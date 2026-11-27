@@ -22,8 +22,6 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/:path*", destination: `${apiInternalUrl}/api/:path*` },
       { source: "/agent/:path*", destination: `${apiInternalUrl}/agent/:path*` },
-      // Script cài đặt `irm <server>/install.ps1?code=<mã> | iex` (M3.6); query string được giữ nguyên.
-      { source: "/install.ps1", destination: `${apiInternalUrl}/install.ps1` },
     ];
   },
 };

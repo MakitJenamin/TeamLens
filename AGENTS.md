@@ -13,7 +13,7 @@ File này dành cho mọi AI coding agent (Claude Code đọc qua `CLAUDE.md`, C
 | `cli/` | `tl.exe`: CLI + daemon trên máy thành viên | Rust (Cargo workspace) |
 | `apps/api` | API cho CLI (`/agent/v1`) và dashboard (`/api/v1`) | NestJS, Drizzle, Postgres 16, pg-boss |
 | `apps/web` | Dashboard | Next.js (App Router), shadcn/ui, Tailwind, next-intl |
-| `deploy/` | Docker compose, Caddyfile, `install.ps1` | |
+| `deploy/` | Docker compose, Caddyfile, `install.ps1`, `install.cmd` (script cài `tl` chung) | |
 | `docs/` | Spec, task, quyết định | |
 
 ## 2. Lệnh thường dùng
@@ -41,7 +41,7 @@ Mỗi người sở hữu trọn một nhóm tính năng từ CLI tới DB tới
 | API (`apps/api/src/modules/`) | `agent/` (ingest, config, heartbeat), `sessions/` | `invites/`, `consent/`, `rules/`, `stats/`, `admin/`, `retention/` |
 | Web (`apps/web/src/app/[locale]/`) | `(dashboard)/projects/[projectId]/sessions/`, `(dashboard)/projects/[projectId]/members/page.tsx` | `(auth)/i/[code]/`, `(dashboard)/projects/[projectId]/{overview,leaderboard,rules}/`, `(dashboard)/projects/[projectId]/members/[userId]/`, `(dashboard)/{admin,me}/` |
 | Schema | `session.v1.schema.json`, `examples/`, `openapi/agent.yaml`, `openapi/sessions.yaml` | `openapi/{invites,consent,rules,stats,admin}.yaml` |
-| Phát hành | `deploy/install.ps1`, `.github/workflows/release.yml` | `deploy/docker-compose.yml`, `deploy/Caddyfile`, Dockerfile của api/web |
+| Phát hành | `deploy/install.ps1`, `deploy/install.cmd`, `.github/workflows/release.yml` | `deploy/docker-compose.yml`, `deploy/Caddyfile`, Dockerfile của api/web |
 
 **Điểm chạm giữa hai vùng** (chốt bằng contract, không sửa code của nhau):
 - Trang xem session (Người 1) gọi API findings (Người 2, `GET /api/v1/sessions/{sessionId}/findings`).

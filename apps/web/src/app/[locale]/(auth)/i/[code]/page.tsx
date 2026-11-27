@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { CopyField } from "@/components/copy-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InstallSteps } from "@/components/install-steps";
 import { fetchInvitePreview } from "@/lib/api/server";
-import { installCommand, joinCommand } from "@/lib/invite-commands";
 
 const KNOWN_ERRORS = [
   "invite_not_found",
@@ -25,7 +24,7 @@ export async function generateMetadata({
 
 /**
  * Trang công khai của link mời `/i/<mã>` (SPEC 7.1). Không có form đăng nhập/đăng ký:
- * chỉ cho biết project, repo sẽ thu thập và câu lệnh để tham gia.
+ * chỉ cho biết project, repo sẽ thu thập và hai bước tham gia (cài `tl`, rồi `tl join`).
  */
 export default async function InvitePage({ params }: PageProps<"/[locale]/i/[code]">) {
   const { locale, code } = await params;
@@ -74,16 +73,7 @@ export default async function InvitePage({ params }: PageProps<"/[locale]/i/[cod
           )}
           <p className="text-muted-foreground text-xs">{t("reposHint")}</p>
         </section>
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold">{t("newMachine")}</h2>
-          <p className="text-muted-foreground text-xs">{t("newMachineHint")}</p>
-          <CopyField label={t("installCommand")} value={installCommand(origin, code)} />
-        </section>
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold">{t("hasTl")}</h2>
-          <p className="text-muted-foreground text-xs">{t("hasTlHint")}</p>
-          <CopyField label={t("joinCommand")} value={joinCommand(inviteUrl)} />
-        </section>
+        <InstallSteps inviteUrl={inviteUrl} headingLevel="h2" />
         <p className="text-muted-foreground text-xs">
           {t("expiresAt", {
             date: format.dateTime(new Date(preview.expiresAt), {

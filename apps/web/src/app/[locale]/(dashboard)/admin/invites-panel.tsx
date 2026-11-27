@@ -5,7 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/copy-field";
-import { joinCommand } from "@/lib/invite-commands";
+import { InstallSteps } from "@/components/install-steps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,8 +102,7 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
             <AlertDescription>{t("onlyOnce")}</AlertDescription>
           </Alert>
           <CopyField label={t("url")} value={created.url} />
-          <CopyField label={t("installCommand")} value={created.installCommand} />
-          <CopyField label={t("joinCommand")} value={joinCommand(created.url)} />
+          <InstallSteps inviteUrl={created.url} headingLevel="h4" />
           <Button variant="outline" size="sm" onClick={() => setCreated(null)}>
             {t("dismiss")}
           </Button>

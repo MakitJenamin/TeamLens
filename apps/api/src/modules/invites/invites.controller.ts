@@ -6,11 +6,9 @@ import {
   HttpCode,
   Param,
   Post,
-  Query,
   Req,
   Res,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ApiError } from '../../common/api-error.js';
@@ -19,15 +17,12 @@ import {
   CurrentUser,
   Public,
 } from '../../common/auth-context.js';
-import type { Env } from '../../config/env.js';
 import { LeaderOnly } from '../access/access.guards.js';
 import { IngestRateLimiter } from '../agent/rate-limiter.js';
 import { DeviceService } from '../device/device.service.js';
-import { INVITE_CODE_RE, inviteNotFound } from './invite-status.js';
-import { renderInstallScript } from './install-script.js';
 import { InvitesService } from './invites.service.js';
 
-/** Giới hạn cho các endpoint công khai (xem trước, join, `install.ps1`), tính chung theo IP. */
+/** Giới hạn cho các endpoint công khai (xem trước, join), tính chung theo IP. */
 export const PUBLIC_INVITE_LIMIT_PER_MINUTE = 10;
 
 /** Bộ đếm riêng cho endpoint công khai của link mời (khóa theo IP). */
@@ -151,44 +146,5 @@ export class AgentInvitesController {
 
   private limit(req: Request, res: Response): void {
     hitPublicLimit(this.limiter, req, res);
-  }
-}
-
-/**
- * Script cài đặt công khai cho `irm <server>/install.ps1?code=<mã> | iex` (M3.6, contract
- * `invites.yaml`). Không kiểm tra link còn dùng được (việc của `tl join`), chỉ kiểm tra định dạng mã.
- */
-@Controller()
-export class InstallScriptController {
-  private readonly publicUrl: string;
-  private readonly releaseUrl: string;
-
-  constructor(
-    config: ConfigService<Env, true>,
-    private readonly limiter: InviteRateLimiter,
-  ) {
-    this.publicUrl = config.get('TEAMLENS_PUBLIC_URL', { infer: true });
-    this.releaseUrl = config.get('TEAMLENS_CLI_RELEASE_URL', { infer: true });
-  }
-
-  @Public()
-  @Get('install.ps1')
-  script(
-    @Query('code') code: unknown,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ): string {
-    hitPublicLimit(this.limiter, req, res);
-    if (typeof code !== 'string' || !INVITE_CODE_RE.test(code)) {
-      throw inviteNotFound();
-    }
-    // Đặt header ở đây (không dùng @Header) để lỗi phía trên vẫn trả JSON đúng kiểu.
-    res.type('text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    return renderInstallScript({
-      publicUrl: this.publicUrl,
-      code,
-      releaseUrl: this.releaseUrl,
-    });
   }
 }
