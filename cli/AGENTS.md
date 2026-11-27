@@ -30,7 +30,7 @@ Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.depen
 
 ## Vùng file
 
-Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENTS.md` gốc, mục 3. Module `crates/teamlens/src/consent/` lưu trạng thái đồng ý cục bộ (bảng `[consent]` trong `config.toml`, ghi bởi `tl join`); pipeline gửi hỏi nó qua `sync::consent_gate::may_send()`.
+Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENTS.md` gốc, mục 3. Module `crates/teamlens/src/consent/` lưu trạng thái đồng ý cục bộ (bảng `[consent]` trong `config.toml`, ghi bởi `tl join` và `tl consent`; có `revoked_at` khi đã `tl consent revoke`); pipeline gửi hỏi nó qua `sync::consent_gate::may_send()`.
 
 **Vùng nền** (đã làm ở F8, sửa thì PR riêng nhỏ): `Cargo.toml` workspace, `rust-toolchain.toml`, lệnh `logout`, `api_client`, `config`, `context`, `error`, `cli.rs`, `main.rs`.
 

@@ -454,7 +454,7 @@ fn show_preview(out: &mut dyn Write, p: &InvitePreview) {
 }
 
 /// Đổi chuỗi thời gian RFC 3339 sang giờ máy cho dễ đọc; không parse được thì giữ nguyên.
-fn format_time(s: &str) -> String {
+pub(super) fn format_time(s: &str) -> String {
     DateTime::parse_from_rfc3339(s)
         .map(|t| t.with_timezone(&Local).format("%d/%m/%Y %H:%M").to_string())
         .unwrap_or_else(|_| s.to_owned())
@@ -481,7 +481,7 @@ fn validate_name(raw: &str) -> Result<String, AppError> {
 }
 
 /// Đọc một dòng; hết input (EOF) → `None`.
-fn read_line(input: &mut dyn BufRead) -> Result<Option<String>, AppError> {
+pub(super) fn read_line(input: &mut dyn BufRead) -> Result<Option<String>, AppError> {
     let mut line = String::new();
     match input.read_line(&mut line) {
         Ok(0) => Ok(None),
@@ -493,7 +493,7 @@ fn read_line(input: &mut dyn BufRead) -> Result<Option<String>, AppError> {
     }
 }
 
-fn no_input() -> AppError {
+pub(super) fn no_input() -> AppError {
     AppError::user(
         "Không có câu trả lời (không chạy trong terminal?). Chưa tham gia.",
         "Chạy `tl join` trong cửa sổ terminal, hoặc dùng `--name`, `--yes`, `--backfill`/`--no-backfill`.",
@@ -546,7 +546,7 @@ fn local_history(adapters: &[&dyn Adapter]) -> (usize, Option<(SystemTime, Syste
     (count, range)
 }
 
-fn ask_backfill(
+pub(super) fn ask_backfill(
     input: &mut dyn BufRead,
     out: &mut dyn Write,
     adapters: &[&dyn Adapter],
@@ -581,10 +581,20 @@ fn ask_backfill(
 }
 
 fn ask_yes(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<bool, AppError> {
-    prompt(
+    ask_confirmation(
+        input,
         out,
         "Gõ `yes` để đồng ý và tham gia (gõ gì khác hoặc Enter là từ chối): ",
-    );
+    )
+}
+
+/// Hỏi một câu và chỉ coi là đồng ý khi người dùng gõ đúng `yes` (không phân biệt hoa thường).
+pub(super) fn ask_confirmation(
+    input: &mut dyn BufRead,
+    out: &mut dyn Write,
+    question: &str,
+) -> Result<bool, AppError> {
+    prompt(out, question);
     Ok(read_line(input)?.is_some_and(|a| a.eq_ignore_ascii_case("yes")))
 }
 
@@ -615,12 +625,12 @@ fn print_done(
     let _ = out.flush();
 }
 
-fn prompt(out: &mut dyn Write, text: &str) {
+pub(super) fn prompt(out: &mut dyn Write, text: &str) {
     let _ = write!(out, "{text}");
     let _ = out.flush();
 }
 
-fn say(out: &mut dyn Write, line: &str) {
+pub(super) fn say(out: &mut dyn Write, line: &str) {
     let _ = writeln!(out, "{line}");
     let _ = out.flush();
 }
