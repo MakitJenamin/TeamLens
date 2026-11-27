@@ -22,7 +22,7 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
 1. Người 1: hết việc Mốc 2 và Mốc 3, làm trước **M4.1** (full-text search) → **M4.2** (trang thành viên kèm trạng thái thiết bị, dùng `devices.last_heartbeat` của M3.3) → M5.1 → M5.2 → M5.3.
-2. Người 2: hết việc Mốc 2. Làm **M3.7** (API consent rồi CLI; contract M3.5 đã xong) → **M3.8** → **M3.6**; **M3.7** (`tl consent`, `tl consent revoke`, `tl uninstall`) → **M3.6** (`GET /install.ps1?code=`). `user_weekly_stats` của M2.8 đã sẵn cho M4.3 (leaderboard).
+2. Người 2: hết việc Mốc 2. Làm **M3.7** (API consent rồi CLI `tl consent`, `tl consent revoke`, `tl uninstall`; contract M3.5 đã xong) → **M3.8** (Task Scheduler) → **M3.6** (`GET /install.ps1?code=`). `user_weekly_stats` của M2.8 đã sẵn cho M4.3 (leaderboard).
 3. Người 2: **M3.8** (Task Scheduler) đăng ký `tl daemon --background` (M3.2 đã có). Lưu ý: `tl.exe` là ứng dụng console, nên đăng ký kiểu ẩn (vd. `conhost.exe --headless`) hoặc gọi `FreeConsole` để không hiện cửa sổ.
 
 ## Hai người, hai nhóm tính năng
