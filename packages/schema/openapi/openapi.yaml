@@ -5,7 +5,8 @@
 # (`/` trong path viết thành `~1`). Xem packages/schema/AGENTS.md.
 #
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   consent.yaml · admin.yaml
+#   admin.yaml
+# consent.yaml có GET/POST /agent/v1/consent (M3.5).
 # stats.yaml có overview (M2.9) và profile (M2.10); leaderboard thêm sau.
 # agent.yaml có ingest, config, heartbeat.
 openapi: 3.1.0
@@ -53,6 +54,8 @@ tags:
     description: Link mời chung và tham gia bằng `tl join`.
   - name: stats
     description: Thống kê và điểm (tổng quan project, leaderboard, hồ sơ thành viên).
+  - name: consent
+    description: Đồng ý và rút đồng ý thu thập dữ liệu (CLI).
 
 paths:
   # health.yaml
@@ -150,8 +153,12 @@ paths:
   /api/v1/users/{userId}/profile:
     $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1profile'
 
-  # consent.yaml, admin.yaml:
-  # thêm `$ref` ở đây khi các file đó có path.
+  # consent.yaml
+  /agent/v1/consent:
+    $ref: './consent.yaml#/paths/~1agent~1v1~1consent'
+
+  # admin.yaml:
+  # thêm `$ref` ở đây khi file đó có path.
 
 components:
   securitySchemes:
@@ -257,6 +264,18 @@ components:
       $ref: './rules.yaml#/components/schemas/SessionFindings'
     RuleRerunAccepted:
       $ref: './rules.yaml#/components/schemas/RuleRerunAccepted'
+
+    # consent.yaml
+    ConsentState:
+      $ref: './consent.yaml#/components/schemas/ConsentState'
+    ConsentStatus:
+      $ref: './consent.yaml#/components/schemas/ConsentStatus'
+    ConsentGrant:
+      $ref: './consent.yaml#/components/schemas/ConsentGrant'
+    ConsentRevoke:
+      $ref: './consent.yaml#/components/schemas/ConsentRevoke'
+    ConsentRequest:
+      $ref: './consent.yaml#/components/schemas/ConsentRequest'
 
     # stats.yaml
     ScoreCategory:
