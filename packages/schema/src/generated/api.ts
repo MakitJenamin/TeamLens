@@ -818,7 +818,7 @@ export interface paths {
          *     - `weeks` có một phần tử cho mỗi tuần trong khoảng (tuần không có dữ liệu vẫn có mặt với số 0).
          *     - `patterns`: các rule thành viên này vi phạm nhiều nhất trong khoảng, tối đa 10, theo số lần giảm dần. Mỗi mục
          *       có lời khuyên của rule và tối đa 3 ví dụ. Đoạn trích (`excerpt`) lấy từ turn còn được lưu, đã che secret, tối đa
-         *       160 ký tự; là `null` khi turn đã bị xóa theo retention.
+         *       160 ký tự; là `null` khi turn đã bị xóa theo retention hoặc khi turn không có văn bản (vd. compaction).
          *     - Danh sách session gần nhất của thành viên dùng API `GET /api/v1/projects/{projectId}/sessions?userId=`.
          */
         get: operations["getMemberProfile"];
@@ -1466,7 +1466,7 @@ export interface components {
             turnSeq: number | null;
             /** @description Nhận xét của rule cho lần vi phạm này. */
             message: string;
-            /** @description Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention. */
+            /** @description Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention hoặc khi turn không có văn bản (vd. compaction). */
             excerpt: string | null;
         };
         /**
