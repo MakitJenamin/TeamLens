@@ -1,16 +1,299 @@
-# KHUNG — chưa có endpoint. Task: M2.8, M2.9, M2.10, M4.3.
+# Nhóm `stats`: thống kê và điểm (cookieAuth), spec mục 7.4 và 10.
+# - GET /api/v1/projects/{projectId}/overview: tổng quan project cho leader (M2.9).
+# Còn để sau:
+# - GET /api/v1/projects/{projectId}/leaderboard (M4.3)
+# - GET /api/v1/users/{userId}/profile?project= (M2.10)
 #
-# Thống kê và điểm, spec mục 7.4 và 10:
-# - GET /api/v1/projects/{projectId}/overview
-# - GET /api/v1/projects/{projectId}/leaderboard
-# - GET /api/v1/users/{userId}/profile?project=
-#
-# Cách thêm endpoint:
-# 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
-#    tham chiếu `./common.yaml#/components/...`.
-# 2. Trong openapi/openapi.yaml thêm một dòng dưới `paths:`, vd.
-#      /agent/v1/ingest:
-#        $ref: './stats.yaml#/paths/~1agent~1v1~1ingest'
-#    (`/` trong path viết thành `~1` theo JSON Pointer).
-# 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+# Số liệu tuần lấy từ `user_weekly_stats` (M2.8, xem docs/FLOW.md mục ⑧). Phân bố model, chi phí và các số liệu
+# không tính điểm lấy từ `turns`, nên chỉ có khi turn còn trong thời hạn lưu (retention).
+paths:
+  /api/v1/projects/{projectId}/overview:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getProjectOverview
+      tags: [stats]
+      summary: Tổng quan project (chỉ leader)
+      description: |
+        Số liệu gộp mọi thành viên của project trong một khoảng thời gian, chia theo tuần UTC (thứ Hai 00:00).
+        Chỉ leader (mọi project); member nhận `403`.
+
+        - `from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601. Server làm tròn ra biên tuần UTC;
+          `range` trả khoảng thực tế đã dùng. Mặc định: 8 tuần gần nhất, gồm tuần hiện tại.
+        - `sessions` và điểm chỉ tính session gốc; `tokens` tính cả session con (SPEC 9.1).
+        - Điểm tuần của project là trung bình điểm tuần của từng thành viên, trọng số là số session của họ
+          trong tuần. Tuần chưa có session nào được chấm thì `scores` rỗng (`{}`).
+        - Chi phí là **ước tính** từ bảng giá cố định theo model, không phải hóa đơn. Chỉ tính được khi turn
+          còn được lưu: `estimatedCostUsd` là `null` khi không còn turn nào của kỳ đó. Token của model chưa có giá
+          không được tính vào chi phí.
+        - `usageStats` là số liệu tham khảo, **không tính điểm** và không vào leaderboard (RULES.md mục 2).
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Chỉ tính session có `startedAt` >= mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Chỉ tính session có `startedAt` < mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Tổng quan project.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectOverview'
+              example:
+                range:
+                  from: '2026-11-02T00:00:00.000Z'
+                  to: '2026-11-16T00:00:00.000Z'
+                totals:
+                  sessions: 36
+                  activeMembers: 2
+                  tokens: 4820000
+                  estimatedCostUsd: 31.4
+                weeks:
+                  - week: '2026-11-02'
+                    sessions: 18
+                    tokens: 2400000
+                    estimatedCostUsd: 15.2
+                    scores:
+                      prompt_quality: 74
+                      context: 80
+                      correction_loop: 68
+                      session_management: 85
+                      verification: 60
+                  - week: '2026-11-09'
+                    sessions: 18
+                    tokens: 2420000
+                    estimatedCostUsd: 16.2
+                    scores: {}
+                byAgent:
+                  - agent: claude_code
+                    sessions: 30
+                    tokens: 4100000
+                  - agent: codex
+                    sessions: 6
+                    tokens: 720000
+                byModel:
+                  - model: claude-opus-4-6
+                    turns: 410
+                    tokens: 3900000
+                    estimatedCostUsd: 28.9
+                  - model: null
+                    turns: 12
+                    tokens: 90000
+                    estimatedCostUsd: null
+                usageStats:
+                  cacheHitRate: 0.62
+                  premiumModelRate: 0.8
+                  highReasoningRate: 0.1
+                  avgOutputTokensPerTurn: 540
+                topFindings:
+                  - ruleKey: no-test-after-edit
+                    category: verification
+                    severity: high
+                    count: 15
+                    memberCount: 2
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  schemas:
+    ScoreCategory:
+      type: string
+      description: 5 nhóm kỹ năng (SPEC 9.1).
+      enum:
+        - prompt_quality
+        - context
+        - correction_loop
+        - session_management
+        - verification
+
+    WeeklyScores:
+      type: object
+      description: Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.
+      propertyNames:
+        $ref: '#/components/schemas/ScoreCategory'
+      additionalProperties:
+        type: integer
+        minimum: 0
+        maximum: 100
+
+    OverviewRange:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          format: date-time
+          description: Thứ Hai 00:00 UTC của tuần đầu tiên (bao gồm).
+        to:
+          type: string
+          format: date-time
+          description: Thứ Hai 00:00 UTC sau tuần cuối cùng (không bao gồm).
+
+    OverviewTotals:
+      type: object
+      required: [sessions, activeMembers, tokens, estimatedCostUsd]
+      properties:
+        sessions:
+          type: integer
+          minimum: 0
+          description: Số session gốc trong khoảng.
+        activeMembers:
+          type: integer
+          minimum: 0
+          description: Số thành viên có ít nhất một session gốc trong khoảng.
+        tokens:
+          type: integer
+          minimum: 0
+          description: Tổng input + output + cache đọc + cache ghi của mọi session, kể cả session con.
+        estimatedCostUsd:
+          type: [number, 'null']
+          minimum: 0
+          description: Chi phí ước tính (USD), `null` khi không còn turn nào để tính.
+
+    OverviewWeek:
+      type: object
+      required: [week, sessions, tokens, estimatedCostUsd, scores]
+      properties:
+        week:
+          type: string
+          format: date
+          description: Ngày thứ Hai (UTC) của tuần.
+        sessions:
+          type: integer
+          minimum: 0
+        tokens:
+          type: integer
+          minimum: 0
+        estimatedCostUsd:
+          type: [number, 'null']
+          minimum: 0
+        scores:
+          $ref: '#/components/schemas/WeeklyScores'
+
+    OverviewAgent:
+      type: object
+      required: [agent, sessions, tokens]
+      properties:
+        agent:
+          $ref: './sessions.yaml#/components/schemas/AgentKind'
+        sessions:
+          type: integer
+          minimum: 0
+          description: Số session gốc.
+        tokens:
+          type: integer
+          minimum: 0
+          description: Token của mọi session của agent này, kể cả session con.
+
+    OverviewModel:
+      type: object
+      required: [model, turns, tokens, estimatedCostUsd]
+      properties:
+        model:
+          type: [string, 'null']
+          description: Tên model; `null` với các turn không ghi model.
+        turns:
+          type: integer
+          minimum: 0
+          description: Số turn của assistant chạy bằng model này.
+        tokens:
+          type: integer
+          minimum: 0
+        estimatedCostUsd:
+          type: [number, 'null']
+          minimum: 0
+          description: 'Là `null` khi model chưa có trong bảng giá.'
+
+    OverviewUsageStats:
+      type: object
+      description: Số liệu tham khảo, không tính điểm. Mỗi trường `null` khi không có dữ liệu để tính.
+      required: [cacheHitRate, premiumModelRate, highReasoningRate, avgOutputTokensPerTurn]
+      properties:
+        cacheHitRate:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: cache đọc / (input + cache đọc + cache ghi).
+        premiumModelRate:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Tỉ lệ turn của assistant chạy bằng model cao cấp.
+        highReasoningRate:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Tỉ lệ turn có `reasoning_effort` mức cao, trên các turn có ghi mức suy luận.
+        avgOutputTokensPerTurn:
+          type: [number, 'null']
+          minimum: 0
+          description: Token output trung bình mỗi turn của assistant.
+
+    OverviewFinding:
+      type: object
+      description: Một anti-pattern hay gặp trong khoảng thời gian. Sắp xếp theo `count` giảm dần, tối đa 10 mục.
+      required: [ruleKey, category, severity, count, memberCount]
+      properties:
+        ruleKey:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/ScoreCategory'
+        severity:
+          type: string
+          enum: [low, medium, high]
+        count:
+          type: integer
+          minimum: 1
+          description: Số finding của rule này.
+        memberCount:
+          type: integer
+          minimum: 1
+          description: Số thành viên khác nhau mắc.
+
+    ProjectOverview:
+      type: object
+      required: [range, totals, weeks, byAgent, byModel, usageStats, topFindings]
+      properties:
+        range:
+          $ref: '#/components/schemas/OverviewRange'
+        totals:
+          $ref: '#/components/schemas/OverviewTotals'
+        weeks:
+          type: array
+          description: Mỗi tuần trong khoảng một phần tử, sắp xếp tăng dần; tuần không có dữ liệu vẫn có mặt với số 0.
+          items:
+            $ref: '#/components/schemas/OverviewWeek'
+        byAgent:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewAgent'
+        byModel:
+          type: array
+          description: Sắp xếp theo `tokens` giảm dần.
+          items:
+            $ref: '#/components/schemas/OverviewModel'
+        usageStats:
+          $ref: '#/components/schemas/OverviewUsageStats'
+        topFindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewFinding'
