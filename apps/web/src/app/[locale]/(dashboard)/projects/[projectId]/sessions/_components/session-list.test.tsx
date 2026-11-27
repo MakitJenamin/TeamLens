@@ -80,6 +80,54 @@ describe("SessionList", () => {
     });
   });
 
+  it("Enter gửi q lên API, hiện đoạn trích có <mark> và link tới turn khớp", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(page([summary("s-1")], null)))
+      .mockResolvedValue(
+        jsonResponse(
+          page(
+            [
+              summary("s-1", {
+                match: { turnSeq: 4, snippet: "sửa lỗi «đăng» «nhập» <b>x</b>" },
+              }),
+            ],
+            null,
+          ),
+        ),
+      );
+    renderWithProviders(<SessionList projectId="p-1" members={null} />);
+    await screen.findByText("Prompt s-1");
+
+    await userEvent.type(screen.getByLabelText("Tìm trong nội dung"), "  đăng nhập {Enter}");
+    const snippetLink = await screen.findByRole("link", { name: /Turn #4/ });
+    expect(snippetLink).toHaveAttribute("href", "/projects/p-1/sessions/s-1#turn-4");
+    const marks = snippetLink.querySelectorAll("mark");
+    expect([...marks].map((m) => m.textContent)).toEqual(["đăng", "nhập"]);
+    // HTML trong đoạn trích hiển thị dạng chữ, không thành phần tử.
+    expect(snippetLink.querySelector("b")).toBeNull();
+    expect(snippetLink).toHaveTextContent("<b>x</b>");
+    const url = new URL(String(fetchMock.mock.calls.at(-1)?.[0]), "http://x");
+    expect(url.searchParams.get("q")).toBe("đăng nhập");
+  });
+
+  it("gõ xong tự tìm sau debounce; không có kết quả thì báo riêng", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse(page([], null)));
+    renderWithProviders(<SessionList projectId="p-1" members={null} />);
+    expect(await screen.findByText("Chưa có session nào")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Tìm trong nội dung"), "kubernetes");
+    expect(await screen.findByText("Không tìm thấy session khớp")).toBeInTheDocument();
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    // Debounce: chỉ một request có q (không gửi theo từng ký tự).
+    expect(urls.filter((u) => u.includes("q="))).toEqual([expect.stringContaining("q=kubernetes")]);
+
+    // Xóa ô tìm thì quay về danh sách thường, không gửi q.
+    await userEvent.clear(screen.getByLabelText("Tìm trong nội dung"));
+    expect(await screen.findByText("Chưa có session nào")).toBeInTheDocument();
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).not.toContain("q=");
+  });
+
   it("hiện lỗi khi API trả lỗi", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse({ error: "forbidden", message: "Bạn không có quyền thực hiện thao tác này" }, 403),

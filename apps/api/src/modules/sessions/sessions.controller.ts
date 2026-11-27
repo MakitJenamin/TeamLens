@@ -28,6 +28,13 @@ export const listSessionsQuerySchema = z.object({
     .enum(['true', 'false'], 'includeSubagents phải là true hoặc false')
     .optional()
     .transform((value) => value === 'true'),
+  // Từ khóa tìm kiếm full-text (M4.1). Là nội dung prompt: không log.
+  q: z
+    .string()
+    .trim()
+    .min(1, 'q không được để trống')
+    .max(200, 'q tối đa 200 ký tự')
+    .optional(),
   limit: z.coerce
     .number()
     .int('limit phải là số nguyên')
