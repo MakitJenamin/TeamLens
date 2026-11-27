@@ -413,8 +413,11 @@ components:
           minLength: 1
         apiKey:
           type: string
-          minLength: 1
-          description: Bắt buộc khi chưa có key; bỏ trống để giữ key cũ.
+          maxLength: 1000
+          description: |
+            Bắt buộc khi chưa có key; bỏ trường này để giữ key cũ. Chuỗi rỗng chỉ hợp lệ với
+            `openai_compatible` (server tự host không cần key, vd. Ollama); với `anthropic` chuỗi rỗng
+            được coi như bỏ trường (giữ key cũ).
 
     TestLlmKeyRequest:
       type: object
@@ -431,7 +434,8 @@ components:
           minLength: 1
         apiKey:
           type: string
-          minLength: 1
+          maxLength: 1000
+          description: Chuỗi rỗng chỉ có nghĩa với `openai_compatible` (server không cần key).
 
     LlmKeyTestResult:
       type: object
