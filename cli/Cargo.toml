@@ -57,6 +57,9 @@ windows = { version = "0.62", features = [
   "Win32_System_Ole",
 ] }
 self_update = { version = "1", default-features = false, features = ["reqwest", "rustls", "github", "archive-zip", "compression-zip-deflate"] }
+# Tự cập nhật `tl` (M5.3): thay file thực thi đang chạy an toàn trên Windows, kiểm SHA-256 của bản tải về.
+self-replace = "1"
+sha2 = "0.10"
 
 # Test
 jsonschema = "0.63"
