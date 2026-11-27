@@ -767,39 +767,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/install.ps1": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Script PowerShell tham gia bằng một lệnh (công khai)
-         * @description Thành viên chạy `irm <server>/install.ps1?code=<mã> | iex`. Server trả một script PowerShell
-         *     (`text/plain; charset=utf-8`, không cache) đã nhúng sẵn địa chỉ server (`TEAMLENS_PUBLIC_URL`) và
-         *     mã mời, rồi script chạy `tl join <server>/i/<mã>`.
-         *
-         *     Script tìm `tl.exe` (trong PATH hoặc `%LOCALAPPDATA%\teamlens\bin\tl.exe`). Chưa có thì tải
-         *     `SHA256SUMS` và `tl-x86_64-pc-windows-msvc.zip` từ `TEAMLENS_CLI_RELEASE_URL` (mặc định GitHub
-         *     Releases bản mới nhất), kiểm SHA-256 trước khi giải nén (sai thì dừng, không cài), cài vào
-         *     `%LOCALAPPDATA%\teamlens\bin` và thêm thư mục đó vào PATH của user (M5.2). Đã có `tl.exe` thì không
-         *     tải lại; cập nhật do `tl` tự lo (M5.3). Lỗi ở bước nào cũng báo rõ và dừng, không đóng cửa sổ
-         *     PowerShell.
-         *
-         *     Server **không** kiểm tra link còn dùng được hay không (việc đó là của `tl join`, qua
-         *     `GET /agent/v1/invites/{code}`); chỉ kiểm tra `code` đúng định dạng (chống nhúng chuỗi lạ vào script).
-         *     Giới hạn 10 request/phút mỗi IP, như hai endpoint công khai khác của link mời.
-         */
-        get: operations["getInstallScript"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{projectId}/overview": {
         parameters: {
             query?: never;
@@ -1263,8 +1230,10 @@ export interface components {
              */
             url: string;
             /**
-             * @description Câu lệnh PowerShell cài `tl.exe` rồi tự `tl join` (dùng khi máy chưa có `tl`).
-             * @example irm http://localhost:3000/install.ps1?code=Zm9vYmFy | iex
+             * @description Lệnh PowerShell cài `tl` chung, không kèm mã mời (giống nhau cho mọi link và mọi server); sau
+             *     khi cài, thành viên chạy `tl join <url>`. Script cài nằm ở asset `install.ps1` của GitHub
+             *     Releases bản mới nhất (nguồn: `deploy/install.ps1`).
+             * @example irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex
              */
             installCommand: string;
         };
@@ -3556,39 +3525,6 @@ export interface operations {
                 };
             };
             410: components["responses"]["InviteUnusable"];
-            429: components["responses"]["RateLimited"];
-        };
-    };
-    getInstallScript: {
-        parameters: {
-            query: {
-                /**
-                 * @description Mã mời (base64url, 10–100 ký tự `A-Z a-z 0-9 - _`).
-                 * @example Zm9vYmFyYmF6cXV4
-                 */
-                code: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Script PowerShell. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example # TeamLens: tham gia nhóm (script do server http://localhost:3000 sinh ra)
-                     *     $ErrorActionPreference = 'Stop'
-                     *     ...
-                     */
-                    "text/plain": string;
-                };
-            };
-            404: components["responses"]["InviteNotFound"];
             429: components["responses"]["RateLimited"];
         };
     };

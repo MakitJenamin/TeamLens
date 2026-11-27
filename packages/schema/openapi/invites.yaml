@@ -4,7 +4,7 @@
 # - CLI (công khai): xem trước link mời; `POST /agent/v1/join` đổi mã mời + đồng ý lấy device token.
 #
 # Mã mời sinh ngẫu nhiên 32 byte (base64url), DB chỉ lưu SHA-256, nên mã chỉ trả về một lần lúc tạo.
-# Link: `${TEAMLENS_PUBLIC_URL}/i/<code>`. Ba endpoint công khai (xem trước, join, `install.ps1`) giới hạn 10 request/phút mỗi IP.
+# Link: `${TEAMLENS_PUBLIC_URL}/i/<code>`. Hai endpoint công khai (xem trước, join) giới hạn 10 request/phút mỗi IP.
 paths:
   /api/v1/projects/{projectId}/invites:
     parameters:
@@ -174,52 +174,6 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
-  /install.ps1:
-    get:
-      operationId: getInstallScript
-      tags: [invites]
-      summary: Script PowerShell tham gia bằng một lệnh (công khai)
-      description: |
-        Thành viên chạy `irm <server>/install.ps1?code=<mã> | iex`. Server trả một script PowerShell
-        (`text/plain; charset=utf-8`, không cache) đã nhúng sẵn địa chỉ server (`TEAMLENS_PUBLIC_URL`) và
-        mã mời, rồi script chạy `tl join <server>/i/<mã>`.
-
-        Script tìm `tl.exe` (trong PATH hoặc `%LOCALAPPDATA%\teamlens\bin\tl.exe`). Chưa có thì tải
-        `SHA256SUMS` và `tl-x86_64-pc-windows-msvc.zip` từ `TEAMLENS_CLI_RELEASE_URL` (mặc định GitHub
-        Releases bản mới nhất), kiểm SHA-256 trước khi giải nén (sai thì dừng, không cài), cài vào
-        `%LOCALAPPDATA%\teamlens\bin` và thêm thư mục đó vào PATH của user (M5.2). Đã có `tl.exe` thì không
-        tải lại; cập nhật do `tl` tự lo (M5.3). Lỗi ở bước nào cũng báo rõ và dừng, không đóng cửa sổ
-        PowerShell.
-
-        Server **không** kiểm tra link còn dùng được hay không (việc đó là của `tl join`, qua
-        `GET /agent/v1/invites/{code}`); chỉ kiểm tra `code` đúng định dạng (chống nhúng chuỗi lạ vào script).
-        Giới hạn 10 request/phút mỗi IP, như hai endpoint công khai khác của link mời.
-      security: []
-      parameters:
-        - name: code
-          in: query
-          required: true
-          description: Mã mời (base64url, 10–100 ký tự `A-Z a-z 0-9 - _`).
-          schema:
-            type: string
-            pattern: '^[A-Za-z0-9_-]{10,100}$'
-          example: Zm9vYmFyYmF6cXV4
-      responses:
-        '200':
-          description: Script PowerShell.
-          content:
-            text/plain:
-              schema:
-                type: string
-              example: |
-                # TeamLens: tham gia nhóm (script do server http://localhost:3000 sinh ra)
-                $ErrorActionPreference = 'Stop'
-                ...
-        '404':
-          $ref: '#/components/responses/InviteNotFound'
-        '429':
-          $ref: '#/components/responses/RateLimited'
-
 components:
   parameters:
     InviteCode:
@@ -290,8 +244,11 @@ components:
           examples: [http://localhost:3000/i/Zm9vYmFy]
         installCommand:
           type: string
-          description: Câu lệnh PowerShell cài `tl.exe` rồi tự `tl join` (dùng khi máy chưa có `tl`).
-          examples: ['irm http://localhost:3000/install.ps1?code=Zm9vYmFy | iex']
+          description: |
+            Lệnh PowerShell cài `tl` chung, không kèm mã mời (giống nhau cho mọi link và mọi server); sau
+            khi cài, thành viên chạy `tl join <url>`. Script cài nằm ở asset `install.ps1` của GitHub
+            Releases bản mới nhất (nguồn: `deploy/install.ps1`).
+          examples: ['irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex']
 
     ConsentText:
       type: object
