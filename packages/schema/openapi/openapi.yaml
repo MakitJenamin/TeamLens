@@ -186,6 +186,10 @@ paths:
     $ref: './consent.yaml#/paths/~1api~1v1~1me~1session-views'
   /api/v1/audit:
     $ref: './admin.yaml#/paths/~1api~1v1~1audit'
+  /api/v1/admin/settings:
+    $ref: './admin.yaml#/paths/~1api~1v1~1admin~1settings'
+  /api/v1/admin/settings/redaction-test:
+    $ref: './admin.yaml#/paths/~1api~1v1~1admin~1settings~1redaction-test'
 
   # members.yaml
   /api/v1/projects/{projectId}/member-status:
@@ -351,6 +355,10 @@ components:
       $ref: './consent.yaml#/components/schemas/SessionViewPage'
     AuditPage:
       $ref: './admin.yaml#/components/schemas/AuditPage'
+    ServerSettings:
+      $ref: './admin.yaml#/components/schemas/ServerSettings'
+    RedactionPattern:
+      $ref: './admin.yaml#/components/schemas/RedactionPattern'
 
     # stats.yaml
     ScoreCategory:

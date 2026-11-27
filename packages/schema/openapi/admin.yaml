@@ -13,6 +13,127 @@
 #    (`/` trong path viết thành `~1` theo JSON Pointer).
 # 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
 paths:
+  /api/v1/admin/settings:
+    get:
+      operationId: getServerSettings
+      tags: [admin]
+      summary: 'Cài đặt server: redaction, retention và văn bản đồng ý (leader)'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Giá trị hiện hành và số thiết bị sẽ cần đồng ý lại khi sửa văn bản.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerSettings'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+    patch:
+      operationId: updateServerSettings
+      tags: [admin]
+      summary: Cập nhật cài đặt server (leader)
+      description: Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Retention chỉ lưu cấu hình; cleanup thuộc M5.5.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                redactionPatterns:
+                  type: array
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/RedactionPattern'
+                retentionDays:
+                  type: [integer, 'null']
+                  minimum: 7
+                  maximum: 730
+                  description: null là lưu vô hạn; job dọn dữ liệu làm ở M5.5.
+                consentText:
+                  type: string
+                  minLength: 1
+                expectedConsentVersion:
+                  type: string
+      responses:
+        '200':
+          description: Cấu hình mới sau khi lưu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerSettings'
+        '400':
+          description: Cấu hình hoặc regex không hợp lệ (`pattern_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          description: Phiên bản văn bản đã đổi (`consent_version_conflict`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+
+  /api/v1/admin/settings/redaction-test:
+    post:
+      operationId: testRedactionPattern
+      tags: [admin]
+      summary: Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id, regex, sample]
+              properties:
+                id:
+                  type: string
+                regex:
+                  type: string
+                  minLength: 1
+                sample:
+                  type: string
+                  maxLength: 4096
+      responses:
+        '200':
+          description: Kết quả thử, chỉ trả số vùng khớp và văn bản đã che.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [matches, redacted]
+                properties:
+                  matches:
+                    type: integer
+                  redacted:
+                    type: string
+        '400':
+          description: Pattern không hợp lệ (`pattern_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
   /api/v1/audit:
     get:
       operationId: listAuditLog
@@ -75,6 +196,49 @@ paths:
 
 components:
   schemas:
+    RedactionPattern:
+      type: object
+      additionalProperties: false
+      required: [id, name, regex]
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9_]+$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+        regex:
+          type: string
+          minLength: 1
+          description: Cú pháp crate regex của Rust; tối đa 4096 byte UTF-8.
+
+    ServerSettings:
+      type: object
+      additionalProperties: false
+      required: [redactionPatterns, retentionDays, consentText, affectedDevices]
+      properties:
+        redactionPatterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/RedactionPattern'
+        retentionDays:
+          type: [integer, 'null']
+        consentText:
+          type: object
+          additionalProperties: false
+          required: [version, text]
+          properties:
+            version:
+              type: string
+            text:
+              type: string
+        affectedDevices:
+          type: integer
+          description: Số thiết bị có consent còn hiệu lực với phiên bản văn bản hiện tại.
+
     AuditEntry:
       type: object
       additionalProperties: false
