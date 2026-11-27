@@ -73,6 +73,16 @@ cargo build --release --locked --target x86_64-pc-windows-msvc -p teamlens
 
 Chưa ký số (code signing) `tl.exe`; SmartScreen có thể cảnh báo khi chạy lần đầu.
 
+## Tự cập nhật và dòng nhắc bản mới
+
+Module `crates/teamlens/src/update/` (M5.3): `tl update` cập nhật tay, daemon tự kiểm mỗi 24 giờ (`update::auto`), kết quả lưu ở bảng `meta` của `state.db` (`update_latest_version`, `update_last_check_at`, `update_last_attempt_at`...).
+
+Dòng nhắc (`update::notice`, gọi trong `main.rs` sau khi lệnh chạy xong, kể cả khi lệnh lỗi): in ra **stderr** `` Có bản tl <mới> (đang dùng <cũ>). Chạy `tl update`. `` khi bản đã lưu mới hơn bản đang chạy.
+- Không nhắc ở `update`, `daemon`, `uninstall`, `status` (có dòng "Phiên bản" riêng); không nhắc khi stderr không phải terminal; tắt bằng `TL_NO_UPDATE_NOTIFIER=1` hoặc khi biến `CI` được đặt.
+- Bình thường chỉ đọc `state.db`. Kết quả cũ hơn 24 giờ (hoặc chưa có) **và** lần thử gần nhất cách hơn 1 giờ thì kiểm nhẹ trên thread riêng, chạy song song với lệnh; lệnh xong chờ thêm tối đa 2 giây, HTTP timeout 3 giây. Mốc thử ghi trước khi gọi mạng. Kiểm thành công thì dùng kết quả mới; lỗi, timeout hoặc hết giờ chờ thì dùng bản đã lưu (máy đã biết có bản mới thì vẫn nhắc), chỉ im lặng khi chưa lưu gì. Lỗi không ghi `update_last_error` (để `tl status` chỉ báo lỗi của daemon/`tl update`).
+- Mọi lỗi bị nuốt, không đổi kết quả hay mã thoát của lệnh. Tôn trọng `TL_UPDATE_BASE_URL`/`TL_UPDATE_VERSION`/`TL_UPDATE_API_URL`.
+- Test cần stderr là terminal: `NoticeOptions { stderr_is_terminal: true, .. }` (xem `tests/update_notice.rs`). Chạy thật thì chạy trong cửa sổ terminal, không qua pipe.
+
 ## Quy ước
 
 - **Lỗi cho người dùng:** dùng `AppError` (`crates/teamlens/src/error.rs`). Thông điệp tiếng Việt, ngắn, kèm gợi ý cách sửa (`AppError::user(message, hint)`). `main` in `Lỗi: ...` và `Gợi ý: ...`; chỉ in chi tiết/nguyên nhân khi `TL_LOG=debug`. Không `unwrap()`/`panic!` trên đường chạy thật.

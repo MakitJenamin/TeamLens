@@ -16,9 +16,10 @@
 //!   URL thì tải từ `https://github.com/<repo>/releases/download/v<version>/`).
 //! - [`API_URL_ENV`] (`TL_UPDATE_API_URL`): thay URL `releases/latest` của GitHub API (test).
 //!
-//! Tự cập nhật trong daemon: [`auto`].
+//! Tự cập nhật trong daemon: [`auto`]. Dòng nhắc có bản mới ở cuối mọi lệnh: [`notice`].
 
 pub mod auto;
+pub mod notice;
 pub mod restart;
 pub mod sums;
 pub mod version;
@@ -210,10 +211,19 @@ pub struct Updater {
 
 impl Updater {
     pub fn new(source: UpdateSource) -> Result<Self, UpdateError> {
+        Self::with_timeout(source, CONNECT_TIMEOUT, REQUEST_TIMEOUT)
+    }
+
+    /// Như [`Self::new`] nhưng tự chọn timeout (lần kiểm nhẹ của [`notice`] dùng vài giây).
+    pub fn with_timeout(
+        source: UpdateSource,
+        connect: Duration,
+        request: Duration,
+    ) -> Result<Self, UpdateError> {
         let http = reqwest::Client::builder()
             .user_agent(crate::user_agent())
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(connect)
+            .timeout(request)
             .build()
             .map_err(|e| UpdateError::Config(format!("Không tạo được HTTP client: {e}")))?;
         Ok(Self { http, source })

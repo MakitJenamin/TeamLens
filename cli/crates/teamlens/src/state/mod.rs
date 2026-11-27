@@ -176,14 +176,37 @@ fn db_error(path: &Path, e: impl std::fmt::Display) -> AppError {
     )
 }
 
+/// Tổng thời gian thử lại khi mở DB gặp `SQLITE_BUSY`.
+const OPEN_BUSY_RETRY: std::time::Duration = std::time::Duration::from_secs(5);
+
+fn is_busy(e: &rusqlite::Error) -> bool {
+    matches!(
+        e,
+        rusqlite::Error::SqliteFailure(f, _)
+            if matches!(f.code, rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+    )
+}
+
 impl StateDb {
     /// Mở (tạo nếu chưa có) và chạy migration.
     pub fn open(path: &Path) -> Result<Self, AppError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| db_error(path, e))?;
         }
-        let conn = Connection::open(path).map_err(|e| db_error(path, e))?;
-        Self::init(conn).map_err(|e| db_error(path, e))
+        // Hai tiến trình/luồng cùng mở một DB mới (lệnh `tl` và dòng nhắc bản mới, daemon):
+        // bước đổi `journal_mode` có thể trả `SQLITE_BUSY` ngay, không qua `busy_timeout`.
+        // `init` idempotent (migration đọc lại `user_version` trong transaction) nên thử lại.
+        let deadline = std::time::Instant::now() + OPEN_BUSY_RETRY;
+        loop {
+            let conn = Connection::open(path).map_err(|e| db_error(path, e))?;
+            match Self::init(conn) {
+                Ok(db) => return Ok(db),
+                Err(e) if is_busy(&e) && std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Err(e) => return Err(db_error(path, e)),
+            }
+        }
     }
 
     /// DB trong RAM (test).
@@ -200,15 +223,27 @@ impl StateDb {
         Ok(db)
     }
 
+    /// Chạy các bước migration còn thiếu. An toàn khi nhiều tiến trình/luồng cùng mở một DB mới
+    /// (lệnh `tl` và dòng nhắc bản mới, hoặc daemon): mỗi bước lấy khóa ghi ngay từ đầu
+    /// (`IMMEDIATE`, chờ theo `busy_timeout`) rồi đọc lại `user_version` trong transaction, bên
+    /// nào tới sau thấy bước đã chạy thì bỏ qua.
     fn migrate(&mut self) -> rusqlite::Result<()> {
-        let version: i64 = self
-            .conn
-            .pragma_query_value(None, "user_version", |r| r.get(0))?;
-        let start = usize::try_from(version).unwrap_or(0);
-        for (i, sql) in MIGRATIONS.iter().enumerate().skip(start) {
-            let tx = self.conn.transaction()?;
-            tx.execute_batch(sql)?;
-            tx.pragma_update(None, "user_version", (i + 1) as i64)?;
+        for (i, sql) in MIGRATIONS.iter().enumerate() {
+            let target = (i + 1) as i64;
+            let version: i64 = self
+                .conn
+                .pragma_query_value(None, "user_version", |r| r.get(0))?;
+            if version >= target {
+                continue;
+            }
+            let tx = self
+                .conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+            if version < target {
+                tx.execute_batch(sql)?;
+                tx.pragma_update(None, "user_version", target)?;
+            }
             tx.commit()?;
         }
         Ok(())
@@ -594,5 +629,23 @@ mod tests {
         );
         assert!(w[0].contains(t(10)) && w[0].contains(t(19)));
         assert!(!w[0].contains(t(20)) && !w[0].contains(t(9)));
+    }
+
+    #[test]
+    fn nhieu_luong_cung_mo_db_moi() {
+        for _ in 0..30 {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("state.db");
+            let handles: Vec<_> = (0..3)
+                .map(|_| {
+                    let path = path.clone();
+                    std::thread::spawn(move || StateDb::open(&path).map(|db| db.schema_version()))
+                })
+                .collect();
+            for h in handles {
+                let v = h.join().unwrap().expect("mở được").unwrap();
+                assert_eq!(v, MIGRATIONS.len() as i64);
+            }
+        }
     }
 }
