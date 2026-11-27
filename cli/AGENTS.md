@@ -23,7 +23,7 @@ Nếu shell không thấy `cargo`, dùng `%USERPROFILE%\.cargo\bin\cargo.exe`. C
 | --- | --- | --- |
 | `crates/tl-core` | Logic thuần: `session` (M1.2), `scope` (M1.4), `redact` (M1.5, M2.1), `truncate` (M1.5) | **Không** phụ thuộc tokio, reqwest, không đọc/ghi file |
 | `crates/tl-adapters` | Trait `Adapter` (spec 5.2), `AgentKind`, `SourceFile`, `Offset`, `RawEvent`, `ParseError`; `claude_code/` (M1.3, M2.3, M2.4), `codex/` (M2.5) | Fixtures ở `tests/fixtures/`, phải che trước khi commit |
-| `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler là task M3.8 |
+| `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler qua COM (`scheduler.rs`, M3.8); test chạm Task Scheduler thật là `#[ignore]` (chạy tay `cargo test -p tl-platform -- --ignored`) |
 | `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `state/` (`state.db`, M2.3), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7) | Test tích hợp ở `tests/` |
 
 Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.dependencies]` của `Cargo.toml` gốc. Crate con chỉ thêm dòng `ten = { workspace = true }` cho thứ nó dùng. Cần thư viện mới ngoài danh sách thì sửa `Cargo.toml` gốc bằng PR riêng (vùng nền).
