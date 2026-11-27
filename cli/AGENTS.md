@@ -34,6 +34,28 @@ Vùng sở hữu của Người 1 và Người 2 trong `cli/`: bảng ở `AGENT
 
 **Vùng nền** (đã làm ở F8, sửa thì PR riêng nhỏ): `Cargo.toml` workspace, `rust-toolchain.toml`, lệnh `logout`, `api_client`, `config`, `context`, `error`, `cli.rs`, `main.rs`.
 
+## Phát hành CLI
+
+Workflow `.github/workflows/release.yml` (M5.1) build `tl.exe` và đưa lên GitHub Releases của `MakitJenamin/TeamLens`.
+
+1. **Bump version:** sửa `version` ở `[workspace.package]` của `cli/Cargo.toml` (mọi crate dùng chung), chạy `cargo build` để cập nhật `Cargo.lock`, PR vào `main` như thường.
+2. **Tạo tag** trên commit đã merge: `git tag v<version>` rồi `git push origin v<version>` (vd `v0.2.0`; bản thử `v0.1.1-rc.1`). Tag bỏ `v` phải bằng đúng version trong `Cargo.toml`, sai thì workflow fail ngay và nói rõ lệch gì.
+3. **Workflow làm:** kiểm tag khớp version → `cargo build --release --locked --target x86_64-pc-windows-msvc -p teamlens` trên `windows-latest` → `scripts/package-release.ps1` smoke test `tl.exe --version` (phải in `tl <version>`), tạo zip và `SHA256SUMS` → job `release` kiểm lại checksum rồi `gh release create --verify-tag --generate-notes` (tag có `-` thì là prerelease). Chạy lại trên cùng tag thì ghi đè asset (`--clobber`), không lỗi.
+4. **Chạy tay** (Actions → Release CLI → Run workflow): nhập `tag` đã có để build lại release của tag đó; để trống thì chỉ build và upload artifact `tl-x86_64-pc-windows-msvc` của workflow, không tạo release (dùng để thử).
+
+Asset của mỗi release (tên không chứa phiên bản, tải được qua `releases/latest/download/<asset>` hoặc `releases/download/<tag>/<asset>`):
+- `tl-x86_64-pc-windows-msvc.zip`: đúng một file `tl.exe` ở gốc zip.
+- `SHA256SUMS`: mỗi dòng `<sha256 hex thường>  <tên file>` (kiểu `sha256sum`). Bộ cài (`install.ps1`, self-update) luôn kiểm SHA-256 của zip trước khi giải nén; sai thì dừng.
+
+Thử đóng gói trên máy (PowerShell, trong `cli/`):
+
+```powershell
+cargo build --release --locked --target x86_64-pc-windows-msvc -p teamlens
+./scripts/package-release.ps1 -BinaryPath target/x86_64-pc-windows-msvc/release/tl.exe -OutDir ../dist -ExpectedVersion 0.1.0
+```
+
+Chưa ký số (code signing) `tl.exe`; SmartScreen có thể cảnh báo khi chạy lần đầu.
+
 ## Quy ước
 
 - **Lỗi cho người dùng:** dùng `AppError` (`crates/teamlens/src/error.rs`). Thông điệp tiếng Việt, ngắn, kèm gợi ý cách sửa (`AppError::user(message, hint)`). `main` in `Lỗi: ...` và `Gợi ý: ...`; chỉ in chi tiết/nguyên nhân khi `TL_LOG=debug`. Không `unwrap()`/`panic!` trên đường chạy thật.
