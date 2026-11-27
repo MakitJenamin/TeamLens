@@ -50,6 +50,7 @@ describe("AppSidebar", () => {
       Leaderboard: "/projects/p-2/leaderboard",
       Rule: "/projects/p-2/rules",
       "Của tôi": "/me",
+      "Cài đặt AI": "/settings/ai",
     };
     for (const [label, href] of Object.entries(expected)) {
       expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href);

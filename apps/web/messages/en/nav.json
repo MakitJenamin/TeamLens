@@ -15,6 +15,7 @@
   "rules": "Rules",
   "general": "General",
   "me": "My account",
+  "aiSettings": "AI settings",
   "admin": "Administration",
   "logout": "Sign out",
   "logoutFailed": "Could not sign out.",
