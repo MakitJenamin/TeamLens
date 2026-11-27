@@ -19,7 +19,7 @@
   "noDevices": "Chưa có thiết bị nào.",
   "profile": "Hồ sơ",
   "remove": "Xóa khỏi project",
-  "confirmRemove": "Xóa {name} khỏi project? Thiết bị của họ ngừng gửi session cho project này.",
+  "confirmRemove": "Xóa {name} khỏi project? Thiết bị của họ ngừng gửi session cho project này. Dữ liệu đã gửi vẫn giữ.",
   "removeDone": "Đã xóa {name} khỏi project.",
   "revoke": "Thu hồi",
   "confirmRevoke": "Thu hồi thiết bị {name}? Máy này phải chạy lại `tl join` mới dùng tiếp được.",

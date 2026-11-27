@@ -23,7 +23,7 @@
   "confirmRepo": "Remove repository pattern {name} from this project?",
   "title": "Administration",
   "createLeader": "Add leader",
-  "createLeaderHint": "Members join with an invite link and need no account.",
+  "createLeaderHint": "Leaders have full access. Members join with an invite link and need no account.",
   "makeLeader": "Make leader",
   "makeMember": "Make member",
   "confirmMakeMember": "Make {name} a member? They will only see their own data.",

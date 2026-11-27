@@ -19,7 +19,7 @@
   "noDevices": "No devices yet.",
   "profile": "Profile",
   "remove": "Remove from project",
-  "confirmRemove": "Remove {name} from the project? Their devices stop sending sessions for this project.",
+  "confirmRemove": "Remove {name} from the project? Their devices stop sending sessions for this project. Data already sent is kept.",
   "removeDone": "Removed {name} from the project.",
   "revoke": "Revoke",
   "confirmRevoke": "Revoke device {name}? It must run `tl join` again to be used.",

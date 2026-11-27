@@ -23,7 +23,7 @@
   "confirmRepo": "Gỡ repo pattern {name} khỏi project này?",
   "title": "Quản trị",
   "createLeader": "Thêm leader",
-  "createLeaderHint": "Thành viên tham gia bằng link mời, không cần tài khoản.",
+  "createLeaderHint": "Leader có toàn quyền. Thành viên tham gia bằng link mời, không cần tài khoản.",
   "makeLeader": "Nâng lên leader",
   "makeMember": "Hạ xuống thành viên",
   "confirmMakeMember": "Hạ {name} xuống thành viên? Người này sẽ chỉ còn xem được dữ liệu của mình.",

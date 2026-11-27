@@ -34,7 +34,7 @@
     "powershell": "PowerShell",
     "cmd": "CMD",
     "joinTitle": "2. Tham gia",
-    "joinHint": "Chạy trong terminal mới.",
+    "joinHint": "Chạy trong terminal mới. tl xin đồng ý trước khi gửi dữ liệu.",
     "joinCommand": "Lệnh tham gia"
   }
 }

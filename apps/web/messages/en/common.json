@@ -34,7 +34,7 @@
     "powershell": "PowerShell",
     "cmd": "CMD",
     "joinTitle": "2. Join",
-    "joinHint": "Run in a new terminal.",
+    "joinHint": "Run in a new terminal. tl asks for consent before sending any data.",
     "joinCommand": "Join command"
   }
 }
