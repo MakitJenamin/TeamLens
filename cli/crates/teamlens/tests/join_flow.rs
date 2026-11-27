@@ -177,7 +177,7 @@ async fn join_thanh_cong_luu_token_server_va_dong_y() {
         "Dòng hai.",
         "3 file session cũ",
         "Gõ `yes`",
-        "Chạy `tl sync` để gửi ngay; chạy nền sẽ có ở bản sau.",
+        "Chạy `tl sync` để gửi ngay.",
     ] {
         assert!(printed.contains(needle), "thiếu {needle:?}:\n{printed}");
     }

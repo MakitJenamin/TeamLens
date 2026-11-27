@@ -16,7 +16,7 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 1 · Gửi session lên và xem lại | ✅ xong | M1.1–M1.12 |
 | Mốc 1.5 · Tối giản tham gia | ✅ xong | PR #29–#37 |
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
-| Mốc 3 · Tự chạy nền | 🔄 đang làm | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65) và phần API của M3.7 (#66); còn CLI của M3.7, M3.6, M3.8; phần mời thành viên đã xong ở Mốc 1.5 |
+| Mốc 3 · Tự chạy nền | 🔄 đang làm | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), phần API của M3.7 (#66) và M3.8 (#68); còn CLI của M3.7 (`tl consent`, `tl consent revoke`, `tl uninstall`) và M3.6; phần mời thành viên đã xong ở Mốc 1.5 |
 | Mốc 4 · Báo cáo và minh bạch | ⏳ chưa làm | |
 | Mốc 5 · Cài đặt và phát hành | ⏳ chưa làm | |
 
@@ -96,14 +96,14 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 ---
 
-## Mốc 3 · Tự chạy nền — 🔄 đang làm (Người 1 xong M3.1–M3.4; Người 2 xong M3.5)
+## Mốc 3 · Tự chạy nền — 🔄 đang làm (Người 1 xong M3.1–M3.4; Người 2 xong M3.5, M3.8)
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
 | 1 | ✅ **M3.1** Hàng đợi batch trong SQLite (đã che mới được ghi), retry backoff tối đa 30 phút, giới hạn 500 MB, xử lý `426`; trước khi gửi, hỏi module `consent` (đã có từ J.5)<br>**Tự test:** tắt API rồi bật lại: không mất, không trùng (#50) | ✅ **M3.5** 📜 `openapi/consent.yaml`: `GET` (văn bản hiện hành + trạng thái đồng ý của thiết bị) và `POST /agent/v1/consent` (đồng ý lại khi văn bản đổi hoặc sau khi đã rút, rút đồng ý) (#65). Ghi đồng ý lần đầu đã nằm trong `POST /agent/v1/join`<br>**Tự test:** `pnpm --filter @teamlens/schema build` |
 | 2 | ✅ **M3.2** `tl daemon`: named mutex, watch file (`notify`), quét lại 10 phút<br>**Tự test:** chạy `tl daemon`, dùng Claude Code, session tự lên (#53) | **M3.6** `GET /install.ps1?code=<code>` phía server sinh script gọi `tl join` (câu lệnh này đã hiện trong wizard và trang `/i/[code]` nhưng endpoint chưa có; phần tải và kiểm SHA-256 làm ở M5.2)<br>**Tự test:** chạy script trên máy Windows khác |
 | 3 | ✅ **M3.3** Heartbeat (CLI 15 phút + API cập nhật `devices`); `tl pause`/`resume`; `tl status` đầy đủ<br>**Tự test:** `tl pause` → trạng thái thiết bị đổi (#47, #48, #52) | 🔄 **M3.7** (API xong ở #66: `GET`/`POST /agent/v1/consent`; còn CLI, và văn bản đồng ý chỉ tăng phiên bản ở bước cuối) `tl consent` (đồng ý lại khi văn bản đổi), `tl consent revoke`, `tl uninstall`; cập nhật văn bản đồng ý (`consent-text.ts`) nhắc tới các lệnh này và tăng phiên bản<br>**Tự test:** rút đồng ý → daemon dừng, `devices.status` = `consent_revoked`, ingest trả 403 |
-| 4 | ✅ **M3.4** Xem session nâng cao: diff tô màu (`react-diff-view`), session con lồng trong session cha, ghi chú của leader theo turn<br>**Tự test:** xem session có subagent và diff lớn (#46, #49, #51) | **M3.8** Task Scheduler "At log on" trong `tl-platform`; `tl join` (đã có) gọi đăng ký `tl daemon` sau khi đồng ý, `uninstall` gỡ<br>**Tự test:** đăng xuất Windows rồi đăng nhập lại, task tồn tại |
+| 4 | ✅ **M3.4** Xem session nâng cao: diff tô màu (`react-diff-view`), session con lồng trong session cha, ghi chú của leader theo turn<br>**Tự test:** xem session có subagent và diff lớn (#46, #49, #51) | ✅ **M3.8** (#68) Task Scheduler "At log on" trong `tl-platform`; `tl join` (đã có) gọi đăng ký `tl daemon` sau khi đồng ý; `uninstall` gỡ (gọi `unregister_autostart`, làm ở CLI của M3.7)<br>**Tự test:** đăng xuất Windows rồi đăng nhập lại, task tồn tại |
 
 **Điểm chạm:** module `consent` trong CLI — Người 2 viết (J.5, M3.7), Người 1 gọi (M3.1).
 **Demo chung:** người mới nhận link mời → một lệnh cài (`install.ps1?code=`) → đồng ý → làm việc bình thường, session tự lên dashboard mà không phải chạy `tl sync`.

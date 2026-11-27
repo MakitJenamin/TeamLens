@@ -9,9 +9,11 @@
 //! | Thư mục dữ liệu `%LOCALAPPDATA%\teamlens` | xong |
 //! | Credential store (Windows Credential Manager qua `keyring`) | xong |
 //! | Named mutex (một instance daemon) | xong |
-//! | Task Scheduler "At log on" | task M3.8 |
+//! | Task Scheduler "At log on" (qua COM, không cần admin) | xong (M3.8) |
 
 mod credentials;
+#[cfg(windows)]
+mod scheduler;
 #[cfg(windows)]
 mod windows_impl;
 
@@ -23,6 +25,27 @@ pub use credentials::{
 
 /// Tên thư mục dữ liệu của TeamLens trong thư mục dữ liệu local của user.
 pub const APP_DIR_NAME: &str = "teamlens";
+
+/// Tên task trong Task Scheduler.
+pub const AUTOSTART_TASK_NAME: &str = "TeamLens";
+
+/// Lệnh task chạy khi đăng nhập: `(chương trình, tham số)`. `tl.exe` là ứng dụng console nên
+/// chạy qua `conhost.exe --headless` để không hiện cửa sổ; `daemon --background` không in gì ra
+/// console, log ghi vào `daemon.log`. Đường dẫn `exe` được đặt trong ngoặc kép (có thể chứa dấu cách).
+pub fn autostart_command(exe: &Path) -> Result<(String, String), PlatformError> {
+    let exe = exe.to_string_lossy();
+    if exe.contains('"') || exe.trim().is_empty() {
+        return Err(PlatformError::Os(format!(
+            "đường dẫn tl.exe không hợp lệ để đăng ký chạy nền: {exe:?}"
+        )));
+    }
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
+    let conhost = format!(
+        r"{}\System32\conhost.exe",
+        system_root.trim_end_matches('\\')
+    );
+    Ok((conhost, format!("--headless \"{exe}\" daemon --background")))
+}
 
 /// Lỗi từ tầng hệ điều hành. Thông điệp viết tiếng Việt vì có thể hiện cho người dùng.
 #[derive(Debug, thiserror::Error)]
@@ -77,6 +100,12 @@ pub trait Platform: Send + Sync {
 
     /// Gỡ đăng ký chạy nền. Không lỗi nếu chưa từng đăng ký.
     fn unregister_autostart(&self) -> Result<(), PlatformError>;
+
+    /// Đã đăng ký chạy nền khi đăng nhập chưa.
+    fn autostart_registered(&self) -> Result<bool, PlatformError>;
+
+    /// Chạy ngay tác vụ nền đã đăng ký (không đợi lần đăng nhập sau). Lỗi nếu chưa đăng ký.
+    fn start_autostart(&self) -> Result<(), PlatformError>;
 }
 
 /// Platform của máy đang chạy.
@@ -123,6 +152,18 @@ impl Platform for UnsupportedPlatform {
             feature: "Chạy nền khi đăng nhập",
         })
     }
+
+    fn autostart_registered(&self) -> Result<bool, PlatformError> {
+        Err(PlatformError::Unsupported {
+            feature: "Chạy nền khi đăng nhập",
+        })
+    }
+
+    fn start_autostart(&self) -> Result<(), PlatformError> {
+        Err(PlatformError::Unsupported {
+            feature: "Chạy nền khi đăng nhập",
+        })
+    }
 }
 
 /// `<thư mục dữ liệu local của user>\teamlens`, dùng chung cho các impl.
@@ -145,6 +186,29 @@ mod tests {
             Err(PlatformError::Unsupported { .. })
         ));
         assert!(p.credential_store().get_token("http://x").is_err());
+    }
+
+    #[test]
+    fn autostart_command_dat_duong_dan_trong_ngoac_kep() {
+        let (command, args) = autostart_command(Path::new(r"C:\Users\An Binh\tl\tl.exe")).unwrap();
+        assert!(command.to_lowercase().ends_with(r"\system32\conhost.exe"));
+        assert_eq!(
+            args,
+            r#"--headless "C:\Users\An Binh\tl\tl.exe" daemon --background"#
+        );
+    }
+
+    #[test]
+    fn autostart_command_tu_choi_duong_dan_la() {
+        assert!(autostart_command(Path::new("")).is_err());
+        assert!(autostart_command(Path::new("C:\\a\"b\\tl.exe")).is_err());
+    }
+
+    #[test]
+    fn unsupported_platform_autostart_tra_loi() {
+        let p = UnsupportedPlatform;
+        assert!(p.autostart_registered().is_err());
+        assert!(p.start_autostart().is_err());
     }
 
     #[cfg(windows)]
