@@ -1,0 +1,4 @@
+{
+  "title": "AI settings",
+  "description": "Your AI API key (Anthropic or OpenAI-compatible) and tokens for agents calling MCP."
+}

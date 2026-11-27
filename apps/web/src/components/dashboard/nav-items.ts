@@ -3,6 +3,7 @@ import {
   LayoutDashboardIcon,
   ListChecksIcon,
   ShieldIcon,
+  SparklesIcon,
   TrophyIcon,
   UserIcon,
   UsersIcon,
@@ -11,7 +12,7 @@ import {
 
 export interface NavItem {
   /** khóa dịch trong namespace "nav" */
-  key: "overview" | "members" | "sessions" | "leaderboard" | "rules" | "me" | "admin";
+  key: "overview" | "members" | "sessions" | "leaderboard" | "rules" | "me" | "aiSettings" | "admin";
   href: string;
   icon: LucideIcon;
 }
@@ -28,9 +29,12 @@ export function projectNavItems(projectId: string): NavItem[] {
   ];
 }
 
-/** Link chung; "Quản trị" chỉ hiện với admin. */
+/** Link chung; "Cài đặt AI" mọi người đều thấy, "Quản trị" chỉ hiện với leader. */
 export function generalNavItems(isLeader: boolean): NavItem[] {
-  const items: NavItem[] = [{ key: "me", href: "/me", icon: UserIcon }];
+  const items: NavItem[] = [
+    { key: "me", href: "/me", icon: UserIcon },
+    { key: "aiSettings", href: "/settings/ai", icon: SparklesIcon },
+  ];
   if (isLeader) items.push({ key: "admin", href: "/admin", icon: ShieldIcon });
   return items;
 }
