@@ -16,6 +16,7 @@ pub mod heartbeat;
 pub mod pipeline;
 pub mod queue;
 pub mod state;
+pub mod style;
 pub mod sync;
 pub mod update;
 

@@ -6,7 +6,7 @@ use crate::commands::{
     consent, daemon, join, logout, open, pause, preview, resume, status, sync, uninstall, update,
 };
 
-/// TeamLens: thu thập session AI agent trong repo của team, che secret, gửi về server tự host.
+/// TeamLens: gửi session AI agent trong repo của team về server, đã che secret.
 #[derive(Debug, Parser)]
 #[command(
     name = "tl",
@@ -23,16 +23,16 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Tham gia project từ link mời: xem và đồng ý, nhận token cho máy này
+    /// Tham gia project bằng link mời
     #[command(visible_alias = "login")]
     Join(join::JoinArgs),
-    /// Mở dashboard trên trình duyệt, đã đăng nhập sẵn
+    /// Mở dashboard, đăng nhập sẵn
     Open(open::OpenArgs),
-    /// Đăng xuất: thu hồi token của máy này
+    /// Đăng xuất và thu hồi token của máy này
     Logout(logout::LogoutArgs),
-    /// Trạng thái đăng nhập, project, daemon, hàng đợi
+    /// Xem đăng nhập, project, daemon, hàng đợi
     Status(status::StatusArgs),
-    /// Xem chính xác dữ liệu sẽ gửi (sau khi che secret và cắt output)
+    /// Xem đúng dữ liệu sẽ gửi, đã che secret
     Preview(preview::PreviewArgs),
     /// Quét và gửi ngay
     Sync(sync::SyncArgs),
@@ -40,13 +40,13 @@ pub enum Command {
     Pause(pause::PauseArgs),
     /// Tiếp tục thu thập
     Resume(resume::ResumeArgs),
-    /// Quản lý đồng ý thu thập dữ liệu
+    /// Xem, đồng ý lại hoặc rút đồng ý
     Consent(consent::ConsentArgs),
     /// Chế độ nền (do Task Scheduler gọi)
     #[command(hide = true)]
     Daemon(daemon::DaemonArgs),
     /// Gỡ TeamLens khỏi máy này
     Uninstall(uninstall::UninstallArgs),
-    /// Cập nhật tl lên bản phát hành mới nhất (GitHub Releases)
+    /// Cập nhật tl lên bản mới nhất
     Update(update::UpdateArgs),
 }
