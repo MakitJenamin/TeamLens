@@ -22,6 +22,7 @@ import { api } from "@/lib/api/client";
 import type { SessionDetail, SessionTurn } from "@/lib/api/types";
 import { placeChildSessions } from "./child-sessions";
 import { DiffView } from "./diff-view";
+import { FindingExplain, SessionAiCard } from "./session-ai";
 import { parseFindings, sessionDuration, summarizeToolInput, type SessionFinding } from "./format";
 import { groupNotes, type NoteViewer, TurnNotes, useSessionNotes } from "./session-notes";
 
@@ -99,7 +100,9 @@ export function SessionDetailView({ session, viewer = null }: { session: Session
 
       <SessionMeta session={session} />
 
-      {findings && <FindingsPanel findings={findings} />}
+      <SessionAiCard sessionId={session.id} />
+
+      {findings && <FindingsPanel sessionId={session.id} findings={findings} />}
 
       {(sessionNotes.length > 0 || viewer?.isLeader) && (
         <Card>
@@ -260,7 +263,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant={danger ? "destructive" : "outline"}>{t.has(key) ? t(key) : severity}</Badge>;
 }
 
-function FindingsPanel({ findings }: { findings: SessionFinding[] }) {
+function FindingsPanel({ sessionId, findings }: { sessionId: string; findings: SessionFinding[] }) {
   const t = useTranslations("sessions.findings");
   return (
     <Card>
@@ -282,6 +285,7 @@ function FindingsPanel({ findings }: { findings: SessionFinding[] }) {
                     {t("turn", { seq: f.turnSeq })}
                   </a>
                 )}
+                <FindingExplain sessionId={sessionId} findingId={f.id} />
               </li>
             ))}
           </ul>

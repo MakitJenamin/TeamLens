@@ -148,5 +148,50 @@
     "deletedAuthor": "(tài khoản đã xóa)",
     "createFailed": "Không lưu được ghi chú",
     "deleteFailed": "Không xóa được ghi chú"
+  },
+  "ai": {
+    "title": "AI",
+    "addKey": "Thêm API key để dùng AI",
+    "openSettings": "Mở Cài đặt AI",
+    "summarize": "Tóm tắt",
+    "evaluate": "Đánh giá kết quả",
+    "explain": "Giải thích",
+    "running": "Đang chạy…",
+    "redo": "Làm lại: {action}",
+    "privateNote": "Chỉ bạn thấy kết quả này",
+    "turn": "Turn {seq}",
+    "outcomeLabel": "Kết quả",
+    "filesTouched": "File đã sửa",
+    "keyTurns": "Turn quan trọng",
+    "evidence": "Bằng chứng",
+    "workType": {
+      "bugfix": "Sửa lỗi",
+      "feature": "Tính năng",
+      "refactor": "Refactor",
+      "question": "Hỏi đáp",
+      "ops": "Vận hành",
+      "docs": "Tài liệu",
+      "test": "Test",
+      "other": "Khác"
+    },
+    "status": {
+      "completed": "Hoàn thành",
+      "abandoned": "Bỏ dở",
+      "stuck_loop": "Mắc vòng lặp",
+      "unclear": "Chưa rõ"
+    },
+    "errors": {
+      "llm_key_missing": "Bạn chưa nhập API key. Thêm key trong Cài đặt AI để dùng tính năng này.",
+      "llm_key_invalid": "Nhà cung cấp AI từ chối API key. Kiểm tra lại key trong Cài đặt AI.",
+      "llm_model_not_found": "Model đã chọn không tồn tại. Đổi model trong Cài đặt AI.",
+      "llm_quota_exceeded": "Đã hết quota hoặc bị giới hạn tốc độ ở nhà cung cấp AI. Thử lại sau.",
+      "llm_timeout": "AI phản hồi quá lâu (quá 60 giây). Thử lại sau.",
+      "llm_provider_error": "Không gọi được nhà cung cấp AI. Thử lại sau.",
+      "llm_bad_output": "AI trả kết quả không đúng định dạng. Bấm thử lại, hoặc chọn model mạnh hơn.",
+      "forbidden": "Bạn không có quyền dùng AI trên session này.",
+      "not_found": "Không tìm thấy dữ liệu.",
+      "network_error": "Không kết nối được tới máy chủ.",
+      "unknown": "Có lỗi khi chạy AI. Thử lại sau."
+    }
   }
 }
