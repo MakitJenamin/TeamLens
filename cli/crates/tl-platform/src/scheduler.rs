@@ -196,11 +196,20 @@ pub(crate) fn register_task(
     Ok(())
 }
 
-/// Gỡ task `name`; không lỗi nếu task không tồn tại.
+/// Gỡ task `name`; không lỗi nếu task không tồn tại. Đang có instance chạy (daemon) thì dừng nó
+/// trước, để người gọi (`tl uninstall`) xóa được file dữ liệu mà daemon đang giữ.
 pub(crate) fn unregister_task(name: &str) -> Result<(), PlatformError> {
     let _com = ComGuard::init()?;
     let service = connect()?;
     let folder = root_folder(&service)?;
+    // SAFETY: `folder` thuộc `service` đã kết nối. Dừng instance là cố gắng hết sức: lỗi (task không
+    // chạy, không tồn tại) bỏ qua. Biến `task` được thả trước khi thoát hàm (xem ghi chú ở `task_exists`).
+    unsafe {
+        if let Ok(task) = folder.GetTask(&BSTR::from(name)) {
+            let _ = task.Stop(0);
+            drop(task);
+        }
+    }
     // SAFETY: `folder` thuộc `service` đã kết nối.
     match unsafe { folder.DeleteTask(&BSTR::from(name), 0) } {
         Ok(()) => Ok(()),
