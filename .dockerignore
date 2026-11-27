@@ -1,0 +1,19 @@
+# Build context của Dockerfile api/web là gốc repo: chỉ gửi mã nguồn JS/TS cần thiết.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.codegraph
+.vscode
+.idea
+cli
+docs
+deploy
+**/.env
+**/.env.*
+!**/.env.example

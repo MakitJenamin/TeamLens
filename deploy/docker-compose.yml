@@ -1,0 +1,77 @@
+# TeamLens production: api (NestJS + worker pg-boss), web (Next.js), postgres, caddy (HTTPS).
+# Cài đặt: xem deploy/README.md. Tóm tắt:
+#   cp deploy/.env.example deploy/.env   # sửa TEAMLENS_DOMAIN, mật khẩu, khóa bí mật
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#
+# Chỉ Caddy mở cổng ra ngoài (80, 443). api, web, postgres chỉ nằm trong mạng nội bộ của compose:
+# API và web tin `X-Forwarded-For` từ mạng nội bộ (giới hạn tần suất link mời theo IP), nên mở thẳng
+# cổng của chúng ra ngoài thì người ngoài giả được IP.
+
+name: teamlens
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: teamlens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Cần đặt POSTGRES_PASSWORD trong deploy/.env}
+      POSTGRES_DB: teamlens
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamlens -d teamlens"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: teamlens-api:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://teamlens:${POSTGRES_PASSWORD}@postgres:5432/teamlens
+      TEAMLENS_PUBLIC_URL: ${TEAMLENS_PUBLIC_URL:-https://${TEAMLENS_DOMAIN}}
+      TEAMLENS_SECRET_KEY: ${TEAMLENS_SECRET_KEY:?Cần đặt TEAMLENS_SECRET_KEY trong deploy/.env}
+      MIN_CLI_VERSION: ${MIN_CLI_VERSION:-0.1.0}
+      PORT: "3001"
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    image: teamlens-web:local
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_INTERNAL_URL: http://api:3001
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      TEAMLENS_DOMAIN: ${TEAMLENS_DOMAIN:?Cần đặt TEAMLENS_DOMAIN trong deploy/.env}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

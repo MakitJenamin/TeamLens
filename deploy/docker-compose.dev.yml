@@ -1,5 +1,5 @@
 # Chỉ dùng khi phát triển trên máy: Postgres cho apps/api.
-# Bản production (api, web, postgres, caddy) nằm ở deploy/docker-compose.yml (làm sau).
+# Bản production (api, web, postgres, caddy) nằm ở deploy/docker-compose.yml, hướng dẫn ở deploy/README.md.
 services:
   postgres:
     image: postgres:16-alpine

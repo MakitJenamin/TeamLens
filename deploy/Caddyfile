@@ -1,0 +1,20 @@
+# Reverse proxy của TeamLens (deploy/docker-compose.yml).
+# TEAMLENS_DOMAIN là tên miền thật (vd. teamlens.congty.com): Caddy tự xin chứng chỉ Let's Encrypt,
+# cần DNS trỏ về máy và cổng 80, 443 mở ra Internet. Đặt `localhost` để thử trên máy (chứng chỉ nội bộ).
+#
+# Caddy không tin `X-Forwarded-For` do client gửi (không khai báo trusted_proxies), nên header này
+# tới API và web luôn chỉ chứa IP thật của client.
+
+{$TEAMLENS_DOMAIN} {
+	encode zstd gzip
+
+	# API cho dashboard (/api/v1, gồm MCP /api/v1/mcp), CLI (/agent/v1) và kiểm tra sống.
+	@api path /api/* /agent/* /health
+	handle @api {
+		reverse_proxy api:3001
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
