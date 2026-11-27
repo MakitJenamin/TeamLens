@@ -355,3 +355,121 @@ pub struct HeartbeatResult {
     pub consent_text_version: String,
     pub min_cli_version: String,
 }
+
+/// Trạng thái đồng ý của một thiết bị so với văn bản hiện hành (`ConsentState` trong contract).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeviceConsentState {
+    /// Có bản đồng ý chưa rút, đúng phiên bản hiện hành.
+    Granted,
+    /// Chỉ có bản đồng ý chưa rút ở phiên bản cũ.
+    Outdated,
+    /// Đã rút đồng ý và chưa đồng ý lại.
+    Revoked,
+    /// Chưa từng có bản đồng ý nào.
+    None,
+}
+
+/// Trả về `200` của `GET` và `POST /agent/v1/consent` (JSON camelCase).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsentStatus {
+    /// Phiên bản văn bản đồng ý hiện hành của server.
+    pub text_version: String,
+    /// Văn bản đồng ý hiện hành.
+    pub text: String,
+    pub status: DeviceConsentState,
+    /// Phiên bản thiết bị đã đồng ý (bản chưa rút mới nhất), nếu có.
+    #[serde(default)]
+    pub accepted_version: Option<String>,
+    /// Lựa chọn gửi lịch sử cũ của bản đồng ý đó, nếu có.
+    #[serde(default)]
+    pub backfill: Option<bool>,
+    #[serde(default)]
+    pub granted_at: Option<String>,
+    /// Lần rút đồng ý gần nhất khi `status` là `revoked`.
+    #[serde(default)]
+    pub revoked_at: Option<String>,
+}
+
+/// Body `POST /agent/v1/consent`: đồng ý lại hoặc rút đồng ý.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "action",
+    rename_all = "lowercase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ConsentUpdate {
+    /// Đồng ý lại; `text_version` phải bằng phiên bản hiện hành, sai thì `409 consent_outdated`.
+    Grant {
+        text_version: String,
+        backfill: bool,
+    },
+    /// Rút đồng ý.
+    Revoke,
+}
+
+#[cfg(test)]
+mod consent_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn consent_update_serialize_dung_contract() {
+        let grant = ConsentUpdate::Grant {
+            text_version: "2026-11-27.2".into(),
+            backfill: true,
+        };
+        assert_eq!(
+            serde_json::to_value(&grant).unwrap(),
+            json!({ "action": "grant", "textVersion": "2026-11-27.2", "backfill": true })
+        );
+        assert_eq!(
+            serde_json::to_value(&ConsentUpdate::Revoke).unwrap(),
+            json!({ "action": "revoke" })
+        );
+    }
+
+    #[test]
+    fn consent_status_doc_duoc_moi_trang_thai() {
+        for (raw, expected) in [
+            ("granted", DeviceConsentState::Granted),
+            ("outdated", DeviceConsentState::Outdated),
+            ("revoked", DeviceConsentState::Revoked),
+            ("none", DeviceConsentState::None),
+        ] {
+            let status: ConsentStatus = serde_json::from_value(json!({
+                "textVersion": "v2",
+                "text": "Văn bản",
+                "status": raw,
+                "acceptedVersion": null,
+                "backfill": null,
+                "grantedAt": null,
+                "revokedAt": null
+            }))
+            .unwrap();
+            assert_eq!(status.status, expected);
+            assert_eq!(status.accepted_version, None);
+        }
+    }
+
+    #[test]
+    fn consent_status_co_day_du_truong() {
+        let status: ConsentStatus = serde_json::from_value(json!({
+            "textVersion": "v2",
+            "text": "Văn bản",
+            "status": "outdated",
+            "acceptedVersion": "v1",
+            "backfill": false,
+            "grantedAt": "2026-11-26T08:00:00.000Z",
+            "revokedAt": null
+        }))
+        .unwrap();
+        assert_eq!(status.accepted_version.as_deref(), Some("v1"));
+        assert_eq!(status.backfill, Some(false));
+        assert_eq!(
+            status.granted_at.as_deref(),
+            Some("2026-11-26T08:00:00.000Z")
+        );
+    }
+}

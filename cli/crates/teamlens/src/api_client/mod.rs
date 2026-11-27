@@ -198,6 +198,19 @@ impl ApiClient {
         self.send_json(req).await
     }
 
+    /// `GET /agent/v1/consent` (M3.7): văn bản đồng ý hiện hành và trạng thái đồng ý của thiết bị.
+    pub async fn get_consent(&self) -> Result<ConsentStatus, ApiError> {
+        let req = self.request(Method::GET, "/agent/v1/consent");
+        self.send_json(req).await
+    }
+
+    /// `POST /agent/v1/consent` (M3.7): đồng ý lại hoặc rút đồng ý của thiết bị này.
+    /// Sai phiên bản văn bản khi đồng ý lại thì `409 consent_outdated`.
+    pub async fn update_consent(&self, body: &ConsentUpdate) -> Result<ConsentStatus, ApiError> {
+        let req = self.request(Method::POST, "/agent/v1/consent").json(body);
+        self.send_json(req).await
+    }
+
     /// `POST /agent/v1/logout`: thu hồi token của chính máy này.
     pub async fn logout(&self) -> Result<(), ApiError> {
         let req = self.request(Method::POST, "/agent/v1/logout");
