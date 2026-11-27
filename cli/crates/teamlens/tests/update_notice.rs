@@ -266,3 +266,94 @@ async fn state_db_moi_tao_cung_luc_voi_lenh() {
         assert!(printed, "thread nhắc thua cuộc đua mở state.db");
     }
 }
+
+/// State cũ hơn 24 giờ đã lưu 0.2.1, tạo bằng `record_check` lùi thời gian.
+fn stale_state(db: &Path, latest: &str) {
+    let state = StateDb::open(db).unwrap();
+    let old = chrono::Utc::now() - chrono::Duration::hours(30);
+    auto::record_check(&state, old, &Version::parse(latest).unwrap()).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn state_cu_va_api_hong_van_nhac_ban_da_luu() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(API_PATH))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_path(&dir);
+    stale_state(&db, "0.2.1");
+
+    let o = opts(&server);
+    let (printed, err, elapsed) = tokio::task::spawn_blocking({
+        let db = db.clone();
+        move || run_notice(&["pause"], &db, o)
+    })
+    .await
+    .unwrap();
+    assert!(printed);
+    assert_eq!(
+        err,
+        "
+Có bản tl 0.2.1 (đang dùng 0.2.0). Chạy `tl update`.
+"
+    );
+    assert!(elapsed < Duration::from_millis(2500), "{elapsed:?}");
+    // Đã thử (mốc ghi), không ghi lỗi, bản lưu giữ nguyên.
+    let info = read_info(&StateDb::open(&db).unwrap());
+    assert_eq!(info.latest_version.as_deref(), Some("0.2.1"));
+    assert_eq!(info.last_error, None);
+    server.verify().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn state_cu_va_server_treo_van_nhac_trong_2_giay() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(API_PATH))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(release_json(&server, "v0.2.2"))
+                .set_delay(Duration::from_secs(10)),
+        )
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_path(&dir);
+    stale_state(&db, "0.2.1");
+
+    let o = opts(&server);
+    let (printed, err, elapsed) =
+        tokio::task::spawn_blocking(move || run_notice(&["pause"], &db, o))
+            .await
+            .unwrap();
+    assert!(printed);
+    assert!(err.contains("Có bản tl 0.2.1 (đang dùng 0.2.0)"), "{err}");
+    assert!(
+        elapsed >= Duration::from_millis(1900) && elapsed < Duration::from_millis(2500),
+        "{elapsed:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn state_cu_kiem_thanh_cong_thi_dung_ket_qua_moi() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(API_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(release_json(&server, "v0.2.2")))
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_path(&dir);
+    stale_state(&db, "0.2.1");
+
+    let o = opts(&server);
+    let (printed, err, _) = tokio::task::spawn_blocking(move || run_notice(&["pause"], &db, o))
+        .await
+        .unwrap();
+    assert!(printed);
+    assert!(err.contains("Có bản tl 0.2.2 (đang dùng 0.2.0)"), "{err}");
+}

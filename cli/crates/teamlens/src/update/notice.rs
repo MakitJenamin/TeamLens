@@ -7,9 +7,10 @@
 //!   ở mọi lệnh). Lần kiểm chạy trên thread riêng ngay khi lệnh bắt đầu, song song với lệnh; lệnh
 //!   xong thì chờ thêm tối đa [`WAIT_AFTER_COMMAND`], HTTP client timeout cứng [`HTTP_TIMEOUT`].
 //! - Mốc thử được ghi **trước** khi gọi mạng, để lệnh thoát giữa chừng (hết thời gian chờ) vẫn
-//!   tính là đã thử. Thành công thì [`auto::record_check`]. Lỗi/timeout **không** ghi
-//!   [`auto::META_LAST_ERROR`]: lỗi đó hiện trong `tl status` cho daemon và `tl update`, còn lần
-//!   kiểm nhẹ timeout 3 giây hay lỗi vặt, ghi vào sẽ báo động giả.
+//!   tính là đã thử. Thành công thì [`auto::record_check`] và dùng kết quả mới. Lỗi, timeout
+//!   hoặc hết giờ chờ thì dùng bản đã lưu (máy đã biết có bản mới thì vẫn nhắc), chỉ im lặng khi
+//!   chưa lưu gì. Lỗi **không** ghi [`auto::META_LAST_ERROR`]: lỗi đó hiện trong `tl status` cho
+//!   daemon và `tl update`, còn lần kiểm nhẹ timeout 3 giây hay lỗi vặt, ghi vào sẽ báo động giả.
 //! - In ra **stderr** (stdout, `--json` giữ sạch), chỉ khi stderr là terminal. Không nhắc ở
 //!   `update`, `daemon`, `uninstall`, `status` (đã có dòng "Phiên bản"). Tắt bằng
 //!   `TL_NO_UPDATE_NOTIFIER=1`, hoặc khi biến `CI` được đặt.
@@ -115,9 +116,21 @@ pub fn default_state_path() -> Option<PathBuf> {
         .map(|ctx| state_path(&ctx.config_path))
 }
 
+/// Tin thread kiểm gửi về cho [`Notifier::finish`].
+#[derive(Debug)]
+enum Msg {
+    /// Bản mới nhất đã lưu trong `state.db` (gửi trước tiên); `checking` = sẽ kiểm nhẹ qua mạng.
+    Stored {
+        latest: Option<Version>,
+        checking: bool,
+    },
+    /// Kết quả kiểm nhẹ: `Some` khi thành công, `None` khi lỗi/timeout.
+    Checked(Option<Version>),
+}
+
 /// Lần nhắc của một lệnh: [`Notifier::start`] khi lệnh bắt đầu, [`Notifier::finish`] khi xong.
 pub struct Notifier {
-    pending: Option<mpsc::Receiver<Option<Version>>>,
+    pending: Option<mpsc::Receiver<Msg>>,
     current: Version,
     wait: Duration,
 }
@@ -145,10 +158,7 @@ impl Notifier {
         let (tx, rx) = mpsc::channel();
         let spawned = std::thread::Builder::new()
             .name("tl-update-notice".into())
-            .spawn(move || {
-                let latest = lookup(&path, opts.source, opts.http_timeout);
-                let _ = tx.send(latest);
-            });
+            .spawn(move || lookup(&path, opts.source, opts.http_timeout, &tx));
         if spawned.is_ok() {
             notifier.pending = Some(rx);
         }
@@ -156,12 +166,13 @@ impl Notifier {
     }
 
     /// Chờ kết quả (tối đa `wait_after_command`) rồi in dòng nhắc ra `err` nếu có bản mới.
-    /// Trả `true` khi đã in. Hết giờ thì bỏ qua; thread kiểm dở chết theo tiến trình.
+    /// Kiểm nhẹ lỗi, timeout hoặc hết giờ chờ thì dùng bản đã lưu trong `state.db` (máy đã biết
+    /// có bản mới thì vẫn nhắc). Trả `true` khi đã in. Thread kiểm dở chết theo tiến trình.
     pub fn finish(self, err: &mut dyn Write) -> bool {
         let Some(rx) = self.pending else {
             return false;
         };
-        let Ok(Some(latest)) = rx.recv_timeout(self.wait) else {
+        let Some(latest) = wait_latest(&rx, self.wait) else {
             return false;
         };
         let Some(line) = notice_line(&latest, &self.current) else {
@@ -171,24 +182,65 @@ impl Notifier {
     }
 }
 
+/// Bản mới nhất để so, chờ tối đa `wait` tính từ lúc gọi: kết quả kiểm nhẹ nếu thành công kịp,
+/// nếu không thì bản đã lưu. `None` khi không biết gì (chưa từng lưu, không mở được DB).
+fn wait_latest(rx: &mpsc::Receiver<Msg>, wait: Duration) -> Option<Version> {
+    let deadline = std::time::Instant::now() + wait;
+    let left = || deadline.saturating_duration_since(std::time::Instant::now());
+    let (stored, checking) = match rx.recv_timeout(left()) {
+        Ok(Msg::Stored { latest, checking }) => (latest, checking),
+        _ => return None,
+    };
+    if !checking {
+        return stored;
+    }
+    match rx.recv_timeout(left()) {
+        Ok(Msg::Checked(Some(fresh))) => Some(fresh),
+        // Lỗi, timeout, hết giờ chờ hoặc thread chết: rơi về bản đã lưu.
+        _ => stored,
+    }
+}
+
 fn parse_time(text: Option<String>) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(&text?)
         .ok()
         .map(|t| t.with_timezone(&Utc))
 }
 
-/// Bản mới nhất để so: đọc từ `state.db`, kiểm nhẹ qua mạng nếu kết quả lưu đã cũ. `None` khi
-/// không biết (chưa từng kiểm, lỗi mở DB, kiểm nhẹ lỗi).
-fn lookup(path: &std::path::Path, source: UpdateSource, timeout: Duration) -> Option<Version> {
-    let db = StateDb::open(path).ok()?;
+/// Đọc bản đã lưu trong `state.db` và gửi [`Msg::Stored`]; kết quả lưu đã cũ thì kiểm nhẹ qua
+/// mạng rồi gửi [`Msg::Checked`]. Không mở được DB thì không gửi gì.
+fn lookup(path: &std::path::Path, source: UpdateSource, timeout: Duration, tx: &mpsc::Sender<Msg>) {
+    let Ok(db) = StateDb::open(path) else {
+        return;
+    };
     let meta = |k: &str| db.meta(k).ok().flatten().filter(|v| !v.is_empty());
     let now = Utc::now();
-    let last_check = parse_time(meta(auto::META_LAST_CHECK));
-    let last_attempt = parse_time(meta(auto::META_LAST_ATTEMPT));
-    if !needs_check(last_check, last_attempt, now) {
-        return meta(auto::META_LATEST).and_then(|v| Version::parse(&v));
+    let stored = meta(auto::META_LATEST).and_then(|v| Version::parse(&v));
+    let checking = needs_check(
+        parse_time(meta(auto::META_LAST_CHECK)),
+        parse_time(meta(auto::META_LAST_ATTEMPT)),
+        now,
+    );
+    if tx
+        .send(Msg::Stored {
+            latest: stored,
+            checking,
+        })
+        .is_err()
+        || !checking
+    {
+        return;
     }
+    let _ = tx.send(Msg::Checked(check(&db, source, timeout, now)));
+}
 
+/// Kiểm nhẹ qua mạng, ghi kết quả vào `state.db`. `None` khi lỗi/timeout.
+fn check(
+    db: &StateDb,
+    source: UpdateSource,
+    timeout: Duration,
+    now: DateTime<Utc>,
+) -> Option<Version> {
     // Ghi mốc thử trước khi gọi mạng (xem tài liệu module).
     db.set_meta(auto::META_LAST_ATTEMPT, &now.to_rfc3339())
         .ok()?;
@@ -202,11 +254,11 @@ fn lookup(path: &std::path::Path, source: UpdateSource, timeout: Duration) -> Op
         .ok()?;
     match release {
         Ok(release) => {
-            let _ = auto::record_check(&db, Utc::now(), &release.version);
+            let _ = auto::record_check(db, Utc::now(), &release.version);
             Some(release.version)
         }
         Err(e) => {
-            tracing::debug!(error = %e, "kiểm nhẹ bản tl mới lỗi, bỏ qua");
+            tracing::debug!(error = %e, "kiểm nhẹ bản tl mới lỗi, dùng bản đã lưu");
             None
         }
     }
@@ -373,5 +425,56 @@ mod tests {
             String::from_utf8(err).unwrap(),
             "\nCó bản tl 0.2.1 (đang dùng 0.2.0). Chạy `tl update`.\n"
         );
+    }
+
+    #[test]
+    fn kiem_loi_hoac_het_gio_thi_dung_ban_da_luu() {
+        let wait = Duration::from_millis(200);
+        let run = |msgs: Vec<Msg>, keep_open: bool| {
+            let (tx, rx) = mpsc::channel();
+            for m in msgs {
+                tx.send(m).unwrap();
+            }
+            let started = std::time::Instant::now();
+            let got = if keep_open {
+                wait_latest(&rx, wait)
+            } else {
+                drop(tx);
+                wait_latest(&rx, wait)
+            };
+            (got, started.elapsed())
+        };
+        let stored = |v: Option<&str>, checking| Msg::Stored {
+            latest: v.map(|v| Version::parse(v).unwrap()),
+            checking,
+        };
+        // Không cần kiểm: dùng bản đã lưu, không chờ.
+        let (got, t) = run(vec![stored(Some("0.2.1"), false)], true);
+        assert_eq!(got, Some(v("0.2.1")));
+        assert!(t < wait);
+        // Kiểm thành công: dùng kết quả mới (kể cả khi cũ hơn bản đã lưu).
+        let msgs = vec![stored(Some("0.2.1"), true), Msg::Checked(Some(v("0.2.2")))];
+        assert_eq!(run(msgs, true).0, Some(v("0.2.2")));
+        let msgs = vec![stored(Some("0.2.1"), true), Msg::Checked(Some(v("0.2.0")))];
+        assert_eq!(run(msgs, true).0, Some(v("0.2.0")));
+        // Kiểm lỗi: rơi về bản đã lưu.
+        let msgs = vec![stored(Some("0.2.1"), true), Msg::Checked(None)];
+        assert_eq!(run(msgs, true).0, Some(v("0.2.1")));
+        // Hết giờ chờ (thread vẫn đang gọi mạng): rơi về bản đã lưu, chờ không quá `wait`.
+        let (got, t) = run(vec![stored(Some("0.2.1"), true)], true);
+        assert_eq!(got, Some(v("0.2.1")));
+        assert!(t >= wait && t < wait * 3, "{t:?}");
+        // Thread chết giữa chừng: bản đã lưu.
+        assert_eq!(
+            run(vec![stored(Some("0.2.1"), true)], false).0,
+            Some(v("0.2.1"))
+        );
+        // Chưa lưu gì + kiểm lỗi: không biết gì.
+        assert_eq!(
+            run(vec![stored(None, true), Msg::Checked(None)], true).0,
+            None
+        );
+        // Không mở được DB (không có tin nào).
+        assert_eq!(run(vec![], false).0, None);
     }
 }
