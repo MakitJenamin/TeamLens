@@ -121,7 +121,8 @@ export function scoringFixtures(now: Date) {
         );
         const model = needsReview ? 'claude-opus-4-6' : 'gpt-5-codex';
         fixtures.push({
-          email: `member${member}@teamlens.local`,
+          // Từ Mốc 1.5 member không có email; seed chung đặt tên "Thành viên 1", "Thành viên 2".
+          memberName: `Thành viên ${member}`,
           sourceId: `scoring-demo:v1:m${member}:w${week + 1}:d${day + 1}`,
           agent: needsReview ? 'claude_code' : 'codex',
           startedAt,
