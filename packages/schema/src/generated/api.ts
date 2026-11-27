@@ -762,6 +762,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/install.ps1": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Script PowerShell tham gia bằng một lệnh (công khai)
+         * @description Thành viên chạy `irm <server>/install.ps1?code=<mã> | iex`. Server trả một script PowerShell
+         *     (`text/plain; charset=utf-8`, không cache) đã nhúng sẵn địa chỉ server (`TEAMLENS_PUBLIC_URL`) và
+         *     mã mời, rồi script chạy `tl join <server>/i/<mã>`.
+         *
+         *     **Phạm vi hiện tại (M3.6):** script chỉ tìm `tl.exe` (trong PATH hoặc
+         *     `%LOCALAPPDATA%\teamlens\bin\tl.exe`) rồi chạy `tl join`; chưa có `tl.exe` thì báo rõ và dừng,
+         *     không đóng cửa sổ PowerShell. Phần tải `tl.exe` từ GitHub Releases, kiểm SHA-256, đặt vào thư mục
+         *     và thêm PATH là M5.2.
+         *
+         *     Server **không** kiểm tra link còn dùng được hay không (việc đó là của `tl join`, qua
+         *     `GET /agent/v1/invites/{code}`); chỉ kiểm tra `code` đúng định dạng (chống nhúng chuỗi lạ vào script).
+         *     Giới hạn 10 request/phút mỗi IP, như hai endpoint công khai khác của link mời.
+         */
+        get: operations["getInstallScript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/overview": {
         parameters: {
             query?: never;
@@ -3444,6 +3475,39 @@ export interface operations {
                 };
             };
             410: components["responses"]["InviteUnusable"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getInstallScript: {
+        parameters: {
+            query: {
+                /**
+                 * @description Mã mời (base64url, 10–100 ký tự `A-Z a-z 0-9 - _`).
+                 * @example Zm9vYmFyYmF6cXV4
+                 */
+                code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Script PowerShell. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example # TeamLens: tham gia nhóm (script do server http://localhost:3000 sinh ra)
+                     *     $ErrorActionPreference = 'Stop'
+                     *     ...
+                     */
+                    "text/plain": string;
+                };
+            };
+            404: components["responses"]["InviteNotFound"];
             429: components["responses"]["RateLimited"];
         };
     };

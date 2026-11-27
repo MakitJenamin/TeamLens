@@ -146,6 +146,8 @@ paths:
     $ref: './invites.yaml#/paths/~1agent~1v1~1invites~1{code}'
   /agent/v1/join:
     $ref: './invites.yaml#/paths/~1agent~1v1~1join'
+  /install.ps1:
+    $ref: './invites.yaml#/paths/~1install.ps1'
 
   # stats.yaml
   /api/v1/projects/{projectId}/overview:
