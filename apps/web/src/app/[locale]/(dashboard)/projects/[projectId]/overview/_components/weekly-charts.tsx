@@ -38,7 +38,14 @@ export function TokensChart({
           contentStyle={tooltipStyle}
           formatter={(value) => [formatValue(Number(value)), seriesName]}
         />
-        <Bar dataKey="tokens" name={seriesName} fill={VIZ_COLOR_BY_INDEX[0]} radius={[4, 4, 0, 0]} maxBarSize={48} />
+        <Bar
+          dataKey="tokens"
+          name={seriesName}
+          fill={VIZ_COLOR_BY_INDEX[0]}
+          radius={[4, 4, 0, 0]}
+          maxBarSize={48}
+          isAnimationActive={false}
+        />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -63,8 +70,17 @@ export function ScoresChart({
         <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
         <YAxis domain={[0, 100]} tick={axisTick} tickLine={false} axisLine={false} width={32} />
-        <Tooltip contentStyle={tooltipStyle} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          // Giữ đúng thứ tự 5 nhóm thay vì sắp theo chữ cái.
+          itemSorter={(item) => series.findIndex((s) => s.key === item.dataKey)}
+        />
+        <Legend
+          itemSorter={null}
+          wrapperStyle={{ fontSize: 12 }}
+          // Chữ chú giải dùng màu chữ chuẩn; màu series chỉ nằm ở ô nhận diện.
+          formatter={(value) => <span style={{ color: "var(--foreground)" }}>{value}</span>}
+        />
         {series.map((s, index) => (
           <Line
             key={s.key}
@@ -76,6 +92,7 @@ export function ScoresChart({
             dot={{ r: 4, stroke: "var(--background)", strokeWidth: 2, fill: VIZ_COLOR_BY_INDEX[index] }}
             activeDot={{ r: 5 }}
             connectNulls={false}
+            isAnimationActive={false}
           />
         ))}
       </LineChart>
