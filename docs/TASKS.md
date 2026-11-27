@@ -18,10 +18,10 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
 | Mốc 4 · Báo cáo và minh bạch | 🚧 đang làm | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 còn M4.3–M4.6 |
-| Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); chưa phát hành bản thật nào (chưa push tag). Người 2 còn M5.4–M5.6 |
+| Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87, tag `v0.2.0`). Người 2 còn M5.4–M5.6 |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
-1. Người 1: hết việc Mốc 4 và Mốc 5. Còn lại: bump `cli/Cargo.toml` và push tag `v<version>` đầu tiên để có GitHub Release thật (cách làm ở `cli/AGENTS.md`, mục "Phát hành CLI"), rồi chạy nghiệm thu chung (SPEC 12.3).
+1. Người 1: hết việc Mốc 4 và Mốc 5. Đã phát hành `tl` 0.2.0 (GitHub Release `v0.2.0`). Còn lại: nghiệm thu chung (SPEC 12.3).
 2. Người 2: hết việc Mốc 2 và Mốc 3. Làm **M4.3** (leaderboard, đọc `user_weekly_stats` của M2.8) → **M4.4** → **M4.5** → **M4.6**, rồi Mốc 5 (M5.5, M5.6, M5.4). Nhắc: #70 đã merge nên **mọi thiết bị phải chạy `tl consent` một lần** (phiên bản văn bản đồng ý `2026-11-27.3`).
 
 ## Hai người, hai nhóm tính năng
@@ -126,7 +126,7 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
-| 1 | ✅ **M5.1** (#81) Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** chạy tay không tag (chỉ build artifact); chưa push tag thật | **M5.4** `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài. Chỉ mở cổng Caddy ra ngoài: web/API sau proxy tin `X-Forwarded-For` cho giới hạn tần suất của link mời, mở thẳng cổng web thì người ngoài giả được header này<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
+| 1 | ✅ **M5.1** (#81) Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** chạy tay không tag (chỉ build artifact), rồi tag `v0.2.0` tạo release thật | **M5.4** `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài. Chỉ mở cổng Caddy ra ngoài: web/API sau proxy tin `X-Forwarded-For` cho giới hạn tần suất của link mời, mở thẳng cổng web thì người ngoài giả được header này<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
 | 2 | ✅ **M5.2** (#83, #85) `GET /install.ps1` + script: tải, kiểm SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm PATH, chạy `tl join`<br>**Tự test:** cài trên máy Windows khác | **M5.5** Job retention hằng đêm (drop partition `turns`, tạo partition mới)<br>**Tự test:** chạy với retention 1 ngày |
 | 3 | ✅ **M5.3** (#82, #84) `tl update` và daemon tự cập nhật từ GitHub Releases khi server trả `426`, đòi bản mới, hoặc mỗi 24 giờ<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Leader xóa toàn bộ dữ liệu của một người (spec 6.4)<br>**Tự test:** xóa member2 rồi kiểm tra DB |
 
