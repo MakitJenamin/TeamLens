@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "teamlens"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "clap",
@@ -2757,7 +2757,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tl-adapters"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "insta",
@@ -2772,7 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "tl-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "jsonschema",
@@ -2785,7 +2785,7 @@ dependencies = [
 
 [[package]]
 name = "tl-platform"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "directories",
  "keyring",
