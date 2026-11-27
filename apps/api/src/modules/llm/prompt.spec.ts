@@ -3,6 +3,7 @@ import {
   escapeUntrusted,
   parseJsonOutput,
   UNTRUSTED_DATA_GUARD,
+  UNTRUSTED_DATA_REMINDER,
 } from './prompt.js';
 
 describe('prompt', () => {
@@ -18,7 +19,7 @@ describe('prompt', () => {
     expect(prompt.system).toContain('Vietnamese');
     expect(prompt.system).toContain('{"type":"object"}');
     expect(prompt.user).toBe(
-      '<untrusted_data label="turn 1">\nhello\n</untrusted_data>',
+      `<untrusted_data label="turn 1">\nhello\n</untrusted_data>\n\n${UNTRUSTED_DATA_REMINDER}`,
     );
   });
 

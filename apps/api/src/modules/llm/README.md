@@ -11,7 +11,7 @@ Mọi tính năng AI (Người 1, 2, 3) gọi LLM **chỉ** qua `LlmService` c�
 | `llm-errors.ts` | `llmError(code)` tạo `ApiError` cho 7 mã lỗi LLM, `llmErrorCode(error)`. |
 | `prompt.ts` | Câu chặn injection `UNTRUSTED_DATA_GUARD`, bọc `<untrusted_data>` có escape, yêu cầu ngôn ngữ theo locale, parse JSON (bóc ```json). |
 | `key-crypto.ts` | AES-256-GCM bằng `TEAMLENS_SECRET_KEY`, IV 12 byte; lưu dạng `v1.<iv>.<ciphertext>.<tag>` (base64). |
-| `adapters/` | `LlmAdapter`, token DI `LLM_ADAPTERS` (map provider → adapter), `FakeLlmAdapter`, adapter Anthropic và OpenAI-compatible. |
+| `adapters/` | `LlmAdapter`, token DI `LLM_ADAPTERS` (map provider → adapter), `FakeLlmAdapter`, `AnthropicAdapter`, `OpenAiCompatibleAdapter`, phân loại lỗi HTTP ở `http.ts`. |
 
 ## Dùng trong một tính năng
 
@@ -106,3 +106,22 @@ fake.calls;                                  // các request đã nhận (system
 ```
 
 Người dùng trong test phải có key: `app.get(LlmKeyService).saveKey(userId, { provider: 'anthropic', model: 'm', apiKey: 'sk-test-0000' })`.
+
+## Adapter thật
+
+- `AnthropicAdapter`: `POST {base}/v1/messages` (base mặc định `https://api.anthropic.com`, nhập có hay không có `/v1` đều được), header `x-api-key`, `anthropic-version: 2023-06-01`. Ép JSON bằng tool bắt buộc `respond` (`tool_choice: { type: 'tool', name: 'respond' }`, `input_schema` = JSON Schema). Token: `usage.input_tokens/output_tokens`.
+- `OpenAiCompatibleAdapter`: `POST {base}/chat/completions`, `Authorization: Bearer <key>` (key rỗng thì bỏ header, dùng cho Ollama). `response_format: json_schema` (`strict: true` khi schema hợp lệ cho strict mode, tức mọi object có `additionalProperties: false` và đủ `required`; không thì `strict: false`). Server trả 400 nhắc `response_format` thì thử lại bằng `json_object`; model đòi `max_completion_tokens` thì đổi tên tham số. Token: `usage.prompt_tokens/completion_tokens`.
+- Schema gốc không phải object thì được bọc thành `{ value: ... }` khi gửi và bóc lại khi nhận.
+- Phân loại lỗi HTTP (`adapters/http.ts`): 401/403 → `llm_key_invalid`; 429 hoặc `insufficient_quota` → `llm_quota_exceeded`; 404 hoặc `model_not_found` → `llm_model_not_found`; bị hủy → `llm_timeout`; lỗi mạng, 5xx, còn lại → `llm_provider_error`.
+
+## Thử thật với một provider
+
+`scripts/llm-smoke.ts` gọi `testKey` rồi `run` một session mẫu (không ghi DB), mặc định Ollama local:
+
+```bash
+pnpm --filter @teamlens/api exec tsx scripts/llm-smoke.ts
+# provider khác:
+LLM_PROVIDER=anthropic LLM_BASE_URL= LLM_MODEL=claude-sonnet-5-5 LLM_API_KEY=sk-ant-... pnpm --filter @teamlens/api exec tsx scripts/llm-smoke.ts
+```
+
+Session mẫu có một turn chứa prompt injection. Model nhỏ (vd `qwen2.5:3b`) vẫn có thể làm theo dù đã có câu chặn và lời nhắc sau dữ liệu; vì vậy kết quả AI chỉ để hiển thị cho chính người bấm, không bao giờ được dùng để tự động hành động.
