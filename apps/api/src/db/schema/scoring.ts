@@ -4,7 +4,6 @@ import {
   index,
   integer,
   jsonb,
-  numeric,
   pgTable,
   primaryKey,
   text,
@@ -73,26 +72,6 @@ export const sessionScores = pgTable(
     computedAt: timestamp('computed_at', tz).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.sessionId, t.category] })],
-);
-
-export const llmReviews = pgTable(
-  'llm_reviews',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    sessionId: uuid('session_id')
-      .notNull()
-      .references(() => sessions.id, { onDelete: 'cascade' }),
-    requestedBy: uuid('requested_by').references(() => users.id, {
-      onDelete: 'set null',
-    }),
-    provider: text('provider').notNull(),
-    model: text('model').notNull(),
-    rubricVersion: text('rubric_version').notNull(),
-    result: jsonb('result'),
-    costUsd: numeric('cost_usd', { precision: 12, scale: 6 }),
-    createdAt: timestamp('created_at', tz).notNull().defaultNow(),
-  },
-  (t) => [index('llm_reviews_session_id_idx').on(t.sessionId)],
 );
 
 /** Bảng tổng hợp theo tuần, giữ lâu dài sau khi nội dung thô bị xóa. */

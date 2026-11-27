@@ -27,6 +27,16 @@ const tsvector = customType<{ data: string }>({
 export type PermissionMode =
   'default' | 'accept_edits' | 'plan' | 'bypass' | 'unknown';
 
+export type WorkType =
+  | 'bugfix'
+  | 'feature'
+  | 'refactor'
+  | 'question'
+  | 'ops'
+  | 'docs'
+  | 'test'
+  | 'other';
+
 export interface InstructionFile {
   path: string;
   bytes: number;
@@ -71,6 +81,8 @@ export const sessions = pgTable(
     cacheWriteTokens: bigint('cache_write_tokens', { mode: 'number' })
       .notNull()
       .default(0),
+    // Loại việc do AI phân loại (tóm tắt session, phân loại việc B4); null khi chưa phân loại.
+    workType: text('work_type').$type<WorkType>(),
     // source_id của session cha do CLI gửi; giữ lại để nối `parent_session_id` khi cha tới sau con.
     parentSourceId: text('parent_source_id'),
     parentSessionId: uuid('parent_session_id').references(
