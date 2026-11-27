@@ -286,6 +286,20 @@ describe('TeamLens API (e2e)', () => {
         settings: { leaderboard: true },
       });
 
+      await leader
+        .patch(`/api/v1/projects/${projectId}`)
+        .send({ settings: { leaderboardEnabled: 'true' } })
+        .expect(400);
+      await leader
+        .patch(`/api/v1/projects/${projectId}`)
+        .send({ settings: { leaderboardPublic: 1 } })
+        .expect(400);
+      const toggled = await leader
+        .patch(`/api/v1/projects/${projectId}`)
+        .send({ settings: { leaderboardEnabled: true } })
+        .expect(200);
+      expect(toggled.body.settings).toEqual({ leaderboard: true, leaderboardEnabled: true });
+
       const actions = await querySql<{ action: string }>(
         'SELECT action FROM audit_log ORDER BY at',
       );
