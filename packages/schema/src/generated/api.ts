@@ -1996,7 +1996,11 @@ export interface components {
              */
             baseUrl?: string | null;
             model: string;
-            /** @description Bắt buộc khi chưa có key; bỏ trống để giữ key cũ. */
+            /**
+             * @description Bắt buộc khi chưa có key; bỏ trường này để giữ key cũ. Chuỗi rỗng chỉ hợp lệ với
+             *     `openai_compatible` (server tự host không cần key, vd. Ollama); với `anthropic` chuỗi rỗng
+             *     được coi như bỏ trường (giữ key cũ).
+             */
             apiKey?: string;
         };
         /** @description Như `PutLlmKeyRequest` nhưng mọi trường tùy chọn; trường thiếu lấy từ key đã lưu. */
@@ -2005,6 +2009,7 @@ export interface components {
             /** Format: uri */
             baseUrl?: string | null;
             model?: string;
+            /** @description Chuỗi rỗng chỉ có nghĩa với `openai_compatible` (server không cần key). */
             apiKey?: string;
         };
         LlmKeyTestResult: {
