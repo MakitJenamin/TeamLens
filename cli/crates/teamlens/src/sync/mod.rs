@@ -114,8 +114,10 @@ pub(crate) fn ingest_app_error(e: IngestError) -> AppError {
                 }
             ),
             match min_cli_version {
-                Some(v) => format!("Cập nhật tl lên bản {v} trở lên rồi chạy lại `tl sync`."),
-                None => "Cập nhật tl lên bản mới nhất rồi chạy lại `tl sync`.".to_owned(),
+                Some(v) => format!(
+                    "Chạy `tl update` để cập nhật tl (cần bản {v} trở lên) rồi chạy lại `tl sync`."
+                ),
+                None => "Chạy `tl update` để cập nhật tl rồi chạy lại `tl sync`.".to_owned(),
             },
         ),
         IngestError::RateLimited { .. } => AppError::user(

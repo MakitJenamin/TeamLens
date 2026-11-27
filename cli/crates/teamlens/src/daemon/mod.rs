@@ -12,6 +12,10 @@
 //! - **Tắt êm**: Ctrl+C / đóng console / đăng xuất → dừng vòng, đóng `state.db`, nhả mutex.
 //! - **Heartbeat** mỗi [`crate::heartbeat::HEARTBEAT_INTERVAL`] qua [`crate::heartbeat::send_once`]
 //!   (M3.3). Đang `tl pause` thì chỉ heartbeat, không quét, không gửi.
+//! - **Tự cập nhật** (M5.3, [`crate::update::auto`]): kiểm GitHub Releases mỗi 24 giờ, và sớm hơn
+//!   khi server báo `tl` quá cũ (`426`/`min_cli_version`). Thay file xong thì vòng lặp trả
+//!   [`LoopExit::Restart`]: lệnh `tl daemon` nhả mutex rồi chạy bản mới. Daemon cũng tự khởi động
+//!   lại khi thấy `tl.exe` bị thay bởi `tl update` chạy tay ([`crate::update::restart::ExeStamp`]).
 
 pub mod instance;
 pub mod log;
@@ -38,6 +42,9 @@ use crate::sync::agent_config;
 use crate::sync::incremental::{scope_fingerprint, FilePlan, PlannedSession};
 use crate::sync::scan::{self, ScanOptions, ScanStats};
 use crate::sync::{connect, consent_gate, Connected, Sources};
+use crate::update::auto::{self as auto_update, AutoOutcome, AutoSchedule};
+use crate::update::restart::ExeStamp;
+use crate::update::Updater;
 
 use schedule::{Debouncer, Schedule};
 
@@ -76,6 +83,8 @@ pub struct CycleReport {
     pub stop: Option<String>,
     /// Hàng đợi hẹn thử gửi lại lúc này.
     pub retry_at: Option<DateTime<Utc>>,
+    /// Server đòi bản `tl` mới hơn (`426` hoặc `min_cli_version`): daemon nên tự cập nhật.
+    pub upgrade_required: bool,
 }
 
 /// Cờ `tl pause` (M3.3, `meta.paused` trong `state.db`). Chưa có `state.db` thì không tạm dừng.
@@ -146,6 +155,7 @@ pub async fn run_cycle(
     }
     let server_config = &conn.agent_config.config;
     if let Err(block) = agent_config::check_send(&local, server_config, crate::CLI_VERSION) {
+        report.upgrade_required = matches!(block, agent_config::SendBlock::CliTooOld { .. });
         report.skipped = Some(CycleSkip::Blocked(block.to_error().to_string()));
         return Ok(report);
     }
@@ -232,7 +242,11 @@ pub async fn run_cycle(
             report.stop = Some(error.to_string());
             report.retry_at = Some(next_attempt_at);
         }
-        Some(FlushStop::UpgradeRequired(e) | FlushStop::Blocked(e)) => {
+        Some(FlushStop::UpgradeRequired(e)) => {
+            report.upgrade_required = true;
+            report.stop = Some(e.to_string());
+        }
+        Some(FlushStop::Blocked(e)) => {
             report.stop = Some(e.to_string());
         }
     }
@@ -353,13 +367,67 @@ async fn try_connect(ctx: &AppContext) -> Option<Connected> {
     }
 }
 
-/// Vòng chính của daemon, chạy tới khi `shutdown` xong.
+/// Vì sao vòng lặp daemon dừng.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoopExit {
+    /// Tín hiệu dừng (Ctrl+C, đăng xuất, tắt máy).
+    Shutdown,
+    /// File thực thi đã được thay bằng bản mới: chạy lại `tl daemon` (M5.3).
+    Restart,
+}
+
+/// Tự cập nhật trong vòng lặp daemon (M5.3).
+pub struct AutoUpdate {
+    pub updater: Updater,
+    pub schedule: AutoSchedule,
+    /// Dấu vết `tl.exe` lúc khởi động, để nhận ra file bị thay bởi `tl update` chạy tay.
+    pub exe: Option<ExeStamp>,
+}
+
+impl AutoUpdate {
+    /// Theo biến môi trường và lịch lưu trong `state.db`. `None` khi không tạo được HTTP client.
+    pub fn from_env(ctx: &AppContext) -> Option<Self> {
+        let updater = match Updater::from_env() {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::warn!("tắt tự cập nhật: {e}");
+                return None;
+            }
+        };
+        let enabled =
+            auto_update::enabled_from(std::env::var(auto_update::AUTO_ENV).ok().as_deref());
+        let path = state_path(&ctx.config_path);
+        let db = path.exists().then(|| StateDb::open(&path).ok()).flatten();
+        let schedule = AutoSchedule::load(db.as_ref(), enabled, Utc::now());
+        if !enabled {
+            tracing::info!(
+                "tự cập nhật đang tắt ({}=0 hoặc bản build debug)",
+                auto_update::AUTO_ENV
+            );
+        }
+        Some(Self {
+            updater,
+            schedule,
+            exe: ExeStamp::current(),
+        })
+    }
+
+    /// Mốc thức dậy kế tiếp cho việc kiểm bản mới.
+    fn wake_at(&self) -> Option<Instant> {
+        let at = self.schedule.wake_at()?;
+        let wait = (at - Utc::now()).to_std().unwrap_or(Duration::ZERO);
+        Some(Instant::now() + wait)
+    }
+}
+
+/// Vòng chính của daemon, chạy tới khi `shutdown` xong hoặc cần khởi động lại sang bản mới.
 pub async fn run_loop(
     ctx: &AppContext,
     sources: &Sources,
     max_batch_bytes: usize,
+    mut auto: Option<AutoUpdate>,
     shutdown: impl std::future::Future<Output = ()>,
-) {
+) -> LoopExit {
     let dirs: Vec<PathBuf> = sources
         .adapter_refs()
         .iter()
@@ -372,10 +440,18 @@ pub async fn run_loop(
     let mut conn: Option<Connected> = None;
     // Không tạo được watcher thì kênh đóng ngay: thôi nghe, chỉ quét định kỳ.
     let mut events_open = true;
+    let data_dir = ctx
+        .config_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
     tokio::pin!(shutdown);
 
     loop {
-        let wake = sched.next_wake(debouncer.due_at());
+        let mut wake = sched.next_wake(debouncer.due_at());
+        if let Some(at) = auto.as_ref().and_then(AutoUpdate::wake_at) {
+            wake = wake.min(at);
+        }
         tokio::select! {
             _ = &mut shutdown => break,
             ev = rx.recv(), if events_open => {
@@ -388,6 +464,16 @@ pub async fn run_loop(
             _ = tokio::time::sleep_until(tokio::time::Instant::from_std(wake)) => {}
         }
         let now = Instant::now();
+
+        // `tl update` chạy tay đã thay tl.exe: khởi động lại sang bản mới.
+        if auto
+            .as_ref()
+            .and_then(|a| a.exe.as_ref())
+            .is_some_and(ExeStamp::changed)
+        {
+            tracing::info!("tl.exe đã được thay bằng bản khác, khởi động lại daemon");
+            return LoopExit::Restart;
+        }
 
         // Server trong config đổi (vd. `tl join` server khác): kết nối lại ngay.
         let server_changed = match (&conn, ctx.load_config()) {
@@ -420,6 +506,11 @@ pub async fn run_loop(
                         Ok(r) => {
                             log_cycle(&r);
                             retry = retry_after(r.retry_at);
+                            if r.upgrade_required {
+                                if let Some(a) = auto.as_mut() {
+                                    a.schedule.upgrade_required(Utc::now());
+                                }
+                            }
                         }
                         Err(e) => tracing::warn!("chu kỳ lỗi: {e}"),
                     },
@@ -430,7 +521,25 @@ pub async fn run_loop(
             debouncer.take_due(now);
             sched.scan_done(Instant::now(), retry);
         }
+        // Tự cập nhật (cả khi đang `tl pause`: chỉ tải file từ GitHub, không gửi dữ liệu).
+        if let Some(a) = auto.as_mut() {
+            let utc_now = Utc::now();
+            if a.schedule.due(utc_now) {
+                let state = state_path(&ctx.config_path);
+                let attempt =
+                    auto_update::run_once(&a.updater, &mut a.schedule, &state, &data_dir, utc_now);
+                tokio::select! {
+                    _ = &mut shutdown => break,
+                    outcome = attempt => {
+                        if let AutoOutcome::Replaced(_) = outcome {
+                            return LoopExit::Restart;
+                        }
+                    }
+                }
+            }
+        }
     }
+    LoopExit::Shutdown
 }
 
 /// Chạy daemon (đã lấy mutex, đã bật log).
@@ -438,15 +547,19 @@ pub async fn run(
     ctx: &AppContext,
     sources: &Sources,
     max_batch_bytes: usize,
-) -> Result<(), AppError> {
+) -> Result<LoopExit, AppError> {
     tracing::info!(
         version = crate::CLI_VERSION,
         pid = std::process::id(),
         "daemon bắt đầu"
     );
-    run_loop(ctx, sources, max_batch_bytes, shutdown_signal()).await;
-    tracing::info!("daemon dừng");
-    Ok(())
+    let auto = AutoUpdate::from_env(ctx);
+    let exit = run_loop(ctx, sources, max_batch_bytes, auto, shutdown_signal()).await;
+    match exit {
+        LoopExit::Shutdown => tracing::info!("daemon dừng"),
+        LoopExit::Restart => tracing::info!("daemon dừng để chạy bản tl mới"),
+    }
+    Ok(exit)
 }
 
 /// Bật log của daemon ra file (và stderr khi chạy foreground) cho thread hiện tại.

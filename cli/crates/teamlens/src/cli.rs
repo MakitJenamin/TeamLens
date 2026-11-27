@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    consent, daemon, join, logout, open, pause, preview, resume, status, sync, uninstall,
+    consent, daemon, join, logout, open, pause, preview, resume, status, sync, uninstall, update,
 };
 
 /// TeamLens: thu thập session AI agent trong repo của team, che secret, gửi về server tự host.
@@ -47,4 +47,6 @@ pub enum Command {
     Daemon(daemon::DaemonArgs),
     /// Gỡ TeamLens khỏi máy này
     Uninstall(uninstall::UninstallArgs),
+    /// Cập nhật tl lên bản phát hành mới nhất (GitHub Releases)
+    Update(update::UpdateArgs),
 }

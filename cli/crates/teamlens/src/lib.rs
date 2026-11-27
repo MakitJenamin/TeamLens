@@ -17,6 +17,7 @@ pub mod pipeline;
 pub mod queue;
 pub mod state;
 pub mod sync;
+pub mod update;
 
 /// Phiên bản CLI, gửi lên server (`cliVersion`, user-agent).
 pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -2,6 +2,7 @@
 //! đồng ý, trạng thái thu thập (`tl pause`), heartbeat gần nhất, agent phát hiện được, file chờ
 //! ổn định, hàng đợi, lỗi parse (M3.3). Phần cục bộ chỉ đọc metadata file log và `state.db`.
 //! Dòng "Daemon" (M3.2): thử named mutex của daemon và đọc chu kỳ gần nhất trong `state.db`.
+//! Dòng "Phiên bản" (M5.3): bản đang chạy và bản phát hành mới nhất đã kiểm (`tl update`, daemon).
 
 use std::io::Write;
 use std::time::SystemTime;
@@ -19,6 +20,7 @@ use crate::queue::{self, format_bytes, QueueStats};
 use crate::state::{state_path, StateDb};
 use crate::sync::incremental::{classify, FileStatus};
 use crate::sync::Sources;
+use crate::update::auto::{self as auto_update, UpdateInfo};
 
 /// Trạng thái daemon trên máy (M3.2).
 #[derive(Debug, Clone, Default, Serialize)]
@@ -70,6 +72,8 @@ pub struct StatusArgs {
 #[serde(rename_all = "camelCase")]
 pub struct StatusReport {
     pub cli_version: &'static str,
+    /// Lần kiểm bản mới gần nhất (M5.3).
+    pub update: UpdateInfo,
     /// Server trong config, `null` nếu chưa cấu hình.
     pub server: Option<String>,
     /// Có token của server này trong Credential Manager và token còn hiệu lực
@@ -139,6 +143,7 @@ fn fill_local(ctx: &AppContext, sources: &Sources, report: &mut StatusReport) {
         }
         return;
     };
+    report.update = auto_update::read_info(&db);
     report.paused = db.is_paused().unwrap_or(false);
     if report.paused {
         report.paused_since = db
@@ -181,6 +186,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
     let config = ctx.load_config()?;
     let mut report = StatusReport {
         cli_version: crate::CLI_VERSION,
+        update: UpdateInfo::default(),
         server: config.server_url.clone(),
         logged_in: false,
         account: None,
@@ -235,6 +241,10 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     let mut w = |label: &str, value: &str| {
         let _ = writeln!(out, "{label:<12}{value}");
     };
+    w("Phiên bản:", &version_text(r.cli_version, &r.update));
+    if let Some(err) = &r.update.last_error {
+        w("", &format!("lần kiểm bản mới gần nhất lỗi: {err}"));
+    }
     w("Server:", r.server.as_deref().unwrap_or("chưa cấu hình"));
 
     let login = match (&r.server, r.logged_in, &r.account) {
@@ -356,6 +366,21 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
             ),
         ),
         None => w("Lỗi parse:", "không đọc được state.db"),
+    }
+}
+
+/// Dòng "Phiên bản" của `tl status`.
+fn version_text(current: &str, u: &UpdateInfo) -> String {
+    let checked = u
+        .checked_at
+        .map(|t| format!(", kiểm lúc {}", local_time(t)))
+        .unwrap_or_default();
+    match (&u.latest_version, u.update_available) {
+        (Some(latest), true) => {
+            format!("tl {current} — có bản mới {latest}{checked}; chạy `tl update` để cập nhật")
+        }
+        (Some(_), false) => format!("tl {current} (bản mới nhất{checked})"),
+        (None, _) => format!("tl {current} (chưa kiểm bản mới; `tl update --check`)"),
     }
 }
 
