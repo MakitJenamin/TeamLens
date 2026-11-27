@@ -15,14 +15,14 @@ try {
   const fixtures = scoringFixtures(new Date());
   await db.transaction(async (tx) => {
     const members = await tx
-      .select({ id: users.id, email: users.email, projectId: projects.id })
+      .select({ id: users.id, name: users.name, projectId: projects.id })
       .from(projects)
       .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
       .innerJoin(users, eq(users.id, projectMembers.userId))
       .where(eq(projects.slug, 'teamlens'));
     const partitions = new Set<string>();
     for (const fixture of fixtures) {
-      const member = members.find((row) => row.email === fixture.email);
+      const member = members.find((row) => row.name === fixture.memberName);
       if (!member)
         throw new Error(
           'Thiếu project hoặc thành viên mẫu. Hãy chạy db:seed trước.',
