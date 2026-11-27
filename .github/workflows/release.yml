@@ -1,0 +1,143 @@
+name: Release CLI
+
+# Phát hành tl.exe lên GitHub Releases (M5.1). Quy ước asset: cli/AGENTS.md, mục "Phát hành CLI".
+# - Push tag `v<semver>`: build, đóng gói, tạo (hoặc cập nhật) GitHub Release của tag đó.
+# - Chạy tay (workflow_dispatch):
+#     + có input `tag` (tag đã tồn tại): build đúng tag đó và tạo/cập nhật release như khi push tag;
+#     + không có `tag`: chỉ build + đóng gói rồi upload artifact của workflow, KHÔNG tạo release (để thử).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag đã có (vd v0.2.0). Để trống: chỉ build + upload artifact, không tạo release'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# Không chạy chồng hai lần cho cùng một tag; lần sau đợi lần trước xong.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref_name || inputs.tag || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  TARGET: x86_64-pc-windows-msvc
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # Đưa qua env thay vì chèn thẳng vào script để tránh injection từ input.
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Chạy tay có tag: build đúng commit của tag (tag không tồn tại thì bước này fail).
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || '' }}
+
+      # Giống ci.yml: toolchain stable (cli/rust-toolchain.toml cũng ghim channel stable), thêm target MSVC.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+          key: release-${{ env.TARGET }}
+
+      - name: Kiểm tag khớp phiên bản trong cli/Cargo.toml
+        id: version
+        working-directory: cli
+        run: |
+          $meta = cargo metadata --no-deps --format-version 1 --locked | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'cargo metadata lỗi' }
+          $version = ($meta.packages | Where-Object { $_.name -eq 'teamlens' }).version
+          if (-not $version) { throw 'Không tìm thấy package teamlens trong cli/' }
+          $tag = $env:RELEASE_TAG
+          if ($tag) {
+            if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
+              throw "Tag '$tag' không đúng dạng v<semver> (vd v0.2.0, v0.1.1-rc.1)"
+            }
+            if ($tag -ne "v$version") {
+              throw "Tag '$tag' không khớp version '$version' ở [workspace.package] của cli/Cargo.toml. Bump version rồi tạo lại tag 'v$version', hoặc sửa tag."
+            }
+            $prerelease = if ($version.Contains('-')) { 'true' } else { 'false' }
+            Write-Host "Phát hành $tag (prerelease: $prerelease)"
+          } else {
+            $prerelease = 'false'
+            Write-Host "Chạy thử không có tag: chỉ build + upload artifact, version $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "prerelease=$prerelease" >> $env:GITHUB_OUTPUT
+
+      - name: Build tl.exe
+        working-directory: cli
+        run: cargo build --release --locked --target $env:TARGET -p teamlens
+
+      - name: Đóng gói, smoke test, SHA256SUMS
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./cli/scripts/package-release.ps1 -BinaryPath "cli/target/$env:TARGET/release/tl.exe" -OutDir dist -ExpectedVersion $env:VERSION
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tl-${{ env.TARGET }}
+          path: |
+            dist/tl-x86_64-pc-windows-msvc.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: ${{ needs.build.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.build.outputs.tag }}
+      PRERELEASE: ${{ needs.build.outputs.prerelease }}
+    steps:
+      - name: Tải artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tl-${{ env.TARGET }}
+          path: dist
+
+      - name: Kiểm SHA256SUMS
+        working-directory: dist
+        run: sha256sum --check --strict SHA256SUMS
+
+      # Idempotent: release đã có thì ghi đè asset (--clobber), chưa có thì tạo mới.
+      # --verify-tag: không bao giờ tự tạo tag mới nếu tag chưa có trên remote.
+      - name: Tạo hoặc cập nhật GitHub Release
+        run: |
+          set -euo pipefail
+          assets=(dist/tl-x86_64-pc-windows-msvc.zip dist/SHA256SUMS)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG đã có, ghi đè asset"
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            flags=(--verify-tag --generate-notes --title "$TAG")
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" "${assets[@]}" "${flags[@]}"
+          fi
