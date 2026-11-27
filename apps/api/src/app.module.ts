@@ -6,6 +6,7 @@ import { HealthController } from './health.controller.js';
 import { AccessModule } from './modules/access/access.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AgentModule } from './modules/agent/agent.module.js';
+import { AiSettingsModule } from './modules/ai-settings/ai-settings.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ConsentModule } from './modules/consent/consent.module.js';
 import { DeviceModule } from './modules/device/device.module.js';
@@ -47,6 +48,7 @@ import { QueueModule } from './queue/queue.module.js';
     RetentionModule,
     // AI (Mốc 6)
     LlmModule,
+    AiSettingsModule,
   ],
   controllers: [HealthController],
 })
