@@ -8,10 +8,17 @@ use teamlens::cli::Cli;
 use teamlens::commands::dispatch;
 use teamlens::context::AppContext;
 use teamlens::error::AppError;
+use teamlens::update::notice::{self, NoticeOptions, Notifier};
 
 fn main() -> ExitCode {
     let debug = init_tracing();
     let cli = Cli::parse();
+    // Nhắc có bản tl mới: đọc state.db (kiểm nhẹ nếu cần) song song với lệnh, in ở cuối.
+    let notifier = Notifier::start(
+        &cli.command,
+        notice::default_state_path,
+        NoticeOptions::from_env(),
+    );
 
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -29,13 +36,15 @@ fn main() -> ExitCode {
     let result = runtime.block_on(dispatch(cli.command, AppContext::from_platform, &mut out));
     let _ = out.flush();
 
-    match result {
+    let code = match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             report_error(&e, debug);
             ExitCode::from(e.exit_code())
         }
-    }
+    };
+    notifier.finish(&mut std::io::stderr());
+    code
 }
 
 /// Bật log theo biến `TL_LOG` (ví dụ `TL_LOG=debug`). Trả `true` khi ở mức debug/trace.
