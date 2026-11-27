@@ -18,12 +18,14 @@ export interface Range {
 
 /**
  * Làm tròn khoảng thời gian ra biên tuần UTC (thứ Hai 00:00). `from` làm tròn xuống, `to` làm tròn lên.
- * Mặc định là 8 tuần gần nhất, gồm tuần hiện tại. Lỗi 400 khi `from >= to` hoặc quá 53 tuần.
+ * Mặc định là `defaultWeeks` tuần gần nhất (8 cho tổng quan, 2 cho hồ sơ), gồm tuần hiện tại.
+ * Lỗi 400 khi `from >= to` hoặc quá 53 tuần.
  */
 export function normalizeRange(
   from: Date | undefined,
   to: Date | undefined,
   now: Date,
+  defaultWeeks: number = DEFAULT_WEEKS,
 ): Range {
   const thisWeekEnd = weekWindow(now).end;
   let end: Date;
@@ -35,7 +37,7 @@ export function normalizeRange(
   }
   const start = from
     ? weekWindow(from).start
-    : new Date(end.getTime() - DEFAULT_WEEKS * WEEK_MS);
+    : new Date(end.getTime() - defaultWeeks * WEEK_MS);
   if (start.getTime() >= end.getTime())
     throw new ApiError(
       400,

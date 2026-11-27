@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { OverviewController } from './overview.controller.js';
 import { OverviewService } from './overview.service.js';
+import { ProfileController } from './profile.controller.js';
+import { ProfileService } from './profile.service.js';
 
-/** Thống kê: tổng quan project (M2.9). Hồ sơ thành viên (M2.10) và leaderboard (M4.3) thêm sau. Xem README.md. */
+/** Thống kê: tổng quan project (M2.9), hồ sơ thành viên (M2.10). Leaderboard (M4.3) thêm sau. Xem README.md. */
 @Module({
-  controllers: [OverviewController],
-  providers: [OverviewService],
+  controllers: [OverviewController, ProfileController],
+  providers: [OverviewService, ProfileService],
 })
 export class StatsModule {}
