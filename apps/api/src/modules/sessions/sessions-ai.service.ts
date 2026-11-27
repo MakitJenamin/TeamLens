@@ -57,7 +57,8 @@ export class SessionsAiService {
     sessionId: string,
     locale: AiLocale,
   ): Promise<SessionAiResults> {
-    const session = await this.loadSession(viewer, sessionId, 'session.view');
+    // Không ghi audit: trang session đã gọi `GET /sessions/:id` (ghi `session.view`), tránh trùng.
+    const session = await this.loadSession(viewer, sessionId, null);
     const findingIds = (
       await this.db
         .select({ id: findings.id })
@@ -193,12 +194,12 @@ export class SessionsAiService {
 
   /**
    * Kiểm tra quyền như xem session: member chỉ session của mình, leader mọi session.
-   * Đụng tới session của người khác ghi audit với `action` đã cho.
+   * Đụng tới session của người khác ghi audit với `action` đã cho (`null` = chỉ kiểm quyền, không ghi).
    */
   private async loadSession(
     viewer: AuthUser,
     sessionId: string,
-    action: 'session.view' | 'session.ai',
+    action: 'session.ai' | null,
   ): Promise<SessionRow> {
     if (!isUuid(sessionId)) throw sessionNotFound();
     const [row] = await this.db
@@ -215,7 +216,7 @@ export class SessionsAiService {
       .limit(1);
     if (!row) throw sessionNotFound();
     if (!this.access.canViewUserData(viewer, row.userId)) throw forbidden();
-    if (viewer.id !== row.userId)
+    if (action && viewer.id !== row.userId)
       await this.audit.record(viewer.id, action, 'session', row.id);
     return row;
   }

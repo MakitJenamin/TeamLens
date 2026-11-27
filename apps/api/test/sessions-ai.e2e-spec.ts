@@ -275,6 +275,12 @@ describe('Session AI (e2e, adapter giả)', () => {
       .get(`/api/v1/sessions/${session1}/ai?locale=vi`)
       .expect(200);
     expect(theirs.body.summary.result.title).toBe('Bản của leader');
+    // GET .../ai chỉ kiểm quyền, không ghi audit (trang đã gọi GET /sessions/:id).
+    const audits = await querySql<{ action: string }>(
+      `SELECT action FROM audit_log WHERE target_id = $1 AND action IN ('session.view', 'session.ai')`,
+      [session1],
+    );
+    expect(audits).toEqual([{ action: 'session.ai' }]);
     const en = await m1
       .get(`/api/v1/sessions/${session1}/ai?locale=en`)
       .expect(200);
