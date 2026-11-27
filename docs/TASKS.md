@@ -3,12 +3,12 @@
 Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB tới web** (kiểu *stream-aligned team* trong Team Topologies) và giữ vùng đó suốt dự án. Các nguyên tắc đi kèm:
 
 - **Mốc 1 chạy hết luồng trước, các mốc sau nâng cấp từng khúc.** Giống làm đường: mở con đường đất nối hai đầu trước (session thật đi từ máy lên dashboard, mỗi khúc ở mức tối thiểu), rồi mới trải nhựa từng đoạn. Lỗi ghép nối lộ ra ngay tuần đầu.
-- **Contract trước:** task ghi "PR contract" thì merge trước để người kia code theo.
-- **Mỗi mốc kết thúc bằng demo chung** trên máy thật. Mỗi người cập nhật phần mình trong [FLOW.md](FLOW.md) và giải thích cho người kia.
+- **Contract trước:** task ghi "PR contract" thì merge trước để những người khác code theo.
+- **Mỗi mốc kết thúc bằng demo chung** trên máy thật. Mỗi người cập nhật phần mình trong [FLOW.md](FLOW.md) và giải thích cho những người còn lại.
 - **Mỗi người tự test được phần mình** nhờ dữ liệu seed, server local (`pnpm dev`), `tl join http://localhost:3000/i/seed-invite-teamlens` (link mời có sẵn trong seed) và file mẫu `packages/schema/examples/`. Mỗi ô có dòng "Tự test" ghi cách làm.
 - **Mỗi task là một nhánh** `feat/<mã>-<tên-ngắn>` (ví dụ `feat/m1.3-claude-adapter`) và một PR; CI phải xanh cả `validate` và `rust-windows` mới merge.
 
-## Trạng thái (cập nhật 2026-11-27)
+## Trạng thái (cập nhật 2026-11-28)
 
 | Mốc | Trạng thái | Ghi chú |
 | --- | --- | --- |
@@ -19,16 +19,19 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
 | Mốc 4 · Báo cáo và minh bạch | 🚧 đang làm | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 còn M4.3–M4.6 |
 | Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87, tag `v0.2.0`). Người 2 còn M5.4–M5.6 |
+| Mốc 6 · Tính năng AI và MCP | 📋 đã chốt plan, chưa bắt đầu | Làm song song, không chờ nghiệm thu MVP. Thêm Người 3. Thiết kế: [AI_PLAN.md](AI_PLAN.md) |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
 1. Người 1: hết việc Mốc 4 và Mốc 5. Đã phát hành `tl` 0.2.0 (GitHub Release `v0.2.0`). Còn lại: nghiệm thu chung (SPEC 12.3).
-2. Người 2: hết việc Mốc 2 và Mốc 3. Làm **M4.3** (leaderboard, đọc `user_weekly_stats` của M2.8) → **M4.4** → **M4.5** → **M4.6**, rồi Mốc 5 (M5.5, M5.6, M5.4). Nhắc: #70 đã merge nên **mọi thiết bị phải chạy `tl consent` một lần** (phiên bản văn bản đồng ý `2026-11-27.3`).
+2. Người 2: hết việc Mốc 2 và Mốc 3. Làm **M4.3** (leaderboard, đọc `user_weekly_stats` của M2.8) → **M4.4** → **M4.5** → **M4.6**, rồi Mốc 5 (M5.5, M5.6, M5.4). M4.6 bỏ phần "LLM provider" (AI giờ là BYO theo từng người, xem Mốc 6). Sau đó làm phần Mốc 6 của mình (M6.7 → M6.8 → M6.9 → M6.10). Nhắc: #70 đã merge nên **mọi thiết bị phải chạy `tl consent` một lần** (phiên bản văn bản đồng ý `2026-11-27.3`).
+3. Người 1: mở Mốc 6 bằng **M6.0** (contract + một migration cho mọi bảng AI) và **M6.1** (tuần đầu merge interface `LlmService` + adapter giả) để Người 2, 3 code theo.
+4. Người 3: bắt đầu **M6.3** (khung MCP) và **M6.11** (gom cụm prompt, không cần LLM) song song với M6.0/M6.1.
 
-## Hai người, hai nhóm tính năng
+## Ba người, ba nhóm tính năng
 
-| | **Người 1 · Session của tôi lên dashboard** | **Người 2 · Giá trị cho leader** |
-| --- | --- | --- |
-| Tính năng | Thu thập (adapter, lọc phạm vi, che secret, hàng đợi, daemon, heartbeat) · Xem session (danh sách, chi tiết, diff, session con, ghi chú, tìm kiếm, trạng thái thiết bị) · Phân phối CLI (release, `install.ps1`, self-update) | Quản trị và onboarding (project, thành viên, invite, `tl join`, đồng ý, Task Scheduler, trang "Của tôi", audit) · Chấm điểm (rule engine, worker, điểm, quản lý rule) · Báo cáo (tổng quan, hồ sơ, leaderboard) · Vận hành server (compose production, retention, xóa dữ liệu) |
+| | **Người 1 · Session của tôi lên dashboard** | **Người 2 · Giá trị cho leader** | **Người 3 · MCP + tri thức team** (từ Mốc 6) |
+| --- | --- | --- | --- |
+| Tính năng | Thu thập (adapter, lọc phạm vi, che secret, hàng đợi, daemon, heartbeat) · Xem session (danh sách, chi tiết, diff, session con, ghi chú, tìm kiếm, trạng thái thiết bị) · Phân phối CLI (release, `install.ps1`, self-update) · **Mốc 6:** lõi AI (`llm`, key BYO, token `tlp_`, trang Cài đặt AI), AI trên trang session | Quản trị và onboarding (project, thành viên, invite, `tl join`, đồng ý, Task Scheduler, trang "Của tôi", audit) · Chấm điểm (rule engine, worker, điểm, quản lý rule) · Báo cáo (tổng quan, hồ sơ, leaderboard) · Vận hành server (compose production, retention, xóa dữ liệu) · **Mốc 6:** phân loại việc (heuristic), báo cáo tuần bằng AI, đề xuất file hướng dẫn | MCP (`/api/v1/mcp`, `tl mcp`, tool đọc và ghi) · Skill Finder · Thư viện prompt |
 
 Vùng file chi tiết của từng người nằm ở [AGENTS.md](../AGENTS.md) mục 3.
 
@@ -40,7 +43,7 @@ Monorepo, contract, API (auth, project, quyền, audit, device login), web (logi
 
 ## Cách đọc bảng
 
-Mỗi mốc là một bảng hai cột: **Người 1 và Người 2 làm song song**, mỗi người đi từ trên xuống trong cột của mình. Các ô cùng hàng chỉ để so tiến độ, không bắt buộc xong cùng lúc. Ô trống nghĩa là người đó đã hết việc của mốc này và **được làm trước task mốc sau trong vùng của mình**. Task có 📜 là PR contract, merge sớm để người kia code theo.
+Mỗi mốc là một bảng nhiều cột (hai cột tới Mốc 5, ba cột từ Mốc 6): **mọi người làm song song**, mỗi người đi từ trên xuống trong cột của mình. Các ô cùng hàng chỉ để so tiến độ, không bắt buộc xong cùng lúc. Ô trống nghĩa là người đó đã hết việc của mốc này và **được làm trước task mốc sau trong vùng của mình**. Task có 📜 là PR contract, merge sớm để người khác code theo.
 
 ---
 
@@ -116,7 +119,7 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 | 1 | ✅ **M4.1** Full-text search session (`tsvector`): `?q=` cú pháp web search, đoạn trích và link tới turn khớp (#77, #78)<br>**Tự test:** tìm theo nội dung prompt | **M4.3** Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
 | 2 | ✅ **M4.2** (#76, #79) Trang thành viên (`members/`, chỉ leader): danh sách kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý), người mới tham gia gần đây, thu hồi thiết bị, nút "Gộp vào…" (dùng lại `admin/merge-user.tsx`)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | **M4.4** Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
 | 3 | _Làm trước M5.1, M5.2_ | **M4.5** Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình; member vào bằng `tl open`) + trang audit cho leader<br>**Tự test:** leader đăng nhập bằng mật khẩu, member vào bằng `tl open` |
-| 4 | | **M4.6** Cài đặt server trong trang quản trị: pattern redaction riêng, retention, văn bản đồng ý (sửa thì tăng phiên bản, chuyển nguồn từ `consent-text.ts` sang bảng `settings`), LLM provider (chỉ lưu, chấm bằng LLM ở phase 2)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về; sửa văn bản đồng ý → CLI ngừng gửi tới khi đồng ý lại |
+| 4 | | **M4.6** Cài đặt server trong trang quản trị: pattern redaction riêng, retention, văn bản đồng ý (sửa thì tăng phiên bản, chuyển nguồn từ `consent-text.ts` sang bảng `settings`), ~~LLM provider~~ (bỏ: AI là BYO theo từng người, key nằm ở trang "Cài đặt AI" của Mốc 6)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về; sửa văn bản đồng ý → CLI ngừng gửi tới khi đồng ý lại |
 
 **Demo chung:** leader xem tổng quan, hồ sơ, leaderboard, tìm kiếm; member chỉ thấy dữ liệu của mình.
 
@@ -128,6 +131,24 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 | --- | --- | --- |
 | 1 | ✅ **M5.1** (#81) Workflow GitHub Release build `tl.exe` + SHA-256<br>**Tự test:** chạy tay không tag (chỉ build artifact), rồi tag `v0.2.0` tạo release thật | **M5.4** `deploy/docker-compose.yml` production (api, web, postgres, caddy) + `Caddyfile` + Dockerfile + hướng dẫn cài. Chỉ mở cổng Caddy ra ngoài: web/API sau proxy tin `X-Forwarded-For` cho giới hạn tần suất của link mời, mở thẳng cổng web thì người ngoài giả được header này<br>**Tự test:** cài trên máy ảo sạch dưới 15 phút |
 | 2 | ✅ **M5.2** (#83, #85) `GET /install.ps1` + script: tải, kiểm SHA-256, đặt vào `%LOCALAPPDATA%\teamlens\bin`, thêm PATH, chạy `tl join`. **Endpoint đã gỡ sau đó**: script cài chung là asset `install.ps1`/`install.cmd` của GitHub Releases (nguồn `deploy/`), chỉ cài `tl`, tham gia bằng `tl join <link>` riêng<br>**Tự test:** cài trên máy Windows khác | **M5.5** Job retention hằng đêm (drop partition `turns`, tạo partition mới)<br>**Tự test:** chạy với retention 1 ngày |
-| 3 | ✅ **M5.3** (#82, #84) `tl update` và daemon tự cập nhật từ GitHub Releases khi server trả `426`, đòi bản mới, hoặc mỗi 24 giờ<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Leader xóa toàn bộ dữ liệu của một người (spec 6.4)<br>**Tự test:** xóa member2 rồi kiểm tra DB |
+| 3 | ✅ **M5.3** (#82, #84) `tl update` và daemon tự cập nhật từ GitHub Releases khi server trả `426`, đòi bản mới, hoặc mỗi 24 giờ<br>**Tự test:** hạ phiên bản rồi chạy | **M5.6** Leader xóa toàn bộ dữ liệu của một người (spec 6.4); nếu Mốc 6 đã có bảng AI thì xóa cả `ai_results`, `user_llm_keys`, `agent_tokens`, mục `prompt_library` liên quan<br>**Tự test:** xóa member2 rồi kiểm tra DB |
 
 **Nghiệm thu chung:** chạy đủ tiêu chí mục 12.3 của [SPEC.md](SPEC.md) (cài server < 15 phút, ngắt mạng 24 giờ, RAM daemon < 30 MB với > 1.000 session, 30 loại secret, session ngoài phạm vi không rời máy).
+
+---
+
+## Mốc 6 · Tính năng AI và MCP
+
+Thiết kế, nguyên tắc và bảng tool MCP: [AI_PLAN.md](AI_PLAN.md). Làm song song với phần còn lại của Mốc 4, 5. Mỗi người một cục lớn, không sửa code của nhau; điểm chạm duy nhất là `LlmService` (Người 1) và các service mà tool MCP import.
+
+| Bước | Người 1 · Lõi AI + AI trên session | Người 2 · Báo cáo AI + rule | Người 3 · MCP + tri thức team |
+| --- | --- | --- | --- |
+| 1 | **M6.0** 📜 PR contract (`ai.yaml`, `agent-tokens.yaml`, khung `mcp.yaml`, `skills.yaml`, `prompt-library.yaml`, `packages/schema/mcp/`) + PR migration **mọi** bảng AI (`user_llm_keys`, `ai_results`, `agent_tokens`, `prompt_library`, `skill_catalog_sources`, `sessions.work_type`), xóa bảng `llm_reviews` chưa dùng, sửa `user-merge.service.ts` cho bảng mới<br>**Tự test:** `pnpm --filter @teamlens/schema build`, `db:migrate` trên DB sạch | Làm nốt M4.3–M4.6, M5.4–M5.6 | **M6.3** Khung MCP: `/api/v1/mcp` (Streamable HTTP), guard nhận `tld_`/`tlp_`, cửa ra che secret, audit<br>**Tự test:** MCP Inspector gọi `whoami` bằng device token của seed |
+| 2 | **M6.1** Module `llm`: tuần đầu merge interface `LlmService` + adapter giả; sau đó adapter Anthropic + OpenAI-compatible, JSON schema, timeout, phân loại lỗi, câu chặn injection, ghi/ghi đè `ai_results`, mã hóa key<br>**Tự test:** unit test với adapter giả; gọi thật bằng Ollama local | **M6.7** B4 phân loại việc bằng heuristic trong rule worker, lọc theo loại việc, thống kê ở Tổng quan<br>**Tự test:** seed chấm điểm có đủ loại việc | **M6.4** `tl mcp`: cầu nối stdio ↔ `/api/v1/mcp` bằng device token; tài liệu cài cho Claude Code, Codex<br>**Tự test:** `claude mcp add teamlens -- tl mcp` rồi hỏi "tuần này tôi bị finding gì" |
+| 3 | **M6.2** Trang "Cài đặt AI" `(dashboard)/settings/ai`: API key của tôi (nhập, kiểm tra, xóa) + token cho agent `tlp_` (tạo, liệt kê, thu hồi); link sidebar (PR vùng nền nhỏ)<br>**Tự test:** leader và member (qua `tl open`) cùng thêm key | **M6.8** B1 báo cáo tuần theo người (trang hồ sơ thành viên)<br>**Tự test:** leader xem của member, member xem của mình, kết quả của người này người khác không thấy | **M6.15** Tool MCP đọc (import service sẵn có, không sửa module khác)<br>**Tự test:** member chỉ thấy dữ liệu của mình, leader thấy tất cả, có audit |
+| 4 | **M6.5** A1 tóm tắt + A5 đánh giá kết quả trên trang session<br>**Tự test:** bấm lại thì ghi đè; người khác mở cùng session không thấy kết quả | **M6.9** B2 báo cáo tuần của team (Tổng quan, chỉ leader)<br>**Tự test:** seed chấm điểm nhiều tuần | **M6.16** Tool MCP ghi cho leader (`draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_note`) + MCP prompts<br>**Tự test:** tắt rule qua MCP → audit có giá trị cũ/mới, điểm được tính lại |
+| 5 | **M6.6** A4 giải thích finding<br>**Tự test:** finding của rule `repeated-correction` trong seed | **M6.10** C3 đề xuất bổ sung CLAUDE.md/AGENTS.md từ finding lặp lại của project<br>**Tự test:** seed có nhiều session không chạy test | **M6.11** S0 gom cụm prompt (hỗ trợ tiếng Việt) + trang Skill Finder<br>**Tự test:** prompt tiếng Việt có dấu gom đúng cụm |
+| 6 | | | **M6.12** S1 triage + S2 sinh `SKILL.md` → **M6.13** S3 catalog nhiều nguồn cấu hình được → **M6.14** C2 thư viện prompt (tìm ứng viên, duyệt, trang cho member)<br>**Tự test:** leader duyệt một prompt có ẩn tên, member thấy mà không thấy tên |
+
+**Điểm chạm:** `LlmService` (Người 1) được Người 2, 3 dùng; tool MCP (Người 3) import service của `sessions`, `stats`, `rules`, `projects`; tool bật/tắt rule gọi service của `rules` (Người 2). Link sidebar, đăng ký module trong `app.module.ts`, lệnh `mcp` trong bộ phân tích lệnh của CLI là vùng nền: PR nhỏ, merge sớm.
+**Nghiệm thu chung (M6.17):** nút AI chạy với key Anthropic và với Ollama; MCP chạy với Claude Code và Codex, đăng nhập bằng member (`tl mcp`) và leader (token `tlp_`); kết quả AI của người này người khác không thấy.

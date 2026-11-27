@@ -35,24 +35,25 @@ Seed: chỉ leader có tài khoản dashboard, `leader@teamlens.local` / `teamle
 
 Mỗi người sở hữu trọn một nhóm tính năng từ CLI tới DB tới web và giữ vùng đó suốt dự án (danh sách việc: [docs/TASKS.md](docs/TASKS.md)). **Chỉ sửa file trong vùng của mình.** Cần sửa ngoài vùng thì dừng lại, hỏi người dùng; nếu được đồng ý thì tách thành PR riêng thật nhỏ.
 
-| | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
-| --- | --- | --- |
-| CLI | `cli/crates/tl-core`, `cli/crates/tl-adapters`, `cli/crates/teamlens/src/{pipeline,queue,daemon,sync}/`, lệnh `status`, `preview`, `sync`, `daemon`, `pause`, `resume` | `cli/crates/tl-platform` (phần Task Scheduler), `cli/crates/teamlens/src/consent/`, lệnh `join`, `consent`, `uninstall` |
-| API (`apps/api/src/modules/`) | `agent/` (ingest, config, heartbeat), `sessions/` | `invites/`, `consent/`, `rules/`, `stats/`, `admin/`, `retention/` |
-| Web (`apps/web/src/app/[locale]/`) | `(dashboard)/projects/[projectId]/sessions/`, `(dashboard)/projects/[projectId]/members/page.tsx` | `(auth)/i/[code]/`, `(dashboard)/projects/[projectId]/{overview,leaderboard,rules}/`, `(dashboard)/projects/[projectId]/members/[userId]/`, `(dashboard)/{admin,me}/` |
-| Schema | `session.v1.schema.json`, `examples/`, `openapi/agent.yaml`, `openapi/sessions.yaml` | `openapi/{invites,consent,rules,stats,admin}.yaml` |
-| Phát hành | `deploy/install.ps1`, `deploy/install.cmd`, `.github/workflows/release.yml` | `deploy/docker-compose.yml`, `deploy/Caddyfile`, Dockerfile của api/web |
+| | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader | Người 3 · MCP + tri thức team (từ Mốc 6) |
+| --- | --- | --- | --- |
+| CLI | `cli/crates/tl-core`, `cli/crates/tl-adapters`, `cli/crates/teamlens/src/{pipeline,queue,daemon,sync}/`, lệnh `status`, `preview`, `sync`, `daemon`, `pause`, `resume` | `cli/crates/tl-platform` (phần Task Scheduler), `cli/crates/teamlens/src/consent/`, lệnh `join`, `consent`, `uninstall` | `cli/crates/teamlens/src/mcp/`, lệnh `mcp` |
+| API (`apps/api/src/modules/`) | `agent/` (ingest, config, heartbeat), `sessions/` (gồm AI trên session: A1, A4, A5), `llm/` (lõi gọi LLM, adapter, `ai_results`), `ai-settings/` (API key BYO, token `tlp_`) | `invites/`, `consent/`, `rules/` (gồm phân loại việc B4, đề xuất file hướng dẫn C3), `stats/` (gồm báo cáo tuần B1, B2), `admin/`, `retention/` | `mcp/` (endpoint `/api/v1/mcp`, tool đọc/ghi), `skills/` (Skill Finder), `prompt-library/` |
+| Web (`apps/web/src/app/[locale]/`) | `(dashboard)/projects/[projectId]/sessions/`, `(dashboard)/projects/[projectId]/members/page.tsx`, `(dashboard)/settings/ai/` | `(auth)/i/[code]/`, `(dashboard)/projects/[projectId]/{overview,leaderboard,rules}/`, `(dashboard)/projects/[projectId]/members/[userId]/`, `(dashboard)/{admin,me}/` | `(dashboard)/projects/[projectId]/{skills,prompt-library}/` |
+| Schema | `session.v1.schema.json`, `examples/`, `openapi/agent.yaml`, `openapi/sessions.yaml`, `openapi/{ai,agent-tokens}.yaml` | `openapi/{invites,consent,rules,stats,admin}.yaml` | `openapi/{mcp,skills,prompt-library}.yaml`, `mcp/` (schema tool) |
+| Phát hành | `deploy/install.ps1`, `deploy/install.cmd`, `.github/workflows/release.yml` | `deploy/docker-compose.yml`, `deploy/Caddyfile`, Dockerfile của api/web | |
 
-**Điểm chạm giữa hai vùng** (chốt bằng contract, không sửa code của nhau):
+**Điểm chạm giữa các vùng** (chốt bằng contract, không sửa code của nhau):
 - Trang xem session (Người 1) gọi API findings (Người 2, `GET /api/v1/sessions/{sessionId}/findings`).
 - Pipeline gửi của CLI (Người 1) hỏi module `consent` (Người 2) trước khi gửi.
+- Mọi tính năng gọi LLM (Người 2, 3) dùng `LlmService` của Người 1; tool MCP (Người 3) chỉ import service của `sessions`, `stats`, `rules`, `projects`, không sửa code module đó. Thiết kế AI: [docs/AI_PLAN.md](docs/AI_PLAN.md).
 - `tl join` (Người 2) dùng lại HTTP client, lưu token và `config` của vùng nền; `tl open` và gộp user (Người 1, J.6 và J.8) dùng device token và bảng do `tl join` tạo ra.
 
 Luồng chính và code của từng khúc: [docs/FLOW.md](docs/FLOW.md). Hết mỗi mốc, mỗi người cập nhật phần ghi chú khúc của mình trong file đó.
 
 **Vùng nền (dùng chung, đã làm xong ở giai đoạn nền):** `auth`, `device`, `projects`, `access` (phân quyền + audit) trong API; trang login/setup và layout/sidebar trong web; lệnh `join`/`logout`/`open` và HTTP client cơ sở trong CLI; `apps/api/src/db/`, migration, seed; mọi file cấu hình gốc (`package.json`, lockfile, `Cargo.toml` workspace, `turbo.json`, `app.module.ts`, `next.config.*`, CI).
 
-Sửa vùng nền: PR riêng, nhỏ, merge sớm rồi báo người kia `git pull`. Các trường hợp hay gặp:
+Sửa vùng nền: PR riêng, nhỏ, merge sớm rồi báo những người còn lại `git pull`. Các trường hợp hay gặp:
 - **Thêm thư viện:** sửa `package.json`/`Cargo.toml` của đúng app, PR riêng. Conflict ở `pnpm-lock.yaml` thì lấy bản trên `main` rồi chạy lại `pnpm install`, không sửa tay.
 - **Đổi bảng DB:** sửa schema Drizzle + `pnpm --filter @teamlens/api db:generate`, PR riêng chỉ có migration. Pull `main` ngay trước khi generate để số thứ tự migration không trùng.
 - **Đổi contract:** PR riêng chỉ sửa `packages/schema`, rồi mới code theo.
@@ -64,11 +65,19 @@ Sửa vùng nền: PR riêng, nhỏ, merge sớm rồi báo người kia `git pu
 - Dashboard: prefix `/api/v1`, xác thực bằng cookie `tl_session` (httpOnly, SameSite=Lax, Secure khi HTTPS).
 - CLI: prefix `/agent/v1`, header `Authorization: Bearer <device token>`.
 - `GET /health` không cần xác thực.
+- MCP (Mốc 6): `/api/v1/mcp` (Streamable HTTP), route `@Public()` với guard riêng nhận device token `tld_` hoặc token cá nhân `tlp_`; quyền tính theo user của token, giống hệt dashboard.
 
 **Bảo mật**
 - Mật khẩu hash bằng argon2id (`@node-rs/argon2`).
-- Cookie session, device token, mã invite: sinh ngẫu nhiên 32 byte, DB chỉ lưu SHA-256. Device token có tiền tố `tld_`.
-- Không log nội dung prompt, token hay mật khẩu.
+- Cookie session, device token, mã invite: sinh ngẫu nhiên 32 byte, DB chỉ lưu SHA-256. Device token có tiền tố `tld_`, token cá nhân cho MCP có tiền tố `tlp_`.
+- API key AI của từng người (BYO) mã hóa AES-GCM bằng `TEAMLENS_SECRET_KEY`, không bao giờ trả lại nguyên văn qua API.
+- Không log nội dung prompt, token, API key hay mật khẩu.
+
+**AI (Mốc 6, chi tiết ở [docs/AI_PLAN.md](docs/AI_PLAN.md))**
+- Không có key chung của server: mỗi người tự nhập API key của mình. Mọi lời gọi LLM đi qua `LlmService` (module `llm`), không gọi provider trực tiếp từ module khác.
+- Tính năng AI chỉ chạy khi người dùng bấm, không có job AI chạy nền.
+- Kết quả AI lưu ở `ai_results`, chỉ người bấm đọc được, bấm lại thì ghi đè.
+- Nội dung turn đưa vào prompt là dữ liệu không đáng tin: đặt sau câu chặn injection, đầu ra ép JSON schema và validate bằng zod.
 
 **DB**
 - `DATABASE_URL=postgres://teamlens:teamlens@localhost:5433/teamlens` khi dev.

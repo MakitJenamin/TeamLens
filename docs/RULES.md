@@ -21,11 +21,11 @@ Chỉ tính **prompt do người gõ**: `role = user`, `kind = prompt`, session 
 **Áp dụng ở MVP** (17 rule gốc, gộp với rule của spec thành 24 rule ở mục 3):
 `lazy-prompting`, `no-spec-structure`, `no-spec-driven-development`, `low-constraint-usage`, `no-file-context`, `no-custom-instructions` + `context-engineering-gaps` (gộp), `instruction-bloat`, `repeated-prompts`, `runaway-agent-loops`, `mega-sessions`, `high-cancellation`, `premium-waste` + `premium-for-lookup-questions` (gộp), `copy-paste-blindness`, `speed-accept`, `vibe-coding`, `yolo-mode`, `auto-approve-terminal` (gộp vào `yolo-mode`).
 
-**Phase 2** (cần thêm dữ liệu hoặc phân loại bằng LLM):
+**Phase 2** (cần thêm dữ liệu hoặc phân loại loại việc):
 
 | Rule gốc | Lý do để sau |
 | --- | --- |
-| `session-drift` | Cần phân loại "loại việc" của từng prompt; làm bằng từ khóa dễ sai, nên chờ chấm bằng LLM |
+| `session-drift` | Cần phân loại "loại việc" của từng prompt. Mốc 6 làm phân loại việc bằng heuristic (B4, [AI_PLAN.md](AI_PLAN.md)), không dùng LLM vì tính năng AI chỉ chạy khi bấm và kết quả là riêng của người bấm; heuristic đủ tốt thì làm rule này trên nhãn đó |
 | `no-plan-mode` | Claude Code ghi được (tool `ExitPlanMode`, `permissionMode: plan`), Codex chưa rõ; chờ có log thật |
 | `low-markdown-ratio` | Viết spec/plan không phải lúc nào cũng cần; cần dữ liệu thật để đặt ngưỡng |
 | `mcp-tool-bloat` | Ít gặp ở team nhỏ |
