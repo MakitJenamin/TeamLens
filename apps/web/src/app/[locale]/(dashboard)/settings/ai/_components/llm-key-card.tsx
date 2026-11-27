@@ -142,18 +142,10 @@ function LlmKeyForm({ saved }: { saved: LlmKey | null }) {
     });
   }
 
-  const apiKeyHint = saved
-    ? saved.keyHint
-      ? t("apiKeySaved", { hint: saved.keyHint })
-      : t("apiKeySavedNoHint")
-    : isCompatible
-      ? t("apiKeyOptional")
-      : null;
+  const apiKeyHint = saved ? t("apiKeySaved") : isCompatible ? t("apiKeyOptional") : null;
 
   return (
     <form onSubmit={onSave} className="space-y-4">
-      {!saved && <p className="text-sm text-muted-foreground">{t("notSaved")}</p>}
-
       <fieldset disabled={busy} className="space-y-4">
         <fieldset className="grid gap-2">
           <legend className="mb-2 text-sm font-medium">{t("provider")}</legend>
@@ -179,7 +171,9 @@ function LlmKeyForm({ saved }: { saved: LlmKey | null }) {
                 />
                 <span className="grid content-start gap-0.5">
                   <span className="font-medium">{t(`providers.${value}`)}</span>
-                  <span className="text-muted-foreground">{t(`providerHint.${value}`)}</span>
+                  {t.has(`providerHint.${value}`) && (
+                    <span className="text-muted-foreground">{t(`providerHint.${value}`)}</span>
+                  )}
                 </span>
               </label>
             ))}
@@ -203,7 +197,6 @@ function LlmKeyForm({ saved }: { saved: LlmKey | null }) {
                 <option key={url} value={url} />
               ))}
             </datalist>
-            <span className="text-xs font-normal text-muted-foreground">{t("baseUrlHint")}</span>
           </label>
         )}
 

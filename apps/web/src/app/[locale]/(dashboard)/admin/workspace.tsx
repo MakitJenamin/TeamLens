@@ -300,7 +300,6 @@ function ProjectSettings({
             </label>
           </ActionForm>
         )}
-        {members.length === 0 && <p className="text-sm text-muted-foreground">{t("noMembers")}</p>}
         <ul>
           {members.map((m) => (
             <li className={row} key={m.userId}>
@@ -333,9 +332,6 @@ function ProjectSettings({
         >
           <Field label={t("pattern")} name="pattern" placeholder="github.com/acme/*" />
         </ActionForm>
-        {project.repos.length === 0 && (
-          <p className="text-sm text-muted-foreground">{t("noRepos")}</p>
-        )}
         <ul>
           {project.repos.map((repo) => (
             <li key={repo.id} className={row}>

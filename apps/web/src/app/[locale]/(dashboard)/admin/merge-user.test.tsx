@@ -47,7 +47,7 @@ describe("MergeUser", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ intoUserId: "m1" });
     await vi.waitFor(() =>
-      expect(success).toHaveBeenCalledWith("Đã gộp vào An: 1 thiết bị, 3 session, 1 project mới."),
+      expect(success).toHaveBeenCalledWith("Đã gộp vào An."),
     );
     expect(refresh).toHaveBeenCalled();
   });

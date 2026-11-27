@@ -111,7 +111,7 @@ describe("SessionDetailView", () => {
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText(/FAIL đầu/)).toBeInTheDocument();
-    expect(screen.getByText(/bản gốc 9.000 byte/)).toBeInTheDocument();
+    expect(screen.getByText(/Bản gốc 9.000 byte/)).toBeInTheDocument();
     expect(screen.getByText("Lỗi")).toBeInTheDocument();
   });
 
@@ -144,7 +144,7 @@ describe("SessionDetailView", () => {
     const diff = screen.getByTestId("diff");
     expect(diff.querySelector(".diff-code-insert")).toBeNull();
     expect(diff).toHaveTextContent("+3000");
-    expect(diff).toHaveTextContent("3001 dòng, bấm để xem");
+    expect(diff).toHaveTextContent("3001 dòng");
     await userEvent.click(screen.getByRole("button", { name: /big\.ts/ }));
     expect(diff.querySelectorAll(".diff-code-insert")).toHaveLength(3000);
   });
