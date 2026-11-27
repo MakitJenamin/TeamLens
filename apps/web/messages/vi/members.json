@@ -18,7 +18,7 @@
   "joinedOn": "Tham gia {date}",
   "lastSession": "Session gần nhất {date}",
   "noSession": "Chưa có session",
-  "deviceCount": "{active}/{total} thiết bị đang hoạt động",
+  "deviceCount": "{active}/{total} thiết bị chưa thu hồi",
   "devices": "Thiết bị",
   "noDevices": "Chưa có thiết bị nào.",
   "lastSeen": "kết nối lần cuối {date}",

@@ -18,7 +18,7 @@
   "joinedOn": "Joined {date}",
   "lastSession": "Last session {date}",
   "noSession": "No sessions yet",
-  "deviceCount": "{active}/{total} devices active",
+  "deviceCount": "{active}/{total} devices not revoked",
   "devices": "Devices",
   "noDevices": "No devices yet.",
   "lastSeen": "last seen {date}",
