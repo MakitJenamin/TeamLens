@@ -30,6 +30,7 @@ export type PermissionMode = Schemas['PermissionMode'];
 export type TokenUsage = Schemas['TokenUsage'];
 export type SessionSummary = Schemas['SessionSummary'];
 export type SessionPage = Schemas['SessionPage'];
+export type SessionSearchMatch = Schemas['SessionSearchMatch'];
 export type SessionDetail = Schemas['SessionDetail'];
 export type SessionTurn = Schemas['SessionTurn'];
 export type SessionChild = Schemas['SessionChild'];
