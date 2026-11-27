@@ -1,4 +1,4 @@
-# M1.9: đọc findings của session. Quản lý rule theo project thuộc M4.4.
+# M1.9: đọc findings của session. M2.8: chạy lại rule cho project. Quản lý rule theo project thuộc M4.4.
 paths:
   /api/v1/sessions/{sessionId}/findings:
     parameters:
@@ -31,6 +31,37 @@ paths:
                 empty:
                   value:
                     items: []
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/rules/rerun:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    post:
+      operationId: rerunProjectRules
+      tags: [rules]
+      summary: Chấm lại mọi session của project bằng rule hiện hành
+      description: |
+        Chỉ leader. Server nhận lệnh rồi chấm lại ở nền (pg-boss), nên trả `202` ngay mà không đợi chấm xong.
+        Mỗi session gốc còn đủ turn được chấm lại: finding, điểm 5 nhóm và `user_weekly_stats` của các tuần liên quan
+        được tính lại. Session con không có điểm. Session đã bị retention xóa turn giữ nguyên điểm cũ.
+        Gọi nhiều lần liên tiếp chỉ làm việc chấm lại lặp lại, không tạo bản ghi trùng.
+        Ghi audit `rules.rerun`.
+      security:
+        - cookieAuth: []
+      responses:
+        '202':
+          description: Đã nhận lệnh, việc chấm lại đang chạy ở nền.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleRerunAccepted'
+              example:
+                status: queued
         '401':
           $ref: './common.yaml#/components/responses/Unauthenticated'
         '403':
@@ -73,3 +104,11 @@ components:
           type: [string, 'null']
           minLength: 1
           description: Đoạn trích ngắn đã che secret nếu có bằng chứng văn bản còn được lưu.
+    RuleRerunAccepted:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [queued]
+          description: Lệnh chấm lại đã được xếp hàng.

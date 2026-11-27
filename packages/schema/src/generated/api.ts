@@ -647,6 +647,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/rules/rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chấm lại mọi session của project bằng rule hiện hành
+         * @description Chỉ leader. Server nhận lệnh rồi chấm lại ở nền (pg-boss), nên trả `202` ngay mà không đợi chấm xong.
+         *     Mỗi session gốc còn đủ turn được chấm lại: finding, điểm 5 nhóm và `user_weekly_stats` của các tuần liên quan
+         *     được tính lại. Session con không có điểm. Session đã bị retention xóa turn giữ nguyên điểm cũ.
+         *     Gọi nhiều lần liên tiếp chỉ làm việc chấm lại lặp lại, không tạo bản ghi trùng.
+         *     Ghi audit `rules.rerun`.
+         */
+        post: operations["rerunProjectRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/invites": {
         parameters: {
             query?: never;
@@ -1133,6 +1159,13 @@ export interface components {
         };
         SessionFindings: {
             items: components["schemas"]["SessionFinding"][];
+        };
+        RuleRerunAccepted: {
+            /**
+             * @description Lệnh chấm lại đã được xếp hàng.
+             * @enum {string}
+             */
+            status: "queued";
         };
         /**
          * @description Agent sinh ra session.
@@ -2912,6 +2945,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionFindings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    rerunProjectRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã nhận lệnh, việc chấm lại đang chạy ở nền. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "queued"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["RuleRerunAccepted"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
