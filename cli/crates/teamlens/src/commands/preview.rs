@@ -32,7 +32,7 @@ use crate::sync::{connect, Sources};
 
 #[derive(Debug, Args)]
 pub struct PreviewArgs {
-    /// Session cần xem (source_id hoặc đường dẫn file log .jsonl); bỏ trống để chọn session gần nhất trong phạm vi
+    /// source_id hoặc đường dẫn file .jsonl. Bỏ trống để xem session gần nhất
     pub session: Option<String>,
 }
 
@@ -57,10 +57,7 @@ pub async fn run_with(
         agent_config::check_send(&ctx.load_config()?, server_config, crate::CLI_VERSION)
     {
         let e = block.to_error();
-        let _ = writeln!(
-            note,
-            "Lưu ý: {e} `tl sync` sẽ không gửi cho tới khi xử lý xong."
-        );
+        let _ = writeln!(note, "Lưu ý: {e}");
     }
     let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
     let (redactor, warnings) = build_redactor(&prepare.server_redaction_patterns);
@@ -82,7 +79,7 @@ pub async fn run_with(
             let Some((adapter, file)) = find_file(&adapters, arg) else {
                 return Err(AppError::user(
                     format!("Không tìm thấy session hoặc file log \"{arg}\"."),
-                    "Truyền đường dẫn file .jsonl, hoặc source_id dạng claude_code:<uuid> / codex:<uuid>; bỏ trống để xem session gần nhất.",
+                    "Truyền đường dẫn file .jsonl hoặc source_id, ví dụ `claude_code:<uuid>`.",
                 ));
             };
             pipeline.process_file(adapter, &file)
@@ -111,10 +108,7 @@ pub async fn run_with(
         sessions.retain(|p| !p.envelope.turns.is_empty());
     }
     if dropped_paused > 0 {
-        let _ = writeln!(
-            note,
-            "Đã bỏ {dropped_paused} turn phát sinh trong lúc tạm dừng (`tl pause`): không bao giờ gửi."
-        );
+        let _ = writeln!(note, "Bỏ {dropped_paused} turn trong lúc tạm dừng.");
     }
 
     if sessions.is_empty() {
@@ -122,18 +116,14 @@ pub async fn run_with(
             (Some(_), n) if n > 0 => {
                 let _ = writeln!(
                     out,
-                    "Session này ngoài phạm vi (repo không thuộc project nào bạn tham gia, hoặc không nằm trong git repo), sẽ không gửi."
+                    "Session này ngoài phạm vi project của bạn, sẽ không gửi."
                 );
             }
             (Some(_), _) => {
                 let _ = writeln!(out, "File log này không có session nào đọc được.");
             }
             (None, _) => {
-                let _ = writeln!(
-                    out,
-                    "Không có session nào trong phạm vi trên máy này ({} session ngoài phạm vi bị bỏ, sẽ không gửi).",
-                    stats.out_of_scope
-                );
+                let _ = writeln!(out, "Không có session nào trong phạm vi.");
             }
         }
         return Ok(());
@@ -141,9 +131,8 @@ pub async fn run_with(
 
     let _ = writeln!(
         note,
-        "Dữ liệu dưới đây là đúng những gì `tl sync` sẽ gửi cho {} session ({} session ngoài phạm vi đã bỏ qua khi tìm).",
-        sessions.len(),
-        stats.out_of_scope
+        "Dữ liệu `tl sync` sẽ gửi cho {} session:",
+        sessions.len()
     );
     let batch = new_batch(sessions.into_iter().map(|p| p.envelope).collect());
     let text = serde_json::to_string_pretty(&batch).map_err(|e| AppError::User {

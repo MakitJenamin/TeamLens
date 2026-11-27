@@ -58,9 +58,9 @@ impl AppError {
             AppError::NotImplemented { .. } => None,
             AppError::User { hint, .. } => hint.clone(),
             AppError::Api(e) => api_hint(e),
-            AppError::Platform(PlatformError::Credential(_)) => Some(
-                "Kiểm tra Windows Credential Manager (Control Panel → Credential Manager).".into(),
-            ),
+            AppError::Platform(PlatformError::Credential(_)) => {
+                Some("Kiểm tra Windows Credential Manager trong Control Panel.".into())
+            }
             AppError::Platform(_) => None,
             AppError::Config { .. } => {
                 Some("Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens.".into())
@@ -71,20 +71,17 @@ impl AppError {
 
 fn api_hint(e: &ApiError) -> Option<String> {
     match e {
-        ApiError::Network { .. } => {
-            Some("Kiểm tra địa chỉ server và kết nối mạng, rồi thử lại.".into())
-        }
+        ApiError::Network { .. } => Some("Kiểm tra địa chỉ server và mạng rồi thử lại.".into()),
         ApiError::Api { code, .. } => match code {
-            ApiErrorCode::InvalidToken | ApiErrorCode::Unauthenticated => Some(
-                "Chạy lại `tl join <link mời>` (xin leader link còn hạn) để tham gia lại.".into(),
-            ),
+            ApiErrorCode::InvalidToken | ApiErrorCode::Unauthenticated => {
+                Some("Xin leader link mời còn hạn rồi chạy lại `tl join <link mời>`.".into())
+            }
             ApiErrorCode::Forbidden => Some("Liên hệ leader để được cấp quyền.".into()),
             _ => None,
         },
-        ApiError::InvalidResponse { .. } => Some(
-            "Kiểm tra lại link mời (phải là link dashboard TeamLens dạng https://<server>/i/<mã>)."
-                .into(),
-        ),
+        ApiError::InvalidResponse { .. } => {
+            Some("Kiểm tra link mời, phải có dạng https://<server>/i/<mã>.".into())
+        }
         ApiError::Build(_) => None,
     }
 }

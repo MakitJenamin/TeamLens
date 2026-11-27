@@ -3,7 +3,7 @@
 //!
 //! 1. Tách địa chỉ server và mã mời từ link `https://<server>/i/<mã>`.
 //! 2. `GET /agent/v1/invites/{code}` → màn hình đồng ý trong terminal: server, project,
-//!    repo sẽ thu thập, văn bản đồng ý; hỏi tên hiển thị, hỏi backfill, bắt gõ `yes`.
+//!    repo sẽ thu thập, văn bản đồng ý; hỏi tên hiển thị, hỏi backfill (Enter: có). Trả lời xong là đồng ý.
 //!    Từ chối thì thoát, không gọi `join`, không lưu gì.
 //! 3. `POST /agent/v1/join` (kèm Bearer nếu máy đã có token còn hiệu lực cho server đó).
 //!    `409 consent_outdated` → xem trước lại và hỏi lại.
@@ -41,22 +41,22 @@ const MAX_NAME_PROMPTS: u32 = 3;
 
 #[derive(Debug, Args)]
 pub struct JoinArgs {
-    /// Link mời leader gửi, ví dụ https://teamlens.congty.com/i/<mã>
+    /// Link mời, ví dụ https://teamlens.congty.com/i/<mã>
     pub invite_url: Option<String>,
 
-    /// Tên hiển thị trên dashboard (bỏ qua câu hỏi tên)
+    /// Tên hiển thị trên dashboard
     #[arg(long, value_name = "TÊN")]
     pub name: Option<String>,
 
-    /// Đồng ý luôn, không hỏi gõ `yes` (cho cài đặt tự động)
-    #[arg(long)]
+    /// Không hỏi lại khi văn bản đồng ý vừa đổi
+    #[arg(long, hide = true)]
     pub yes: bool,
 
-    /// Gửi cả lịch sử session cũ trên máy (bỏ qua câu hỏi backfill)
+    /// Gửi cả session cũ trên máy
     #[arg(long, conflicts_with = "no_backfill")]
     pub backfill: bool,
 
-    /// Chỉ gửi session từ bây giờ (bỏ qua câu hỏi backfill)
+    /// Chỉ gửi session từ bây giờ
     #[arg(long)]
     pub no_backfill: bool,
 }
@@ -96,7 +96,7 @@ pub fn parse_invite_url(input: &str) -> Result<InviteLink, AppError> {
     let invalid = || {
         AppError::user(
             format!("Link mời không đúng định dạng: \"{}\"", input.trim()),
-            "Link mời có dạng https://<server>/i/<mã>. Chép nguyên link leader gửi rồi chạy `tl join <link>`.",
+            "Chép nguyên link leader gửi, dạng https://<server>/i/<mã>, rồi chạy `tl join <link>`.",
         )
     };
     let trimmed = input.trim();
@@ -144,22 +144,21 @@ pub enum BackgroundSetup {
 /// thì bỏ qua: task chạy với thư mục dữ liệu mặc định nên sẽ không khớp.
 fn setup_background(out: &mut dyn Write) {
     if std::env::var_os(DATA_DIR_ENV).is_some_and(|v| !v.is_empty()) {
-        say(
-            out,
-            "Đang dùng thư mục dữ liệu riêng (TL_DATA_DIR) nên không đăng ký chạy nền; chạy `tl daemon` khi cần.",
-        );
+        say(out, "Không đăng ký chạy nền vì đang dùng TL_DATA_DIR.");
+        say(out, "Chạy tay: `tl daemon`.");
         return;
     }
     match std::env::current_exe() {
         Ok(exe) => {
             register_background(tl_platform::current().as_ref(), &exe, out);
         }
-        Err(e) => say(
-            out,
-            &format!(
-                "Không xác định được đường dẫn tl.exe ({e}) nên chưa đăng ký chạy nền. Chạy `tl sync` để gửi."
-            ),
-        ),
+        Err(e) => {
+            say(
+                out,
+                &format!("Chưa đăng ký chạy nền vì không tìm thấy tl.exe ({e})."),
+            );
+            say(out, "Gửi tay: `tl sync`.");
+        }
     }
 }
 
@@ -171,30 +170,23 @@ pub fn register_background(
 ) -> BackgroundSetup {
     if let Err(e) = platform.register_autostart(exe) {
         tracing::debug!(error = ?e, "đăng ký chạy nền thất bại");
-        say(
-            out,
-            &format!(
-                "Chưa đăng ký được chạy nền ({e}). Vẫn dùng được: chạy `tl sync` để gửi, hoặc `tl daemon` để chạy thủ công."
-            ),
-        );
+        say(out, &format!("Chưa đăng ký được chạy nền ({e})."));
+        say(out, "Gửi tay: `tl sync`.");
         return BackgroundSetup::Failed;
     }
     match platform.start_autostart() {
         Ok(()) => {
-            say(
-                out,
-                "Đã đăng ký chạy nền: tl tự chạy mỗi khi bạn đăng nhập Windows (không cần quyền admin) và đã khởi động ngay, nên session sẽ tự lên dashboard.",
-            );
+            say(out, "Đã bật chạy nền.");
+            say(out, "tl tự chạy mỗi khi bạn đăng nhập Windows.");
             BackgroundSetup::Started
         }
         Err(e) => {
             tracing::debug!(error = ?e, "chưa khởi động ngay được daemon nền");
             say(
                 out,
-                &format!(
-                    "Đã đăng ký chạy nền (tự chạy mỗi khi bạn đăng nhập Windows) nhưng chưa khởi động ngay được ({e}); chạy `tl daemon` hoặc đăng nhập lại Windows."
-                ),
+                &format!("Đã bật chạy nền nhưng chưa khởi động được ({e})."),
             );
+            say(out, "Chạy ngay: `tl daemon`, hoặc đăng nhập lại Windows.");
             BackgroundSetup::Registered
         }
     }
@@ -211,7 +203,7 @@ pub async fn run_with(
     let Some(url) = args.invite_url.as_deref() else {
         return Err(AppError::user(
             "Thiếu link mời.",
-            "Chạy `tl join <link mời>` (hoặc `tl login <link mời>`) với link leader gửi, dạng https://<server>/i/<mã>.",
+            "Chạy `tl join https://<server>/i/<mã>` với link leader gửi.",
         ));
     };
     let link = parse_invite_url(url)?;
@@ -242,10 +234,7 @@ pub async fn run_with(
         if let Some(e) = &existing {
             say(
                 out,
-                &format!(
-                    "Máy này đã tham gia {server_url} với tên \"{}\"; sẽ thêm vào project này.",
-                    e.name
-                ),
+                &format!("Máy này đã tham gia {server_url} với tên \"{}\".", e.name),
             );
         }
         let chosen_name = match &name {
@@ -262,19 +251,16 @@ pub async fn run_with(
         let chosen_backfill = match backfill {
             Some(b) => b,
             None => {
-                let b = ask_backfill(input, out, adapters)?;
+                let b = ask_backfill(input, out, adapters, true)?;
                 backfill = Some(b);
                 b
             }
         };
-        if !args.yes && !ask_yes(input, out)? {
-            say(
-                out,
-                "Bạn chưa đồng ý nên máy này chưa tham gia, không có gì được gửi đi.",
-            );
+        // Lần đầu: xem văn bản, nhập tên, chọn backfill là đồng ý. Văn bản đổi giữa chừng thì hỏi lại.
+        if attempt > 1 && !args.yes && !ask_accept_new(input, out)? {
             return Err(AppError::user(
-                "Đã hủy tham gia.",
-                "Khi sẵn sàng, chạy lại `tl join <link mời>` và gõ `yes` để đồng ý.",
+                "Đã hủy tham gia. Không gửi gì.",
+                "Tham gia lại: `tl join <link mời>`.",
             ));
         }
 
@@ -302,10 +288,7 @@ pub async fn run_with(
                         "Đợi vài phút rồi chạy lại `tl join <link mời>`.",
                     ));
                 }
-                say(
-                    out,
-                    "\nVăn bản đồng ý trên server vừa thay đổi. Hãy đọc lại bản mới dưới đây.",
-                );
+                say(out, "\nVăn bản đồng ý vừa thay đổi.");
             }
             Err(e) => return Err(invite_error(e)),
         }
@@ -403,13 +386,13 @@ fn invite_error(e: ApiError) -> AppError {
     };
     match code {
         ApiErrorCode::InviteNotFound | ApiErrorCode::NotFound => {
-            AppError::user("Link mời không đúng (không tìm thấy mã mời).", new_link)
+            AppError::user("Không tìm thấy link mời này.", new_link)
         }
         ApiErrorCode::InviteExpired => AppError::user("Link mời đã hết hạn.", new_link),
         ApiErrorCode::InviteUsedUp => AppError::user("Link mời đã hết lượt dùng.", new_link),
         ApiErrorCode::InviteRevoked => AppError::user("Link mời đã bị leader thu hồi.", new_link),
         ApiErrorCode::RateLimited => AppError::user(
-            "Server đang giới hạn số lần thử từ máy/mạng này.",
+            "Server đang giới hạn số lần thử từ máy này.",
             "Đợi vài phút rồi chạy lại `tl join <link mời>`.",
         ),
         ApiErrorCode::Other(_) if matches!(e, ApiError::Api { status: 410, .. }) => {
@@ -424,17 +407,11 @@ fn show_preview(out: &mut dyn Write, p: &InvitePreview) {
     let _ = writeln!(out, "══ Tham gia TeamLens ══");
     let _ = writeln!(out, "Server:   {}", p.server_url);
     let _ = writeln!(out, "Project:  {} ({})", p.project.name, p.project.slug);
-    let _ = writeln!(out, "Link hết hạn: {}", format_time(&p.expires_at));
+    let _ = writeln!(out, "Hết hạn:  {}", format_time(&p.expires_at));
     let _ = writeln!(out);
-    let _ = writeln!(
-        out,
-        "Chỉ session AI agent trong các repo sau được gửi đi (session ở nơi khác không bao giờ rời máy):"
-    );
+    let _ = writeln!(out, "Repo được gửi:");
     if p.repo_patterns.is_empty() {
-        let _ = writeln!(
-            out,
-            "  (project chưa khai báo repo nào: chưa có gì được gửi)"
-        );
+        let _ = writeln!(out, "  (chưa có repo nào)");
     }
     for pattern in &p.repo_patterns {
         let _ = writeln!(out, "  - {pattern}");
@@ -488,27 +465,25 @@ pub(super) fn read_line(input: &mut dyn BufRead) -> Result<Option<String>, AppEr
         Ok(_) => Ok(Some(line.trim().to_owned())),
         Err(e) => Err(AppError::user(
             format!("Không đọc được câu trả lời từ bàn phím: {e}"),
-            "Chạy `tl join` trong cửa sổ terminal, hoặc dùng `--name`, `--yes`, `--backfill`/`--no-backfill`.",
+            NO_INPUT_HINT,
         )),
     }
 }
 
+/// Gợi ý khi không đọc được câu trả lời (dùng chung cho `tl join` và `tl consent`).
+const NO_INPUT_HINT: &str =
+    "Chạy lại trong cửa sổ terminal, hoặc trả lời bằng cờ `--yes`, `--backfill`, `--no-backfill`.";
+
 pub(super) fn no_input() -> AppError {
-    AppError::user(
-        "Không có câu trả lời (không chạy trong terminal?). Chưa tham gia.",
-        "Chạy `tl join` trong cửa sổ terminal, hoặc dùng `--name`, `--yes`, `--backfill`/`--no-backfill`.",
-    )
+    AppError::user("Không đọc được câu trả lời từ bàn phím.", NO_INPUT_HINT)
 }
 
 fn ask_name(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<String, AppError> {
     let suggestion = default_display_name();
     for _ in 0..MAX_NAME_PROMPTS {
         match &suggestion {
-            Some(s) => prompt(
-                out,
-                &format!("Tên hiển thị để leader biết bạn là ai (Enter để dùng \"{s}\"): "),
-            ),
-            None => prompt(out, "Tên hiển thị để leader biết bạn là ai: "),
+            Some(s) => prompt(out, &format!("Tên hiển thị (Enter để dùng \"{s}\"): ")),
+            None => prompt(out, "Tên hiển thị: "),
         }
         let answer = read_line(input)?.ok_or_else(no_input)?;
         let raw = if answer.is_empty() {
@@ -522,7 +497,7 @@ fn ask_name(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<String, AppE
         }
     }
     Err(AppError::user(
-        "Chưa nhập được tên hiển thị hợp lệ.",
+        "Tên hiển thị không hợp lệ.",
         "Chạy lại `tl join <link mời>` hoặc dùng `--name \"Tên của bạn\"`.",
     ))
 }
@@ -550,13 +525,10 @@ pub(super) fn ask_backfill(
     input: &mut dyn BufRead,
     out: &mut dyn Write,
     adapters: &[&dyn Adapter],
+    default_yes: bool,
 ) -> Result<bool, AppError> {
     let (count, range) = local_history(adapters);
     if count == 0 {
-        say(
-            out,
-            "Máy này chưa có session cũ nào, bỏ qua câu hỏi gửi lịch sử.",
-        );
         return Ok(false);
     }
     let day = |t: SystemTime| DateTime::<Local>::from(t).format("%d/%m/%Y").to_string();
@@ -565,27 +537,36 @@ pub(super) fn ask_backfill(
         .unwrap_or_default();
     say(
         out,
-        &format!(
-            "Máy này có {count} file session cũ{span} (tính cả repo ngoài project; những session đó không bao giờ được gửi)."
-        ),
+        &format!("Máy này có {count} file session cũ{span}, tính cả repo ngoài project."),
     );
-    prompt(
-        out,
-        "Gửi cả lịch sử session cũ thuộc các repo trên? [c/K] (Enter = không, chỉ gửi từ bây giờ): ",
-    );
+    if default_yes {
+        prompt(
+            out,
+            "Gửi cả session cũ thuộc các repo trên? (Enter: có, no: không): ",
+        );
+    } else {
+        prompt(
+            out,
+            "Gửi cả session cũ thuộc các repo trên? (c: có, Enter: không): ",
+        );
+    }
+    let answer = read_line(input)?.ok_or_else(no_input)?;
+    Ok(match answer.to_lowercase().as_str() {
+        "c" | "có" | "co" | "y" | "yes" => true,
+        "" => default_yes,
+        // Gõ gì khác thì coi là không, cho an toàn.
+        _ => false,
+    })
+}
+
+/// Văn bản đồng ý đổi trong lúc tham gia: hỏi lại, Enter là đồng ý bản mới.
+fn ask_accept_new(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<bool, AppError> {
+    prompt(out, "Đồng ý bản mới? (Enter: có, no: hủy): ");
     let answer = read_line(input)?.ok_or_else(no_input)?;
     Ok(matches!(
         answer.to_lowercase().as_str(),
-        "c" | "có" | "co" | "y" | "yes"
+        "" | "c" | "có" | "co" | "y" | "yes"
     ))
-}
-
-fn ask_yes(input: &mut dyn BufRead, out: &mut dyn Write) -> Result<bool, AppError> {
-    ask_confirmation(
-        input,
-        out,
-        "Gõ `yes` để đồng ý và tham gia (gõ gì khác hoặc Enter là từ chối): ",
-    )
 }
 
 /// Hỏi một câu và chỉ coi là đồng ý khi người dùng gõ đúng `yes` (không phân biệt hoa thường).
@@ -615,13 +596,13 @@ fn print_done(
         out,
         "{}",
         if backfill {
-            "Sẽ gửi cả lịch sử session cũ thuộc các repo của project."
+            "Sẽ gửi cả session cũ thuộc các repo của project."
         } else {
-            "Chỉ gửi session từ bây giờ (không gửi lịch sử cũ)."
+            "Chỉ gửi session từ bây giờ."
         }
     );
-    let _ = writeln!(out, "Chạy `tl sync` để gửi ngay.");
-    let _ = writeln!(out, "Xem dashboard: `tl open`.");
+    let _ = writeln!(out, "Gửi ngay: `tl sync`.");
+    let _ = writeln!(out, "Mở dashboard: `tl open`.");
     let _ = out.flush();
 }
 
@@ -734,8 +715,11 @@ mod tests {
             vec![r"register C:\tl\tl.exe".to_owned(), "start".to_owned()]
         );
         let printed = String::from_utf8(out).unwrap();
-        assert!(printed.contains("Đã đăng ký chạy nền"), "{printed}");
-        assert!(printed.contains("đã khởi động ngay"), "{printed}");
+        assert!(printed.contains("Đã bật chạy nền."), "{printed}");
+        assert!(
+            printed.contains("mỗi khi bạn đăng nhập Windows"),
+            "{printed}"
+        );
     }
 
     #[test]
@@ -748,7 +732,7 @@ mod tests {
         let outcome = register_background(&platform, Path::new("tl.exe"), &mut out);
         assert_eq!(outcome, BackgroundSetup::Registered);
         let printed = String::from_utf8(out).unwrap();
-        assert!(printed.contains("chưa khởi động ngay được"), "{printed}");
+        assert!(printed.contains("chưa khởi động được"), "{printed}");
         assert!(printed.contains("đăng nhập lại Windows"), "{printed}");
     }
 

@@ -102,8 +102,8 @@ Màn hình đồng ý là một phần của `tl join`, chạy trong terminal, k
 1. Hiển thị tên server, project và danh sách repo sẽ được thu thập (lấy từ `GET /agent/v1/invites/{code}`).
 2. Liệt kê dữ liệu sẽ gửi: toàn bộ prompt, câu trả lời, tool call, diff code; output bị cắt; secret bị che.
 3. Hỏi tên hiển thị (để leader biết ai là ai; không hỏi email, không đặt mật khẩu).
-4. Hỏi riêng: có gửi toàn bộ lịch sử session cũ trên máy không (kèm số lượng và khoảng ngày).
-5. Người dùng gõ `yes`. Từ chối thì CLI thoát, không gọi server lần nào nữa, không cài daemon, không gửi gì.
+4. Hỏi riêng: có gửi toàn bộ lịch sử session cũ trên máy không (kèm số lượng và khoảng ngày). Enter là có, `no` là không.
+5. Trả lời xong các câu hỏi là đồng ý, không có bước gõ `yes` riêng (văn bản đã hiện đủ ở trên). Muốn từ chối thì thoát (Ctrl+C) trước khi trả lời: CLI không gọi server, không cài daemon, không gửi gì. Văn bản đồng ý đổi giữa chừng thì CLI hiện bản mới và hỏi lại (Enter là đồng ý, `no` là hủy).
 6. Bản ghi đồng ý (phiên bản văn bản, thời điểm, lựa chọn backfill) được gửi cùng request `POST /agent/v1/join`, nên không có trạng thái "đã có token nhưng chưa đồng ý".
 
 Khi văn bản đồng ý thay đổi trên server, daemon dừng gửi cho tới khi người dùng đồng ý lại qua `tl consent` (ghi bằng `POST /agent/v1/consent`).
@@ -261,10 +261,10 @@ curl -fsSL https://github.com/MakitJenamin/TeamLens/releases/latest/download/ins
 tl join https://teamlens.congty.com/i/<code>
 ```
 
-Lệnh cài chỉ cài `tl` (xem mục 11.3); tham gia nhóm luôn là bước riêng `tl join <link>`. Trang `/i/<code>`, bước cuối wizard `/setup` và trang quản lý link mời đều hiện đủ hai bước này kèm nút copy.
+Lệnh cài chỉ cài `tl` (xem mục 11.3); tham gia nhóm luôn là bước riêng `tl join <link>`. Trang `/i/<code>` (thành viên mở) hiện hai bước này kèm nút copy. Bước cuối wizard `/setup` và trang quản lý link mời chỉ hiện link mời để leader gửi cho nhóm.
 
 1. CLI gọi `GET /agent/v1/invites/{code}` (công khai): nhận tên project, repo pattern, văn bản đồng ý và phiên bản. Link sai, hết hạn, hết lượt hay đã thu hồi thì báo lỗi và dừng.
-2. Màn hình đồng ý trong terminal (mục 4.3): hỏi tên hiển thị, hỏi backfill, người dùng gõ `yes`.
+2. Màn hình đồng ý trong terminal (mục 4.3): hỏi tên hiển thị, hỏi backfill (trả lời xong là đồng ý).
 3. CLI gọi `POST /agent/v1/join` với `{ code, name, deviceName, os, cliVersion, consent: { textVersion, backfill } }`. Trong một transaction, server: khóa dòng invite và kiểm tra lại → tạo `users` (role `member`, không email, không mật khẩu) → `project_members` → `devices` (kèm `token_hash`) → `consents` → tăng `invites.used_count` → ghi audit `member.join`. Trả device token đúng một lần.
 4. CLI lưu token vào Windows Credential Manager, lưu địa chỉ server vào config, đăng ký `tl daemon` bằng Task Scheduler.
 
