@@ -11,6 +11,7 @@ pub mod resume;
 pub mod status;
 pub mod sync;
 pub mod uninstall;
+pub mod update;
 
 use std::io::Write;
 
@@ -36,6 +37,7 @@ pub async fn dispatch(
         Command::Status(args) => status::run(&make_ctx()?, args, out).await,
         Command::Preview(args) => preview::run(&make_ctx()?, args, out).await,
         Command::Sync(args) => sync::run(&make_ctx()?, args, out).await,
+        Command::Update(args) => update::run(&make_ctx()?, args, out).await,
     }
 }
 

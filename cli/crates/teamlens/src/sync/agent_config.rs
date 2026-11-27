@@ -177,7 +177,7 @@ impl SendBlock {
                 format!(
                     "Bản tl {current} đã cũ, server yêu cầu tối thiểu bản {required}, nên chưa gửi gì."
                 ),
-                format!("Cập nhật tl lên bản {required} trở lên rồi chạy lại `tl sync`."),
+                format!("Chạy `tl update` để cập nhật tl (cần bản {required} trở lên) rồi chạy lại `tl sync`."),
             ),
         }
     }
@@ -303,7 +303,7 @@ mod tests {
         assert!(matches!(err, SendBlock::CliTooOld { .. }));
         let e = err.to_error();
         assert!(e.to_string().contains("9.9.9"), "{e}");
-        assert!(e.hint().unwrap().contains("Cập nhật"));
+        assert!(e.hint().unwrap().contains("tl update"));
     }
 
     #[test]

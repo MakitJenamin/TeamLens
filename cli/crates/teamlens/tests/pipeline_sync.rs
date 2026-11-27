@@ -605,6 +605,7 @@ async fn sync_426_bao_cap_nhat() {
     let e = r.unwrap_err();
     assert_eq!(e.exit_code(), 1);
     assert!(e.hint().unwrap().contains("0.9.0"), "{:?}", e.hint());
+    assert!(e.hint().unwrap().contains("tl update"), "{:?}", e.hint());
 }
 
 #[tokio::test]
@@ -743,7 +744,7 @@ async fn sync_cli_cu_hon_min_version_khong_gui() {
     let e = r.unwrap_err();
     assert_ne!(e.exit_code(), 0);
     assert!(e.to_string().contains("9.9.9"), "{e}");
-    assert!(e.hint().unwrap().contains("Cập nhật tl"), "{:?}", e.hint());
+    assert!(e.hint().unwrap().contains("tl update"), "{:?}", e.hint());
     assert_eq!(ingest.calls.load(Ordering::SeqCst), 0, "không được gửi gì");
 }
 
@@ -1562,9 +1563,9 @@ mod daemon_cycle {
 
     #[tokio::test]
     async fn chu_ky_lech_phien_ban_dong_y_hoac_cli_cu_khong_gui() {
-        for body in [
-            config_body("2026-12-01", "0.1.0"),
-            config_body(CONSENT_VERSION, "9.9.9"),
+        for (body, upgrade) in [
+            (config_body("2026-12-01", "0.1.0"), false),
+            (config_body(CONSENT_VERSION, "9.9.9"), true),
         ] {
             let env = Env::new();
             age_logs(&env);
@@ -1576,6 +1577,10 @@ mod daemon_cycle {
                 matches!(r.skipped, Some(CycleSkip::Blocked(_))),
                 "{:?}",
                 r.skipped
+            );
+            assert_eq!(
+                r.upgrade_required, upgrade,
+                "chỉ CLI cũ mới cần tự cập nhật"
             );
             assert_eq!(ingest.calls.load(Ordering::SeqCst), 0);
         }
