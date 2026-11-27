@@ -11,7 +11,7 @@ import {
   projectRepos,
   settings,
 } from '../../db/schema/index.js';
-import { CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
+import { ConsentTextService } from '../consent/consent-text.service.js';
 import {
   mergeTruncation,
   parseRedactionPatterns,
@@ -26,6 +26,8 @@ export class AgentConfigService {
   constructor(
     @Inject(DB) private readonly db: Database,
     config: ConfigService<Env, true>,
+    @Inject(ConsentTextService)
+    private readonly consentText: ConsentTextService,
   ) {
     this.minCliVersion = config.get('MIN_CLI_VERSION', { infer: true });
   }
@@ -66,7 +68,7 @@ export class AgentConfigService {
         setting(SETTINGS_KEYS.redactionPatterns),
       ),
       truncation: mergeTruncation(setting(SETTINGS_KEYS.truncation)),
-      consent_text_version: CONSENT_TEXT_VERSION,
+      consent_text_version: (await this.consentText.get()).version,
       min_cli_version: this.minCliVersion,
     };
   }

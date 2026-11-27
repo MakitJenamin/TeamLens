@@ -21,7 +21,7 @@ import {
   turns,
 } from '../../db/schema/index.js';
 import { JOBS } from '../../queue/jobs.js';
-import { CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
+import { ConsentTextService } from '../consent/consent-text.service.js';
 import { QueueService } from '../../queue/queue.service.js';
 import {
   type MemberRepoPattern,
@@ -96,6 +96,8 @@ export class IngestService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly queue: QueueService,
+    @Inject(ConsentTextService)
+    private readonly consentText: ConsentTextService,
   ) {}
 
   /**
@@ -103,13 +105,14 @@ export class IngestService {
    * không có thì từ chối cả batch: 403 `consent_required` (SPEC 4.3).
    */
   private async assertConsent(device: AuthDevice): Promise<void> {
+    const { version } = await this.consentText.get();
     const [row] = await this.db
       .select({ id: consents.id })
       .from(consents)
       .where(
         and(
           eq(consents.deviceId, device.id),
-          eq(consents.textVersion, CONSENT_TEXT_VERSION),
+          eq(consents.textVersion, version),
           isNull(consents.revokedAt),
         ),
       )

@@ -8,7 +8,7 @@ import type { Env } from '../../config/env.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import { devices, type DeviceStatus } from '../../db/schema/index.js';
-import { CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
+import { ConsentTextService } from '../consent/consent-text.service.js';
 import type { HeartbeatBody } from './heartbeat.js';
 
 /** Ghi heartbeat của thiết bị vào `devices` (SPEC 4.1, 7.2). */
@@ -19,6 +19,8 @@ export class HeartbeatService {
   constructor(
     @Inject(DB) private readonly db: Database,
     config: ConfigService<Env, true>,
+    @Inject(ConsentTextService)
+    private readonly consentText: ConsentTextService,
   ) {
     this.minCliVersion = config.get('MIN_CLI_VERSION', { infer: true });
   }
@@ -49,7 +51,7 @@ export class HeartbeatService {
     return {
       status:
         row.status === 'consent_revoked' ? 'consent_revoked' : body.status,
-      consent_text_version: CONSENT_TEXT_VERSION,
+      consent_text_version: (await this.consentText.get()).version,
       min_cli_version: this.minCliVersion,
     };
   }
