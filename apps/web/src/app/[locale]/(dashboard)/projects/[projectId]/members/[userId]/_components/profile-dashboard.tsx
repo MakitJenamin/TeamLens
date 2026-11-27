@@ -92,7 +92,6 @@ export function ProfileDashboard({ projectId, userId }: { projectId: string; use
           <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
             <InboxIcon className="size-6" />
             <p className="text-foreground font-medium">{t("empty.title")}</p>
-            <p className="max-w-md">{t("empty.description")}</p>
           </CardContent>
         </Card>
       )}
@@ -103,16 +102,14 @@ export function ProfileDashboard({ projectId, userId }: { projectId: string; use
             <StatCard
               label={t("totals.sessions")}
               value={format.number(profile.totals.sessions)}
-              hint={t("totals.sessionsHint")}
             />
-            <StatCard label={t("totals.tokens")} value={compact(profile.totals.tokens)} hint={t("totals.tokensHint")} />
+            <StatCard label={t("totals.tokens")} value={compact(profile.totals.tokens)} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>{t("radar.title")}</CardTitle>
-                <CardDescription>{t("radar.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {hasScores ? (
@@ -149,7 +146,6 @@ export function ProfileDashboard({ projectId, userId }: { projectId: string; use
           <Card>
             <CardHeader>
               <CardTitle>{t("patterns.title")}</CardTitle>
-              <CardDescription>{t("patterns.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               {profile.patterns.length === 0 ? (
@@ -220,14 +216,13 @@ export function ProfileDashboard({ projectId, userId }: { projectId: string; use
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card size="sm">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-xs">{hint}</CardContent>
     </Card>
   );
 }

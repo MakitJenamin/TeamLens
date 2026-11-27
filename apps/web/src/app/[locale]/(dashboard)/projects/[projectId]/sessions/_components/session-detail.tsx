@@ -137,7 +137,6 @@ export function SessionDetailView({ session, viewer = null }: { session: Session
           <h2 id="children-heading" className="text-lg font-semibold">
             {t("detail.childrenSection")}
           </h2>
-          <p className="text-muted-foreground text-sm">{t("detail.childrenUnplaced")}</p>
           {placement.unplaced.map((child) => (
             <ChildSessionBlock key={child.id} child={child} projectId={session.projectId} />
           ))}

@@ -36,7 +36,6 @@ export default async function MemberProfilePage({ params }: Props) {
           </Link>
         )}
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">{t("description")}</p>
       </div>
       <ProfileDashboard projectId={projectId} userId={userId} />
     </div>
