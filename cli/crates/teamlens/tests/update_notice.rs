@@ -21,6 +21,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const API_PATH: &str = "/repos/MakitJenamin/TeamLens/releases/latest";
 
+/// Thời gian chờ thread nhắc cho các test kiểm **kết quả** (không kiểm tốc độ), đủ rộng cho
+/// runner CI Windows chậm. Hai giây mặc định chỉ dùng ở test kiểm giới hạn thời gian.
+const SLOW_CI_WAIT: Duration = Duration::from_secs(15);
+
 fn cmd(args: &[&str]) -> Command {
     let mut full = vec!["tl"];
     full.extend_from_slice(args);
@@ -255,6 +259,9 @@ async fn state_db_moi_tao_cung_luc_voi_lenh() {
         let db = state_path(&ctx.config_path);
         let mut o = opts(&server);
         o.source.version = Some("0.3.0".into());
+        // Test này kiểm thread nhắc không bỏ cuộc khi tranh `state.db`, không kiểm tốc độ:
+        // runner CI Windows chậm có lúc mở + migrate quá 2 giây mặc định.
+        o.wait_after_command = SLOW_CI_WAIT;
         let command = cmd(&["pause"]);
         let n = Notifier::start(&command, || Some(db.clone()), o);
         dispatch(command, || Ok(test_ctx(&dir)), &mut Vec::new())
@@ -350,7 +357,11 @@ async fn state_cu_kiem_thanh_cong_thi_dung_ket_qua_moi() {
     let db = db_path(&dir);
     stale_state(&db, "0.2.1");
 
-    let o = opts(&server);
+    // Kiểm "dùng kết quả mới khi kiểm kịp", không kiểm tốc độ (đã có test 2 giây riêng ở trên):
+    // runner CI chậm có lúc gọi mock quá 2 giây mặc định rồi in bản đã lưu 0.2.1.
+    let mut o = opts(&server);
+    o.wait_after_command = SLOW_CI_WAIT;
+    o.http_timeout = SLOW_CI_WAIT;
     let (printed, err, _) = tokio::task::spawn_blocking(move || run_notice(&["pause"], &db, o))
         .await
         .unwrap();
