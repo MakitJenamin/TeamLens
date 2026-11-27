@@ -17,11 +17,11 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 1.5 · Tối giản tham gia | ✅ xong | PR #29–#37 |
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
-| Mốc 4 · Báo cáo và minh bạch | ⏳ chưa làm | |
+| Mốc 4 · Báo cáo và minh bạch | 🚧 đang làm | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 còn M4.3–M4.6 |
 | Mốc 5 · Cài đặt và phát hành | ⏳ chưa làm | |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
-1. Người 1: hết việc Mốc 2 và Mốc 3, làm trước **M4.1** (full-text search) → **M4.2** (trang thành viên kèm trạng thái thiết bị, dùng `devices.last_heartbeat` của M3.3) → M5.1 → M5.2 → M5.3.
+1. Người 1: hết việc Mốc 4 (M4.1, M4.2). Làm trước Mốc 5: **M5.1** (release `tl.exe`) → **M5.2** (phần tải và kiểm SHA-256 trong `install-script.ts`) → M5.3.
 2. Người 2: hết việc Mốc 2 và Mốc 3. Làm **M4.3** (leaderboard, đọc `user_weekly_stats` của M2.8) → **M4.4** → **M4.5** → **M4.6**, rồi Mốc 5 (M5.5, M5.6, M5.4). Nhắc: #70 đã merge nên **mọi thiết bị phải chạy `tl consent` một lần** (phiên bản văn bản đồng ý `2026-11-27.3`).
 
 ## Hai người, hai nhóm tính năng
@@ -113,8 +113,8 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
-| 1 | **M4.1** Full-text search session (`tsvector`)<br>**Tự test:** tìm theo nội dung prompt | **M4.3** Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
-| 2 | **M4.2** Trang thành viên (`members/`, chỉ leader): danh sách kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý), người mới tham gia gần đây, thu hồi thiết bị, nút "Gộp vào…" (dùng lại `admin/merge-user.tsx`)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | **M4.4** Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
+| 1 | ✅ **M4.1** Full-text search session (`tsvector`): `?q=` cú pháp web search, đoạn trích và link tới turn khớp (#77, #78)<br>**Tự test:** tìm theo nội dung prompt | **M4.3** Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
+| 2 | ✅ **M4.2** (#76, #79) Trang thành viên (`members/`, chỉ leader): danh sách kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý), người mới tham gia gần đây, thu hồi thiết bị, nút "Gộp vào…" (dùng lại `admin/merge-user.tsx`)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | **M4.4** Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
 | 3 | _Làm trước M5.1, M5.2_ | **M4.5** Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình; member vào bằng `tl open`) + trang audit cho leader<br>**Tự test:** leader đăng nhập bằng mật khẩu, member vào bằng `tl open` |
 | 4 | | **M4.6** Cài đặt server trong trang quản trị: pattern redaction riêng, retention, văn bản đồng ý (sửa thì tăng phiên bản, chuyển nguồn từ `consent-text.ts` sang bảng `settings`), LLM provider (chỉ lưu, chấm bằng LLM ở phase 2)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về; sửa văn bản đồng ý → CLI ngừng gửi tới khi đồng ý lại |
 
