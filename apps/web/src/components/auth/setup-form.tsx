@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { CopyField } from "@/components/copy-field";
-import { joinCommand } from "@/lib/invite-commands";
+import { InstallSteps } from "@/components/install-steps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -333,8 +333,7 @@ export function SetupForm() {
                   <AlertDescription>{t("setup.inviteExplain")}</AlertDescription>
                 </Alert>
                 <CopyField label={t("setup.inviteUrl")} value={invite.url} />
-                <CopyField label={t("setup.installCommand")} value={invite.installCommand} />
-                <CopyField label={t("setup.joinCommand")} value={joinCommand(invite.url)} />
+                <InstallSteps inviteUrl={invite.url} />
                 <p className="text-muted-foreground text-xs">{t("setup.inviteLater")}</p>
                 <Button className="w-full" onClick={goToDashboard}>
                   {t("setup.goToDashboard")}

@@ -61,13 +61,21 @@ export const inviteNotFound = () =>
     'Link mời không đúng. Hãy xin leader link mới.',
   );
 
-/** Link tham gia và câu lệnh cài đặt cho một mã mời. */
+/**
+ * Lệnh PowerShell cài `tl` chung cho mọi link mời và mọi server (không kèm mã mời). Script cài
+ * là asset `install.ps1` của GitHub Releases bản mới nhất, nguồn ở `deploy/install.ps1`: chỉ tải,
+ * kiểm SHA-256 và cài `tl.exe`; tham gia nhóm là bước riêng `tl join <url>`.
+ */
+export const INSTALL_COMMAND =
+  'irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex';
+
+/** Link tham gia cho một mã mời, kèm lệnh cài `tl` chung (`installCommand` của contract). */
 export function inviteLinks(
   publicUrl: string,
   code: string,
 ): { url: string; installCommand: string } {
   return {
     url: `${publicUrl}/i/${code}`,
-    installCommand: `irm ${publicUrl}/install.ps1?code=${code} | iex`,
+    installCommand: INSTALL_COMMAND,
   };
 }

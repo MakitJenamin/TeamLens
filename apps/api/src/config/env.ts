@@ -1,9 +1,5 @@
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
-import {
-  DEFAULT_CLI_RELEASE_URL,
-  normalizeReleaseUrl,
-} from '../modules/invites/install-script.js';
 
 /** Schema biến môi trường của API. Sai hoặc thiếu thì dừng ngay khi khởi động. */
 export const envSchema = z.object({
@@ -28,26 +24,6 @@ export const envSchema = z.object({
     .string()
     .regex(/^\d+\.\d+\.\d+$/, 'MIN_CLI_VERSION phải có dạng x.y.z, ví dụ 0.1.0')
     .default('0.1.0'),
-  /**
-   * Base URL release của `tl.exe` cho `GET /install.ps1` (M5.2): script tải
-   * `<url>/SHA256SUMS` và `<url>/tl-x86_64-pc-windows-msvc.zip`. Phải là `https:`
-   * (`http:` chỉ cho localhost/127.0.0.1 khi dev).
-   */
-  TEAMLENS_CLI_RELEASE_URL: z
-    .string()
-    .default(DEFAULT_CLI_RELEASE_URL)
-    .transform((value, ctx) => {
-      const url = normalizeReleaseUrl(value.trim());
-      if (!url) {
-        ctx.addIssue({
-          code: 'custom',
-          message:
-            'TEAMLENS_CLI_RELEASE_URL phải là URL https:// (http:// chỉ cho localhost/127.0.0.1), không có query',
-        });
-        return z.NEVER;
-      }
-      return url;
-    }),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,4 +1,5 @@
 import {
+  INSTALL_COMMAND,
   INVITE_CODE_RE,
   inviteLinks,
   inviteStatus,
@@ -73,10 +74,12 @@ describe('INVITE_CODE_RE', () => {
 });
 
 describe('inviteLinks', () => {
-  it('ghép link mời và câu lệnh cài', () => {
+  it('ghép link mời, lệnh cài là lệnh chung không kèm mã mời', () => {
     expect(inviteLinks('https://tl.example.com', 'abc')).toEqual({
       url: 'https://tl.example.com/i/abc',
-      installCommand: 'irm https://tl.example.com/install.ps1?code=abc | iex',
+      installCommand:
+        'irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex',
     });
+    expect(INSTALL_COMMAND).not.toContain('abc');
   });
 });

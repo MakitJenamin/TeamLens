@@ -41,7 +41,7 @@
   "mergeDone": "Đã gộp vào {name}: {devices} thiết bị, {sessions} session, {projects} project mới.",
   "invites": {
     "title": "Link mời",
-    "hint": "Gửi link cho cả nhóm; mỗi người chạy một lệnh để tham gia project này.",
+    "hint": "Gửi link cho cả nhóm; mỗi người cài tl rồi chạy tl join với link này để tham gia project.",
     "expiresInDays": "Hết hạn sau (ngày)",
     "maxUses": "Giới hạn lượt (trống: không giới hạn)",
     "create": "Tạo link mời",
@@ -49,8 +49,6 @@
     "onlyOnce": "Link này chỉ hiện một lần. Sao chép ngay để gửi cho nhóm.",
     "dismiss": "Đã sao chép, ẩn đi",
     "url": "Link mời",
-    "installCommand": "Máy chưa có tl: chạy trong PowerShell",
-    "joinCommand": "Máy đã có tl",
     "empty": "Chưa có link mời nào.",
     "loadError": "Không tải được danh sách link mời.",
     "status": {

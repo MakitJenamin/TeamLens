@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { installCommand, installCommandCmd } from "@/lib/invite-commands";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 import { InvitesPanel } from "./invites-panel";
 
@@ -19,7 +20,7 @@ const created = {
   invite: { ...base, id: "c", status: "active", maxUses: 10, usedCount: 0, createdBy: leader },
   code: "bmV3Y29kZW5ld2NvZGU",
   url: "http://localhost:3130/i/bmV3Y29kZW5ld2NvZGU",
-  installCommand: "irm http://localhost:3130/install.ps1?code=bmV3Y29kZW5ld2NvZGU | iex",
+  installCommand: "irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex",
 };
 
 /** Mock fetch theo method + path, ghi lại các request. */
@@ -65,7 +66,11 @@ describe("InvitesPanel", () => {
     await u.click(screen.getByRole("button", { name: "Tạo link mời" }));
 
     expect(await screen.findByText(created.url)).toBeInTheDocument();
-    expect(screen.getByText(created.installCommand)).toBeInTheDocument();
+    // Hai bước: cài tl bằng lệnh chung (PowerShell hoặc CMD), rồi tl join <link>.
+    expect(screen.getByText("Bước 1: Cài tl")).toBeInTheDocument();
+    expect(screen.getByText(installCommand)).toBeInTheDocument();
+    expect(screen.getByText(installCommandCmd)).toBeInTheDocument();
+    expect(screen.getByText("Bước 2: Tham gia project")).toBeInTheDocument();
     expect(screen.getByText(`tl join ${created.url}`)).toBeInTheDocument();
     expect(screen.getByText(/chỉ hiện một lần/)).toBeInTheDocument();
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
