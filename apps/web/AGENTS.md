@@ -44,7 +44,7 @@ src/app/[locale]/(dashboard)/        # layout có sidebar + các màn hình
 
 ## Vùng sở hữu
 
-Vùng sở hữu của Người 1 và Người 2: bảng ở `AGENTS.md` gốc, mục 3. Layout, sidebar, `(auth)/{login,setup,auth}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
+Vùng sở hữu của Người 1, 2, 3: bảng ở `AGENTS.md` gốc, mục 3. Trang mới của Mốc 6 (`settings/ai`, `projects/[projectId]/{skills,prompt-library}`) cần thêm link sidebar bằng PR vùng nền nhỏ. Layout, sidebar, `(auth)/{login,setup,auth}`, `src/lib/api`, `src/i18n`, `proxy.ts`, `next.config.ts` là vùng nền — sửa bằng PR riêng, nhỏ.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

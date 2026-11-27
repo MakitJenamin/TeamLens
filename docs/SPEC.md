@@ -1,6 +1,6 @@
 # TeamLens — Đặc tả kỹ thuật (MVP)
 
-> Cập nhật: 2026-11-26 · Bản gốc (có sơ đồ, comment): https://claude.ai/artifact/FNJegjsNGK6tjdhCcXHvnY
+> Cập nhật: 2026-11-28 (thêm tính năng AI và MCP, Mốc 6) · Bản gốc (có sơ đồ, comment): https://claude.ai/artifact/FNJegjsNGK6tjdhCcXHvnY
 
 ## 1. Tổng quan
 
@@ -12,8 +12,8 @@ TeamLens (lệnh `tl`) là công cụ open-source, tự host, giúp leader xem t
 
 | Vai trò | Cần gì |
 | --- | --- |
-| Leader | Người tự host server và có toàn quyền: tạo project, khai báo repo, tạo link mời, xem prompt/session/diff của thành viên, điểm kỹ năng, anti-pattern, leaderboard, cấu hình LLM key và thời gian giữ dữ liệu |
-| Member | Tham gia bằng một lệnh `tl join <link mời>`; xem dữ liệu và điểm của chính mình, biết cần cải thiện gì, kiểm soát việc đồng ý |
+| Leader | Người tự host server và có toàn quyền: tạo project, khai báo repo, tạo link mời, xem prompt/session/diff của thành viên, điểm kỹ năng, anti-pattern, leaderboard, cấu hình thời gian giữ dữ liệu; dùng tính năng AI trên dữ liệu của cả team bằng API key của chính mình |
+| Member | Tham gia bằng một lệnh `tl join <link mời>`; xem dữ liệu và điểm của chính mình, biết cần cải thiện gì, kiểm soát việc đồng ý; dùng tính năng AI trên dữ liệu của mình bằng API key của chính mình |
 
 Không có vai trò Admin riêng: server do leader tự host nên leader là vai trò cao nhất (xem mục 11.1).
 
@@ -21,7 +21,8 @@ Không có vai trò Admin riêng: server do leader tự host nên leader là vai
 
 - Thu thập tự động session của Claude Code và Codex CLI trên Windows (Copilot ở phase 2), chỉ những session thuộc repo của project.
 - Leader đọc lại được toàn bộ session (prompt, câu trả lời, tool call, diff) trên web dashboard.
-- Chấm điểm anti-pattern bằng rule trên server; chấm bằng LLM khi bấm nút.
+- Chấm điểm anti-pattern bằng rule trên server.
+- Tính năng AI theo mô hình BYO (mỗi người tự thêm API key của mình, chỉ chạy khi bấm) và MCP cho agent: làm song song ở Mốc 6, xem mục 9.3 và [AI_PLAN.md](AI_PLAN.md).
 
 **Không làm (non-goals)**
 
@@ -31,13 +32,14 @@ Không có vai trò Admin riêng: server do leader tự host nên leader là vai
 
 ## 2. Phạm vi và lộ trình
 
-MVP chạy trên Windows với Claude Code và Codex; Copilot, chấm bằng LLM và Antigravity sang phase 2. Chưa đặt mốc ngày cụ thể cho từng phase.
+MVP chạy trên Windows với Claude Code và Codex; Copilot và Antigravity sang phase 2. Tính năng AI và MCP (Mốc 6) làm song song với phần cuối của MVP, không chờ nghiệm thu. Chưa đặt mốc ngày cụ thể cho từng phase.
 
 | Phase | Nội dung | Cổng để sang phase sau |
 | --- | --- | --- |
 | Phase 0 · Nền móng (khoảng 1 tuần) | OpenAPI contract, schema session v1, monorepo + CI, log mẫu để test | Contract đã chốt |
 | **Phase 1 · MVP** (Windows, 2 agent) | Adapter Claude Code, adapter Codex, đồng ý + che secret, hàng đợi + heartbeat, ingest/auth/rule, 5 màn hình dashboard | Đạt tiêu chí mục 12.3 |
-| Phase 2 · Mở rộng | Adapter Copilot, chấm bằng LLM, Antigravity (beta), đọc log agent chạy trong WSL, bản macOS/Linux | Chạy ổn với team thật |
+| Mốc 6 · AI (song song với cuối Phase 1) | Tính năng AI BYO trên dashboard (tóm tắt, đánh giá session, giải thích finding, báo cáo tuần, Skill Finder, thư viện prompt, đề xuất file hướng dẫn), MCP (`tl mcp`, `/api/v1/mcp`), phân loại việc bằng heuristic. Chi tiết: [AI_PLAN.md](AI_PLAN.md) | Nghiệm thu M6.17 |
+| Phase 2 · Mở rộng | Adapter Copilot, Antigravity (beta), đọc log agent chạy trong WSL, bản macOS/Linux | Chạy ổn với team thật |
 | Phase 3 · Trưởng thành | SSO, gắn với PR và issue, winget/scoop, Remote-SSH/Dev Container, có thể làm SaaS | — |
 
 ## 3. Kiến trúc tổng thể
@@ -59,10 +61,10 @@ Hệ thống gồm ba phần nối với nhau qua một contract OpenAPI: CLI Ru
 │                        ↑                                 │             │
 │                   Web · Next.js                          │             │
 └────────────────────────┼─────────────────────────────────┼─────────────┘
-              Trình duyệt leader/member           LLM provider (chỉ khi bấm nút)
+      Trình duyệt leader/member · Agent qua MCP     LLM provider của người bấm (BYO, chỉ khi bấm)
 ```
 
-Phần lọc theo git remote và che secret chạy trên máy thành viên, nên server không bao giờ nhận session ngoài dự án hay secret chưa che. Rule worker chạy nền sau mỗi lần ingest; LLM chỉ được gọi khi người dùng bấm nút.
+Phần lọc theo git remote và che secret chạy trên máy thành viên, nên server không bao giờ nhận session ngoài dự án hay secret chưa che. Rule worker chạy nền sau mỗi lần ingest. LLM chỉ được gọi khi người dùng bấm nút, bằng API key của chính người bấm; server không có key chung. Agent của người dùng (Claude Code, Codex) đọc dữ liệu qua MCP ở `/api/v1/mcp` với đúng quyền như dashboard (mục 9.3).
 
 ## 4. CLI (Rust)
 
@@ -301,7 +303,7 @@ Lệnh cài chỉ cài `tl` (xem mục 11.3); tham gia nhóm luôn là bước r
 
 ### 7.4 Endpoint cho dashboard (rút gọn)
 
-`/auth/*` (leader đăng nhập email + mật khẩu; `POST /auth/ticket` đổi ticket của `tl open`; SSO để phase 3) · `/projects` · `/projects/:id/members` · `/projects/:id/invites` (tạo, liệt kê, thu hồi) · `/users/:id/merge` (POST, gộp user) · `/projects/:id/overview` · `/projects/:id/leaderboard` · `/projects/:id/rules` · `/users/:id/profile?project=` · `/sessions?project=&user=&agent=&from=&to=&q=` · `/sessions/:id` · `/sessions/:id/llm-review` (POST) · `/sessions/:id/notes` · `/audit` · `/settings`.
+`/auth/*` (leader đăng nhập email + mật khẩu; `POST /auth/ticket` đổi ticket của `tl open`; SSO để phase 3) · `/projects` · `/projects/:id/members` · `/projects/:id/invites` (tạo, liệt kê, thu hồi) · `/users/:id/merge` (POST, gộp user) · `/projects/:id/overview` · `/projects/:id/leaderboard` · `/projects/:id/rules` · `/users/:id/profile?project=` · `/sessions?project=&user=&agent=&from=&to=&q=` · `/sessions/:id` · `/sessions/:id/notes` · `/audit` · `/settings` · `/ai/*` (API key của tôi, kết quả AI của tôi, các nút AI) · `/agent-tokens` (token `tlp_` cho MCP) · `/projects/:id/skills` (Skill Finder) · `/projects/:id/prompt-library` · `/mcp` (MCP Streamable HTTP, nhận device token `tld_` hoặc token cá nhân `tlp_`).
 
 ## 8. Data model (Postgres)
 
@@ -317,22 +319,26 @@ Postgres 16 là nơi lưu duy nhất; nội dung prompt dùng full-text search s
 | `invites` | id, project_id, code_hash, expires_at, max_uses, used_count, revoked_at, created_by | Link chung, chỉ tạo member; `max_uses` null = không giới hạn |
 | `web_login_tickets` | id (SHA-256 của ticket), user_id, device_id, expires_at, used_at | Ticket 60 giây cho `tl open` |
 | `consents` | id, user_id, device_id, text_version, backfill, granted_at, revoked_at | |
-| `sessions` | id, user_id, project_id, device_id, source_id, agent, agent_version, repo_remote, branch, started_at, ended_at, turn_count, token totals, parent_session_id | unique (user_id, source_id) |
+| `sessions` | id, user_id, project_id, device_id, source_id, agent, agent_version, repo_remote, branch, started_at, ended_at, turn_count, token totals, parent_session_id, work_type | unique (user_id, source_id). `work_type`: nhãn loại việc do rule worker gán bằng heuristic (mục 9.3) |
 | `turns` | session_id, seq, role, kind, ts, model, text, tool (jsonb), output (jsonb), diff (jsonb), usage (jsonb), redactions (jsonb), tsv (tsvector) | PK (session_id, seq), partition theo `ts` |
 | `rules` | id, project_id (null = mặc định toàn instance), key, category, severity, definition (jsonb), enabled, version | |
 | `findings` | id, session_id, rule_id, rule_version, turn_seq, evidence (jsonb), created_at | |
 | `session_scores` | session_id, category, score, computed_at | 5 nhóm kỹ năng, mục 9 |
-| `llm_reviews` | id, session_id, requested_by, provider, model, rubric_version, result (jsonb), cost_usd, created_at | |
+| `ai_results` | id, user_id (người bấm), kind, subject_type, subject_id, locale, provider, model, prompt_version, input_tokens, output_tokens, result (jsonb), created_at | Kết quả AI, **chỉ người bấm đọc được**. Unique (user_id, kind, subject_type, subject_id, locale): bấm lại thì ghi đè |
+| `user_llm_keys` | user_id, provider (`anthropic` \| `openai_compatible`), base_url, model, key_encrypted, created_at, updated_at | API key AI của từng người (BYO) |
+| `agent_tokens` | id, user_id, name, token_hash, last_used_at, created_at, revoked_at | Token cá nhân `tlp_` cho MCP |
+| `prompt_library` | id, project_id, session_id, turn_seq, note, hide_author, approved_by, created_at | Prompt mẫu leader đã duyệt, member xem được |
+| `skill_catalog_sources` | id, url, kind, enabled, created_at | Nguồn catalog skill cho Skill Finder |
 | `user_weekly_stats` | user_id, project_id, week, sessions, tokens, scores (jsonb) | Bảng tổng hợp, giữ lâu dài sau khi nội dung thô bị xóa |
 | `notes` | id, session_id, author_id, turn_seq, body, created_at | Ghi chú của leader |
 | `audit_log` | id, actor_id, action, target_type, target_id, at | |
-| `settings` | key, value (jsonb) | LLM key (mã hóa), retention, pattern redaction |
+| `settings` | key, value (jsonb) | Retention, pattern redaction |
 
-LLM API key được mã hóa bằng AES-GCM với khóa lấy từ biến môi trường `TEAMLENS_SECRET_KEY`. ORM: Drizzle; migration là file SQL, phần partition và full-text search viết SQL tay.
+API key AI của từng người được mã hóa bằng AES-GCM với khóa lấy từ biến môi trường `TEAMLENS_SECRET_KEY`; chỉ chính người đó dùng được, kể cả leader cũng không đọc được key của người khác. Token `tlp_` chỉ lưu SHA-256 như device token. ORM: Drizzle; migration là file SQL, phần partition và full-text search viết SQL tay.
 
-## 9. Rule engine và chấm bằng LLM
+## 9. Rule engine và tính năng AI
 
-Rule chạy tự động trên server sau mỗi lần ingest và cho ra điểm 0–100 theo 5 nhóm kỹ năng; LLM chỉ chạy khi người dùng bấm nút. Khi rule thay đổi, leader bấm "Chạy lại" để tính lại trên dữ liệu cũ còn trong retention.
+Rule chạy tự động trên server sau mỗi lần ingest và cho ra điểm 0–100 theo 5 nhóm kỹ năng; tính năng AI chỉ chạy khi người dùng bấm nút (mục 9.3). Khi rule thay đổi, leader bấm "Chạy lại" để tính lại trên dữ liệu cũ còn trong retention.
 
 ### 9.1 Nhóm kỹ năng và rule khởi đầu
 
@@ -373,14 +379,42 @@ Rule là JSON khai báo, lưu trong DB, không chạy code tùy ý. MVP hỗ tr�
 
 Leader bật/tắt rule và chỉnh ngưỡng theo project; màn hình rule có nút "Thử trên 50 session gần nhất".
 
-### 9.3 Chấm bằng LLM
+### 9.3 Tính năng AI và MCP (Mốc 6)
 
-- Kích hoạt: nút "Chấm bằng LLM" trên trang session. Chỉ hiện khi leader đã cấu hình provider. Không chạy tự động.
-- Provider: Anthropic, OpenAI, Gemini, hoặc endpoint tương thích OpenAI (Ollama, vLLM). Leader nhập key và chọn model.
-- Đầu vào: các turn của session (đã cắt gọn theo ngân sách token cấu hình được, mặc định 60k token) cùng các finding từ rule.
-- Đầu ra JSON có schema cố định: điểm 1–5 cho mỗi nhóm kỹ năng, lý do kèm số thứ tự turn làm bằng chứng, 3 gợi ý cải thiện, và một phiên bản prompt viết lại cho prompt kém nhất.
-- Rubric có phiên bản (`rubric_version`) để so sánh được kết quả qua thời gian. Lưu chi phí ước tính của mỗi lần chấm.
-- Điểm LLM hiển thị tách biệt với điểm rule và không tính vào leaderboard (vì chỉ một số session được chấm).
+Thiết kế đầy đủ, task và vùng sở hữu: [AI_PLAN.md](AI_PLAN.md). Mục này chỉ ghi phần đã chốt. Thay cho thiết kế cũ "Chấm bằng LLM" (một key chung do leader cấu hình).
+
+**Nguyên tắc**
+- **BYO theo từng người:** ai muốn dùng AI thì tự nhập API key của mình ở trang "Cài đặt AI". Server không có key chung. Người chưa có key không thấy nút AI.
+- **Provider:** Anthropic và chuẩn OpenAI-compatible (phủ OpenAI, Gemini qua endpoint tương thích, Ollama, vLLM, OpenRouter).
+- **Không chạy nền:** mọi tính năng AI chỉ chạy khi người dùng bấm.
+- **Kết quả riêng:** kết quả AI chỉ người bấm thấy; bấm lại thì ghi đè; xóa theo retention của nội dung thô. Ngoại lệ: prompt mẫu leader đã duyệt vào thư viện.
+- **Quyền giống dashboard:** member dùng AI trên dữ liệu của mình, leader trên dữ liệu của mọi người; dùng trên dữ liệu người khác thì ghi audit.
+- **Ngôn ngữ:** kết quả theo ngôn ngữ giao diện của người bấm.
+- **Không kiểm soát chi phí:** chỉ lưu số token của mỗi lần gọi.
+- **Không gửi thêm dữ liệu repo** lên server.
+- **Chống prompt injection:** nội dung turn là dữ liệu không đáng tin, đặt sau câu chặn và khối phân tách; đầu ra ép JSON schema, validate bằng zod.
+
+**Tính năng**
+
+| Mã | Tính năng | Gọi LLM |
+| --- | --- | --- |
+| A1 | Tóm tắt session: việc gì, kết quả, file bị đụng, loại việc | Có |
+| A4 | Giải thích finding: vì sao bị bắt, nên làm gì trong đúng session này | Có |
+| A5 | Đánh giá kết quả session: xong / bỏ dở / kẹt vòng lặp, kèm số turn làm bằng chứng | Có |
+| B1 | Báo cáo tuần theo người | Có |
+| B2 | Báo cáo tuần của team (chỉ leader) | Có |
+| B4 | Phân loại việc (bugfix, feature, refactor, hỏi đáp, ops…) cho từng session, chạy trong rule worker | **Không**, heuristic |
+| C2 | Thư viện prompt mẫu: AI đề xuất, leader duyệt thì member xem được (có thể ẩn tên) | Có |
+| C3 | Đề xuất bổ sung CLAUDE.md/AGENTS.md từ finding lặp lại của project (chỉ leader) | Có |
+| S0–S3 | Skill Finder: gom cụm prompt lặp lại (heuristic, hỗ trợ tiếng Việt), triage cụm, sinh `SKILL.md`, chọn skill từ catalog cấu hình được | S0 không, S1–S3 có |
+
+Điểm do AI đưa ra (nếu có) không tính vào leaderboard.
+
+**MCP**
+- Một endpoint Streamable HTTP ở `/api/v1/mcp`. Member cài bằng `claude mcp add teamlens -- tl mcp` (`tl mcp` là cầu nối stdio, dùng device token sẵn có). Leader tạo token `tlp_` ở trang "Cài đặt AI" rồi cấu hình agent gọi thẳng endpoint.
+- Tool thấy đúng dữ liệu người dùng thấy trên dashboard. Agent của người dùng là AI, nên MCP không cần key nào trên server.
+- Tool đọc: dự án, thành viên, tổng quan, leaderboard, hồ sơ, tìm và đọc session, finding, rule, cụm skill, thư viện prompt, kết quả AI của chính mình.
+- Tool ghi cho leader: soạn và chạy thử rule, lưu rule, **bật/tắt rule** (ghi audit giá trị cũ và mới, rồi chạy lại rule), thêm ghi chú session.
 
 ## 10. Web dashboard (Next.js)
 
@@ -388,14 +422,17 @@ MVP có 5 màn hình cho leader và các màn hình quản trị tối thiểu; 
 
 | Màn hình | Nội dung | Ai xem |
 | --- | --- | --- |
-| Tổng quan project | Số session, token và chi phí ước tính theo tuần; phân bố agent và model; điểm trung bình 5 nhóm theo tuần; top anti-pattern; bảng trạng thái thành viên (online, offline N ngày, tạm dừng, đã rút đồng ý) | Leader |
-| Hồ sơ thành viên | Radar 5 nhóm kỹ năng; xu hướng điểm theo tuần; anti-pattern hay mắc kèm ví dụ và lời khuyên; danh sách session | Leader; member xem của mình |
-| Xem lại session | Dòng hội thoại: prompt, câu trả lời, tool call thu gọn, diff tô màu, đánh dấu turn dính finding; nút "Chấm bằng LLM"; ghi chú của leader theo turn; tìm kiếm trong session | Leader; member xem của mình |
+| Tổng quan project | Số session, token và chi phí ước tính theo tuần; phân bố agent, model và loại việc; báo cáo tuần của team bằng AI (B2); điểm trung bình 5 nhóm theo tuần; top anti-pattern; bảng trạng thái thành viên (online, offline N ngày, tạm dừng, đã rút đồng ý) | Leader |
+| Hồ sơ thành viên | Radar 5 nhóm kỹ năng; xu hướng điểm theo tuần; anti-pattern hay mắc kèm ví dụ và lời khuyên; danh sách session; báo cáo tuần bằng AI (B1) | Leader; member xem của mình |
+| Xem lại session | Dòng hội thoại: prompt, câu trả lời, tool call thu gọn, diff tô màu, đánh dấu turn dính finding; nút AI: tóm tắt (A1), đánh giá kết quả (A5), giải thích finding (A4); ghi chú của leader theo turn; tìm kiếm trong session | Leader; member xem của mình |
 | Leaderboard | Xếp hạng theo điểm rule tổng và từng nhóm, trong tuần/tháng; chỉ tính người có từ 5 session trong kỳ; có công tắc bật/tắt theo project | Leader; member thấy khi leader bật chế độ công khai |
-| Quản lý rule | Danh sách rule, bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, thử trên dữ liệu gần đây, chạy lại | Leader |
+| Quản lý rule | Danh sách rule, bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, thử trên dữ liệu gần đây, chạy lại; đề xuất bổ sung file hướng dẫn bằng AI (C3) | Leader |
 | Thành viên | Danh sách thành viên kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý); người mới tham gia; thu hồi thiết bị; xóa thành viên; **"Gộp vào…"** để nhập user trùng (máy thứ hai, cài lại Windows) vào user cũ | Leader |
-| Quản trị | Project, repo pattern, link mời (tạo, giới hạn lượt, thu hồi), thêm leader, LLM provider, retention, pattern redaction, audit log | Leader |
+| Quản trị | Project, repo pattern, link mời (tạo, giới hạn lượt, thu hồi), thêm leader, retention, pattern redaction, audit log | Leader |
 | Của tôi | Đồng ý đã cấp, thiết bị, audit log ai đã xem session của mình | Mọi người |
+| Cài đặt AI | API key AI của tôi (nhập, kiểm tra, xóa); token cho agent `tlp_` (tạo, thu hồi); hướng dẫn cài MCP | Mọi người |
+| Skill Finder | Cụm prompt lặp lại, triage bằng AI, sinh `SKILL.md`, skill gợi ý từ catalog, nguồn catalog | Leader theo project; member trên dữ liệu của mình |
+| Thư viện prompt | Prompt mẫu đã duyệt; leader tìm ứng viên bằng AI và duyệt | Leader; member xem mục đã duyệt |
 
 Gợi ý thư viện: shadcn/ui + Tailwind, TanStack Query, Recharts hoặc ECharts cho biểu đồ, `react-diff-view` cho diff, `next-intl` cho tiếng Việt và tiếng Anh (dự án open-source nên có i18n từ đầu).
 
@@ -410,12 +447,15 @@ Một server do một leader (hoặc một nhóm leader) tự host cho team củ
 | Xem session và điểm của mình | Có | Có (qua `tl open`) |
 | Xem session của người khác | Có, mọi project (ghi audit) | Không |
 | Xem leaderboard | Có | Khi leader bật chế độ công khai |
-| Chấm bằng LLM | Có | Session của mình, nếu leader cho phép |
+| Dùng tính năng AI trên dashboard (bằng API key của chính mình) | Có, trên dữ liệu mọi người (ghi audit) | Trên dữ liệu của mình |
+| Dùng MCP | Có, bằng token `tlp_`; thấy như dashboard | Có, bằng `tl mcp`; chỉ dữ liệu của mình |
+| Bật/tắt, lưu rule qua MCP | Có (ghi audit) | Không |
+| Cấu hình API key AI và token agent của mình | Có | Có |
 | Quản lý rule | Có | Không |
 | Tạo project, repo pattern, link mời | Có | Không |
 | Quản lý thành viên: thu hồi thiết bị, gộp, xóa | Có | Thu hồi thiết bị của chính mình |
 | Thêm leader khác (nhập email + mật khẩu tạm, hoặc nâng một member lên leader rồi đặt email + mật khẩu) | Có | Không |
-| Cấu hình LLM key, retention, pattern redaction | Có | Không |
+| Cấu hình retention, pattern redaction | Có | Không |
 | Xóa toàn bộ dữ liệu của một người | Có | Yêu cầu leader |
 
 Server luôn phải còn ít nhất một leader: không cho xóa hay hạ quyền leader cuối cùng.
@@ -424,7 +464,7 @@ Một session chỉ thuộc một project. Nếu một repo khớp pattern của
 
 ### 11.2 Retention
 
-- Nội dung thô (`turns`, `llm_reviews`, `notes`): mặc định 90 ngày, leader chỉnh từ 7 tới 730 ngày hoặc vô hạn.
+- Nội dung thô (`turns`, `ai_results`, `notes`, mục `prompt_library` trỏ tới session đã hết hạn): mặc định 90 ngày, leader chỉnh từ 7 tới 730 ngày hoặc vô hạn.
 - Metadata session, finding, điểm và `user_weekly_stats`: giữ lâu dài để xem xu hướng.
 - Job chạy hằng đêm: drop partition `turns` quá hạn, xóa bản ghi liên quan.
 - Audit log giữ ít nhất 1 năm.
@@ -454,13 +494,16 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 | Rủi ro | Ảnh hưởng | Cách giảm |
 | --- | --- | --- |
 | Agent đổi định dạng log | Mất dữ liệu im lặng | Bỏ qua bản ghi lạ, báo lỗi parse qua heartbeat, cảnh báo trên dashboard, test snapshot theo phiên bản, CLI tự cập nhật |
-| Server bị xâm nhập | Lộ mã nguồn và prompt của cả team | Che secret trên máy, mã hóa LLM key, HTTPS bắt buộc, retention ngắn mặc định, hướng dẫn hardening |
+| Server bị xâm nhập | Lộ mã nguồn và prompt của cả team | Che secret trên máy, mã hóa API key AI của từng người, HTTPS bắt buộc, retention ngắn mặc định, hướng dẫn hardening |
 | Che secret bỏ sót | Secret nằm trong DB | Pattern cập nhật được từ server; leader có công cụ quét lại và xóa secret trong dữ liệu đã lưu |
 | Link mời chung bị lộ | Người lạ tham gia và gửi dữ liệu rác | Link hết hạn 7 ngày, giới hạn lượt dùng, thu hồi được; người lạ không xem được dữ liệu của ai khác; người mới hiện ngay trên trang Thành viên để xóa |
 | Một người có nhiều user (máy thứ hai, cài lại Windows) | Điểm và lịch sử bị chia đôi | Leader gộp user trên trang Thành viên (mục 7.1) |
 | Leaderboard bị lách số | Điểm không phản ánh kỹ năng thật | Ngưỡng tối thiểu 5 session, công tắc tắt theo project, phase 3 gắn với kết quả PR/issue |
 | Pháp lý (GDPR, Nghị định 13/2023/NĐ-CP) | Tổ chức dùng tool vi phạm quy định dữ liệu cá nhân | Đồng ý rõ ràng có phiên bản, audit log, xóa theo yêu cầu, tài liệu PRIVACY.md cho người triển khai |
 | Session rất lớn (hàng trăm MB) | Daemon tốn RAM, request quá lớn | Đọc dạng stream, chia batch 10 MB, cắt dòng vượt 10 MB |
+| Lộ token `tlp_` hoặc API key AI của một người | Người khác đọc dữ liệu qua MCP với quyền của người đó, hoặc tiêu tiền trên key | Token chỉ lưu SHA-256, thu hồi được, có `last_used_at`; key mã hóa, không bao giờ trả lại nguyên văn qua API |
+| Prompt injection qua nội dung turn | LLM bị dắt sang làm việc khác, kết quả sai | Câu chặn dữ liệu không đáng tin, khối phân tách, đầu ra ép JSON schema |
+| Agent bật/tắt rule nhầm qua MCP | Điểm cả team đổi | Chỉ leader, ghi audit giá trị cũ và mới, đảo lại được trên dashboard |
 | Windows Defender/SmartScreen chặn `tl.exe` | Thành viên không cài được | Ký code khi có ngân sách; trước đó cài qua script và hướng dẫn rõ |
 
 ### 12.2 Quyết định đã chốt và câu hỏi còn mở
@@ -475,6 +518,14 @@ Rủi ro lớn nhất là định dạng log của agent thay đổi không báo
 - [x] WSL ở phase 2, Remote-SSH và Dev Container ở phase 3; MVP cảnh báo trong `tl status`.
 - [x] Gộp Admin vào Leader: chỉ còn hai vai trò toàn server, leader làm mọi thứ (mục 11.1).
 - [x] Thành viên tham gia bằng một lệnh `tl join <link mời>`: link chung cho cả nhóm, mã mời đổi thẳng lấy device token, bỏ device login qua trình duyệt (`device_codes`, `/device`); member không có email/mật khẩu, vào dashboard bằng `tl open`; user trùng do máy thứ hai hoặc cài lại máy thì leader gộp (mục 7.1).
+
+Đã chốt ngày 2026-11-28 (chi tiết ở [AI_PLAN.md](AI_PLAN.md)):
+
+- [x] Tính năng AI theo mô hình BYO theo từng người, không có key chung; key lưu mã hóa trên server; provider Anthropic + OpenAI-compatible.
+- [x] Tính năng AI chỉ chạy khi bấm, kết quả riêng của người bấm, ghi đè khi bấm lại, xóa theo retention.
+- [x] MCP ở `/api/v1/mcp`: member qua `tl mcp`, leader qua token `tlp_`; leader được bật/tắt rule qua MCP.
+- [x] Bỏ Context Health (không gửi thêm nội dung repo); phân loại việc làm bằng heuristic.
+- [x] Mốc 6 làm song song, thêm Người 3 (MCP + tri thức team).
 
 Còn mở:
 
