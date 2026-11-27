@@ -75,7 +75,14 @@ Bản đồ đường đi của một session từ máy thành viên tới dashb
 
 - **Làm gì:** worker nhận `session.ingested`, chạy rule JSON (danh mục ở [RULES.md](RULES.md)), ghi `findings`, tính điểm 5 nhóm và thống kê tuần.
 - **Code:** `apps/api/src/modules/rules/` (engine + worker), `apps/api/src/modules/stats/`.
-- **Ghi chú của người làm:** _(điền sau mốc 1 và mốc 2)_
+- **Ghi chú của người làm:**
+  - Mốc 1–2 (M1.10, M1.11, M2.7): xem `apps/api/src/modules/rules/README.md` (engine, 16 rule high/medium, worker `session.ingested`, seed chấm điểm M2.6).
+  - Mốc 2 (M2.8): sau mỗi lần chấm, `scoreSession` ghi thêm `user_weekly_stats` (một dòng cho mỗi người, project, tuần UTC; chi tiết ở `apps/api/src/modules/stats/README.md`). **Các điều đã chốt, M2.9/M2.10/M4.3 và Người 1 cần biết:**
+    1. **Finding tuần có trừ vào điểm tuần.** Điểm tuần mỗi nhóm = trung bình điểm session gốc (trọng số `turn_count`, SPEC 9.1) rồi trừ phạt của finding `user_week` cùng nhóm (low 5, medium 10, high 20), tối thiểu 0. Không tính hai lần vì điểm *session* chỉ dùng rule phạm vi session.
+    2. **`tokens` của tuần** = `input + output + cache đọc + cache ghi` của **mọi** session của người đó trong tuần, **kể cả session con** (chi phí thật). Còn `sessions` và `scores` chỉ tính session gốc (SPEC 9.1: session con không có điểm, không vào leaderboard). Vì vậy `scoreSession` cũng chạy khi session con tới và cập nhật thống kê tuần.
+    3. **"Chạy lại" chạy ở nền:** `POST /api/v1/projects/{projectId}/rules/rerun` (chỉ leader, audit `rules.rerun`) trả `202` rồi job `project.rescore` chấm lại mọi session của project. Nút trên UI (M4.4) dùng endpoint này.
+  - `user_weekly_stats.scores` là `{}` khi tuần chưa có session nào được chấm; UI nên coi là "chưa có điểm". Cột `week` là ngày thứ Hai (UTC). Tuần xếp theo `started_at` của session.
+  - Thêm job `project.rescore` vào `apps/api/src/queue/jobs.ts` (file dùng chung, chỉ thêm một dòng).
 
 ## ⑨ Dashboard — xem session: Người 1 (M1.8, M3.4, M4.1, M4.2); báo cáo: Người 2 (M2.9, M2.10, M4.3)
 

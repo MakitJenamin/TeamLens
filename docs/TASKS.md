@@ -15,14 +15,14 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Giai đoạn nền | ✅ xong | PR #1 |
 | Mốc 1 · Gửi session lên và xem lại | ✅ xong | M1.1–M1.12 |
 | Mốc 1.5 · Tối giản tham gia | ✅ xong | PR #29–#37 |
-| Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | 🔄 đang làm | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6, M2.7; còn M2.8–M2.10 |
+| Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | 🔄 đang làm | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.8; còn M2.9, M2.10 |
 | Mốc 3 · Tự chạy nền | 🔄 đang làm | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 còn M3.5–M3.8; phần mời thành viên đã xong ở Mốc 1.5 |
 | Mốc 4 · Báo cáo và minh bạch | ⏳ chưa làm | |
 | Mốc 5 · Cài đặt và phát hành | ⏳ chưa làm | |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
 1. Người 1: hết việc Mốc 2 và Mốc 3, làm trước **M4.1** (full-text search) → **M4.2** (trang thành viên kèm trạng thái thiết bị, dùng `devices.last_heartbeat` của M3.3) → M5.1 → M5.2 → M5.3.
-2. Người 2: **M2.8** (điểm 5 nhóm + `user_weekly_stats`, mở khóa M2.9/M2.10/M4.3) → **M2.9** → **M2.10**.
+2. Người 2: **M2.9** → **M2.10** (đọc `user_weekly_stats` của M2.8, đã mở khóa thêm M4.3).
 3. Người 2: **M3.8** (Task Scheduler) đăng ký `tl daemon --background` (M3.2 đã có). Lưu ý: `tl.exe` là ứng dụng console, nên đăng ký kiểu ẩn (vd. `conhost.exe --headless`) hoặc gọi `FreeConsole` để không hiện cửa sổ.
 
 ## Hai người, hai nhóm tính năng
@@ -82,13 +82,13 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 ---
 
-## Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ — 🔄 đang làm (xong M2.1–M2.7)
+## Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ — 🔄 đang làm (xong M2.1–M2.8)
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
 | 1 | ✅ **M2.1** Che secret đầy đủ: ≥ 30 loại theo gitleaks + entropy sau từ khóa + bỏ output file `.env*`/`*.pem`/`*.key`; nhận thêm pattern từ `GET /agent/v1/config`<br>**Tự test:** bộ ≥ 30 secret mẫu bị che 100% (#43) | ✅ **M2.6** Seed riêng cho chấm điểm (nhiều người, nhiều tuần, đủ loại anti-pattern), tách khỏi seed chung (#27) |
 | 2 | ✅ **M2.2** API `GET /agent/v1/config`: pattern remote, pattern redaction (đọc từ `settings`), ngưỡng cắt, phiên bản văn bản đồng ý (lấy từ `apps/api/src/modules/consent/consent-text.ts`, khác phiên bản thì CLI ngừng gửi và nhắc đồng ý lại), phiên bản CLI tối thiểu<br>**Tự test:** curl bằng device token (#39, #42) | ✅ **M2.7** Rule engine: phạm vi `user_week`, `aggregate: ratio`, `min_sample`; 16 rule mức high/medium của RULES.md (#28) |
-| 3 | ✅ **M2.3** Đọc tăng dần theo offset lưu trong SQLite `state.db`; session ổn định khi file không đổi 2 phút<br>**Tự test:** thêm dòng vào log → chỉ phần mới được gửi (#41) | **M2.8** Điểm 5 nhóm + `user_weekly_stats` (chỉ session gốc) + API "chạy lại rule"<br>**Tự test:** test với seed chấm điểm |
+| 3 | ✅ **M2.3** Đọc tăng dần theo offset lưu trong SQLite `state.db`; session ổn định khi file không đổi 2 phút<br>**Tự test:** thêm dòng vào log → chỉ phần mới được gửi (#41) | ✅ **M2.8** Điểm 5 nhóm + `user_weekly_stats` (điểm và số session chỉ tính session gốc; token tính cả session con; finding tuần trừ vào điểm tuần) + API "chạy lại rule" chạy nền (`POST /projects/{id}/rules/rerun`)<br>**Tự test:** test với seed chấm điểm (e2e `weekly-stats`) |
 | 4 | ✅ **M2.4** Claude Code đầy đủ: subagent thành session con, `permission_mode`, `instruction_files`, `interrupted`, compaction<br>**Tự test:** snapshot test có subagent (#40) | **M2.9** Trang tổng quan project (chỉ leader, mọi project): session, token, chi phí ước tính theo tuần, phân bố agent/model, thống kê không tính điểm, top anti-pattern<br>**Tự test:** xem trên web với seed |
 | 5 | ✅ **M2.5** Adapter Codex (fixtures, đọc, chuẩn hóa, `reasoning_effort`)<br>**Tự test:** snapshot test; `tl sync --once` với session Codex thật (#44) | **M2.10** Hồ sơ thành viên (`members/[userId]`; leader xem mọi người có audit, member xem của mình qua `tl open`): radar 5 nhóm, xu hướng theo tuần, anti-pattern hay mắc kèm ví dụ và lời khuyên<br>**Tự test:** xem hồ sơ một member seed bằng leader và bằng chính member đó |
 

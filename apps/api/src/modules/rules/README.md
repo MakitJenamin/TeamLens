@@ -29,3 +29,9 @@ pnpm --filter @teamlens/api rules:run
 | Phiên đối chứng | 18 | Có file hướng dẫn, prompt nhắc spec, nêu tiêu chí, chạy test và xem lại kết quả. |
 
 Với ba rule M1.10 mặc định, riêng bộ mẫu cho **3** finding `mega-session`, **3** `repeated-correction` và **15** `no-test-after-edit`. Các tín hiệu khác dùng cho rule ở mốc sau. Với rule chi phí, dùng `claude-opus-4-6` làm model cao cấp khi thử.
+
+### Điểm tuần và chạy lại (M2.8)
+
+Sau mỗi lần chấm một session (kể cả session con, vì token của nó cộng vào tuần), `scoreSession` cập nhật `user_weekly_stats` của tuần đó; cách tính nằm ở `modules/stats/README.md`. Finding tuần trừ vào điểm tuần theo nhóm của rule.
+
+`POST /api/v1/projects/{projectId}/rules/rerun` (chỉ leader, ghi audit `rules.rerun`) trả `202 { "status": "queued" }` rồi chấm lại **mọi session của project ở nền** bằng job pg-boss `project.rescore` (`rescoreProject` trong `score-session.ts`, duyệt theo lô 100 session). Chạy lại nhiều lần không tạo bản ghi trùng. Nút "Chạy lại" trên UI (M4.4) gọi chính endpoint này. Lệnh dev tương đương cho cả DB: `pnpm --filter @teamlens/api rules:run`.
