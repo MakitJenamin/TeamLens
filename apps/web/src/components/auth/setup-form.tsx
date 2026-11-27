@@ -7,7 +7,6 @@ import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { CopyField } from "@/components/copy-field";
-import { InstallSteps } from "@/components/install-steps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -165,7 +164,7 @@ export function SetupForm() {
     <Card>
       <CardHeader>
         <CardTitle className="text-xl">{t("setup.title")}</CardTitle>
-        <CardDescription>{t(`setup.descriptions.${step}`)}</CardDescription>
+        {step !== "project" && <CardDescription>{t(`setup.descriptions.${step}`)}</CardDescription>}
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {alreadySetup ? (
@@ -329,12 +328,10 @@ export function SetupForm() {
 
             {step === "done" && invite && (
               <div className="flex flex-col gap-4">
-                <Alert>
-                  <AlertDescription>{t("setup.inviteExplain")}</AlertDescription>
-                </Alert>
-                <CopyField label={t("setup.inviteUrl")} value={invite.url} />
-                <InstallSteps inviteUrl={invite.url} />
-                <p className="text-muted-foreground text-xs">{t("setup.inviteLater")}</p>
+                <div className="grid gap-1">
+                  <CopyField label={t("setup.inviteUrl")} value={invite.url} />
+                  <p className="text-muted-foreground text-xs">{t("setup.inviteLater")}</p>
+                </div>
                 <Button className="w-full" onClick={goToDashboard}>
                   {t("setup.goToDashboard")}
                 </Button>

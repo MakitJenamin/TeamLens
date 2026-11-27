@@ -35,7 +35,6 @@ export default async function ProjectSessionsPage({ params }: Props) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{t("list.title")}</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">{t("list.description")}</p>
       </div>
       <SessionList projectId={projectId} members={members} />
     </div>

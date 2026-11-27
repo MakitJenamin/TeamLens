@@ -1,9 +1,8 @@
 {
   "pageTitle": "Link mời TeamLens",
   "title": "Tham gia {project}",
-  "description": "Bạn được mời tham gia project {project} trên TeamLens.",
   "repos": "Repo sẽ được thu thập",
-  "reposHint": "Chỉ session làm trong các repo này mới được gửi đi; mọi thứ khác không rời máy bạn. Bạn sẽ xem lại và đồng ý trước khi tham gia.",
+  "reposHint": "Session ngoài các repo này không rời máy bạn.",
   "noRepos": "Project chưa khai báo repo nào.",
   "expiresAt": "Link hết hạn {date}.",
   "errorTitle": "Không dùng được link mời",

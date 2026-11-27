@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InstallSteps } from "@/components/install-steps";
 import { fetchInvitePreview } from "@/lib/api/server";
 
@@ -55,7 +55,6 @@ export default async function InvitePage({ params }: PageProps<"/[locale]/i/[cod
         <CardTitle className="text-xl break-words">
           {t("title", { project: preview.project.name })}
         </CardTitle>
-        <CardDescription>{t("description", { project: preview.project.name })}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <section className="space-y-2">
