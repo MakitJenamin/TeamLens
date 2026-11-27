@@ -1,0 +1,97 @@
+# Nhóm `members` (Người 1, M4.2): trang Thành viên của dashboard (SPEC mục 7.1 và bảng trang dashboard).
+# - GET /api/v1/projects/{projectId}/member-status: thành viên của project kèm thiết bị và trạng thái.
+#
+# Các hành động trên trang dùng endpoint có sẵn: xóa thành viên (`DELETE /api/v1/projects/{projectId}/members/{userId}`,
+# projects.yaml), thu hồi thiết bị (`POST /api/v1/devices/{deviceId}/revoke`, devices.yaml), gộp user
+# (`POST /api/v1/users/{userId}/merge`, users.yaml).
+paths:
+  /api/v1/projects/{projectId}/member-status:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectMemberStatus
+      tags: [members]
+      summary: Thành viên của project kèm thiết bị và trạng thái (chỉ leader)
+      description: |
+        Mỗi thành viên của project kèm ngày tham gia project, session gần nhất trong project và mọi thiết bị
+        của user đó (kể cả thiết bị đã thu hồi, `revokedAt` khác `null`). Chỉ leader; member nhận `403`.
+
+        - `devices[].status` là trạng thái **hiệu lực**: `online` mà heartbeat cũ hơn 30 phút (hoặc chưa từng có)
+          thì trả `offline`. `paused` và `consent_revoked` giữ nguyên. Thiết bị đã thu hồi xem qua `revokedAt`.
+        - Sắp xếp: người tham gia project gần nhất trước. Thiết bị: chưa thu hồi trước, rồi theo `lastSeenAt` mới nhất.
+        - Xem danh sách không ghi audit (giống `listProjectMembers`): chỉ là metadata, không có nội dung session.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Thành viên kèm thiết bị.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberStatusList'
+              example:
+                items:
+                  - userId: 7d3c8a52-6f0e-4b8e-9f43-2a1c0d9e5b71
+                    name: Thành viên 1
+                    email: null
+                    role: member
+                    joinedAt: '2026-11-20T08:00:00.000Z'
+                    lastSessionAt: '2026-11-26T15:42:10.000Z'
+                    devices:
+                      - id: 0b6f4f0a-2a51-4d1c-8d0e-6a3f8e1c9a20
+                        name: LAPTOP-01
+                        os: windows
+                        cliVersion: 0.1.0
+                        status: paused
+                        lastSeenAt: '2026-11-27T02:10:00.000Z'
+                        createdAt: '2026-11-20T08:00:00.000Z'
+                        revokedAt: null
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  schemas:
+    MemberStatusList:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberStatus'
+
+    MemberStatus:
+      type: object
+      required: [userId, name, email, role, joinedAt, lastSessionAt, devices]
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        name:
+          type: string
+        email:
+          description: '`null` với member (không có email).'
+          oneOf:
+            - type: string
+              format: email
+            - type: 'null'
+        role:
+          $ref: './common.yaml#/components/schemas/Role'
+        joinedAt:
+          type: string
+          format: date-time
+          description: Lúc user được thêm vào project (`project_members.created_at`).
+        lastSessionAt:
+          type: [string, 'null']
+          format: date-time
+          description: '`startedAt` của session gần nhất của user trong project; `null` khi chưa có session nào.'
+        devices:
+          type: array
+          description: Mọi thiết bị của user (thiết bị là của user, không riêng project), kể cả đã thu hồi.
+          items:
+            $ref: './common.yaml#/components/schemas/Device'

@@ -907,6 +907,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/member-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Thành viên của project kèm thiết bị và trạng thái (chỉ leader)
+         * @description Mỗi thành viên của project kèm ngày tham gia project, session gần nhất trong project và mọi thiết bị
+         *     của user đó (kể cả thiết bị đã thu hồi, `revokedAt` khác `null`). Chỉ leader; member nhận `403`.
+         *
+         *     - `devices[].status` là trạng thái **hiệu lực**: `online` mà heartbeat cũ hơn 30 phút (hoặc chưa từng có)
+         *       thì trả `offline`. `paused` và `consent_revoked` giữ nguyên. Thiết bị đã thu hồi xem qua `revokedAt`.
+         *     - Sắp xếp: người tham gia project gần nhất trước. Thiết bị: chưa thu hồi trước, rồi theo `lastSeenAt` mới nhất.
+         *     - Xem danh sách không ghi audit (giống `listProjectMembers`): chỉ là metadata, không có nội dung session.
+         */
+        get: operations["listProjectMemberStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1499,6 +1527,28 @@ export interface components {
             message: string;
             /** @description Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention hoặc khi turn không có văn bản (vd. compaction). */
             excerpt: string | null;
+        };
+        MemberStatusList: {
+            items: components["schemas"]["MemberStatus"][];
+        };
+        MemberStatus: {
+            userId: components["schemas"]["Id"];
+            name: string;
+            /** @description `null` với member (không có email). */
+            email: string | null;
+            role: components["schemas"]["Role"];
+            /**
+             * Format: date-time
+             * @description Lúc user được thêm vào project (`project_members.created_at`).
+             */
+            joinedAt: string;
+            /**
+             * Format: date-time
+             * @description `startedAt` của session gần nhất của user trong project; `null` khi chưa có session nào.
+             */
+            lastSessionAt: string | null;
+            /** @description Mọi thiết bị của user (thiết bị là của user, không riêng project), kể cả đã thu hồi. */
+            devices: components["schemas"]["Device"][];
         };
         /**
          * @description Agent sinh ra session.
@@ -3810,6 +3860,57 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    listProjectMemberStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Thành viên kèm thiết bị. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "userId": "7d3c8a52-6f0e-4b8e-9f43-2a1c0d9e5b71",
+                     *           "name": "Thành viên 1",
+                     *           "email": null,
+                     *           "role": "member",
+                     *           "joinedAt": "2026-11-20T08:00:00.000Z",
+                     *           "lastSessionAt": "2026-11-26T15:42:10.000Z",
+                     *           "devices": [
+                     *             {
+                     *               "id": "0b6f4f0a-2a51-4d1c-8d0e-6a3f8e1c9a20",
+                     *               "name": "LAPTOP-01",
+                     *               "os": "windows",
+                     *               "cliVersion": "0.1.0",
+                     *               "status": "paused",
+                     *               "lastSeenAt": "2026-11-27T02:10:00.000Z",
+                     *               "createdAt": "2026-11-20T08:00:00.000Z",
+                     *               "revokedAt": null
+                     *             }
+                     *           ]
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MemberStatusList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

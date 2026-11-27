@@ -21,6 +21,8 @@ export type Member = Schemas['Member'];
 export type DeviceStatus = Schemas['DeviceStatus'];
 export type DeviceRef = Schemas['DeviceRef'];
 export type Device = Schemas['Device'];
+export type MemberStatus = Schemas['MemberStatus'];
+export type MemberStatusList = Schemas['MemberStatusList'];
 
 // Session trên dashboard (REST, camelCase).
 export type AgentKind = Schemas['AgentKind'];
