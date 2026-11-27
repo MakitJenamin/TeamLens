@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ConsentModule } from './modules/consent/consent.module.js';
 import { DeviceModule } from './modules/device/device.module.js';
 import { InvitesModule } from './modules/invites/invites.module.js';
+import { MembersModule } from './modules/members/members.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RetentionModule } from './modules/retention/retention.module.js';
 import { RulesModule } from './modules/rules/rules.module.js';
@@ -35,6 +36,7 @@ import { QueueModule } from './queue/queue.module.js';
     // Luồng dữ liệu: ingest, xem session
     AgentModule,
     SessionsModule,
+    MembersModule,
     // Onboarding, rule, điểm, quản trị
     InvitesModule,
     ConsentModule,
