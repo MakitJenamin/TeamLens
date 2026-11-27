@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ConsentModule } from './modules/consent/consent.module.js';
 import { DeviceModule } from './modules/device/device.module.js';
 import { InvitesModule } from './modules/invites/invites.module.js';
+import { LlmModule } from './modules/llm/llm.module.js';
 import { MembersModule } from './modules/members/members.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RetentionModule } from './modules/retention/retention.module.js';
@@ -44,6 +45,8 @@ import { QueueModule } from './queue/queue.module.js';
     StatsModule,
     AdminModule,
     RetentionModule,
+    // AI (Mốc 6)
+    LlmModule,
   ],
   controllers: [HealthController],
 })
