@@ -1,4 +1,7 @@
 {
   "title": "Của tôi",
-  "description": "Đồng ý đã cấp, thiết bị đã kết nối và audit log ai đã xem session của bạn."
+  "description": "Xem các lần đồng ý theo thiết bị, máy đã kết nối và ai đã xem session của bạn.",
+  "leader": "Trưởng nhóm", "member": "Thành viên", "devices": "Thiết bị", "consents": "Lịch sử đồng ý", "views": "Lịch sử xem session", "loading": "Đang tải...",
+  "noDevices": "Chưa có thiết bị nào.", "noConsents": "Chưa có lần đồng ý nào.", "noViews": "Chưa có ai xem session của bạn.", "removedDevice": "Thiết bị không còn tồn tại",
+  "revoked": "Đã rút đồng ý", "granted": "Đã cấp đồng ý", "backfillYes": "Có gửi dữ liệu cũ", "backfillNo": "Chỉ gửi dữ liệu mới", "deletedAccount": "Tài khoản không còn tồn tại", "session": "Session", "more": "Xem thêm"
 }

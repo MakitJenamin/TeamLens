@@ -1,6 +1,7 @@
 {
   "projects": "Projects",
   "users": "Accounts",
+  "audit": "Audit", "auditAction": "Action", "auditActor": "Actor", "auditFrom": "From", "auditTo": "To", "auditFilter": "Filter", "auditLoading": "Loading audit...", "auditEmpty": "No matching events.", "auditTime": "Time", "auditTarget": "Target", "auditDeleted": "Account no longer exists", "auditMore": "Load more",
   "name": "Full name",
   "email": "Email",
   "password": "Password",
