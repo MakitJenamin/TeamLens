@@ -1,0 +1,74 @@
+{
+  "title": "Hồ sơ thành viên",
+  "description": "Điểm 5 nhóm kỹ năng, xu hướng theo tuần, anti-pattern hay mắc kèm ví dụ và lời khuyên. Leader xem được mọi thành viên; mỗi thành viên xem được hồ sơ của mình.",
+  "back": "Về danh sách thành viên",
+  "range": {
+    "label": "Khoảng thời gian",
+    "weeks": "{count} tuần gần nhất"
+  },
+  "totals": {
+    "sessions": "Session",
+    "sessionsHint": "Chỉ tính session gốc",
+    "tokens": "Token",
+    "tokensHint": "Gồm cả session con của subagent"
+  },
+  "radar": {
+    "title": "Điểm 5 nhóm kỹ năng",
+    "description": "Trung bình điểm tuần trong khoảng đã chọn, trọng số là số session mỗi tuần. Nét đứt là trung bình của cả team.",
+    "member": "Thành viên",
+    "team": "Trung bình team",
+    "noScore": "Chưa có session nào được chấm trong khoảng này."
+  },
+  "categories": {
+    "prompt_quality": "Chất lượng prompt",
+    "context": "Cung cấp context",
+    "correction_loop": "Vòng sửa lỗi",
+    "session_management": "Quản lý session",
+    "verification": "Kiểm chứng kết quả"
+  },
+  "trend": {
+    "title": "Xu hướng điểm theo tuần",
+    "tableCaption": "Số liệu theo tuần (thứ Hai là ngày đầu tuần); số nhỏ bên dưới là trung bình team",
+    "columns": {
+      "week": "Tuần",
+      "sessions": "Session",
+      "tokens": "Token"
+    },
+    "team": "team {value}",
+    "noValue": "—"
+  },
+  "patterns": {
+    "title": "Anti-pattern hay mắc",
+    "description": "Quy tắc thành viên này vi phạm nhiều nhất trong khoảng đã chọn, kèm ví dụ và lời khuyên.",
+    "empty": "Chưa có anti-pattern nào được ghi nhận.",
+    "count": "{count} lần",
+    "advice": "Lời khuyên",
+    "examples": "Ví dụ",
+    "noExcerpt": "Không có đoạn trích (turn không có văn bản hoặc đã hết thời hạn lưu)",
+    "openSession": "Xem session",
+    "turn": "turn {seq}",
+    "severity": {
+      "low": "Thấp",
+      "medium": "Trung bình",
+      "high": "Cao"
+    }
+  },
+  "recent": {
+    "title": "Session gần nhất",
+    "viewAll": "Xem tất cả session",
+    "empty": "Chưa có session nào.",
+    "error": "Không tải được danh sách session.",
+    "columns": {
+      "startedAt": "Bắt đầu",
+      "agent": "Agent",
+      "title": "Prompt đầu"
+    }
+  },
+  "empty": {
+    "title": "Chưa có dữ liệu trong khoảng này",
+    "description": "Số liệu xuất hiện sau khi thành viên gửi session lên (tl sync). Thử chọn khoảng thời gian dài hơn."
+  },
+  "error": {
+    "title": "Không tải được hồ sơ thành viên"
+  }
+}

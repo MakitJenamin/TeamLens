@@ -1,5 +1,8 @@
-/** Số tuần cho bộ chọn khoảng thời gian (mặc định 8, khớp mặc định của API). */
-export const RANGE_WEEKS = [4, 8, 12, 26] as const;
+/**
+ * Số tuần cho bộ chọn khoảng thời gian. Tổng quan mặc định 8 tuần, hồ sơ thành viên mặc định 2 tuần
+ * (khớp mặc định của từng API).
+ */
+export const RANGE_WEEKS = [2, 4, 8, 12, 26] as const;
 export const DEFAULT_RANGE_WEEKS = 8;
 
 /**

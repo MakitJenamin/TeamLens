@@ -1,0 +1,74 @@
+{
+  "title": "Member profile",
+  "description": "Score in the 5 skill groups, weekly trend, the anti-patterns they hit most with examples and advice. Leaders can see every member; each member can see their own profile.",
+  "back": "Back to members",
+  "range": {
+    "label": "Time range",
+    "weeks": "Last {count} weeks"
+  },
+  "totals": {
+    "sessions": "Sessions",
+    "sessionsHint": "Top-level sessions only",
+    "tokens": "Tokens",
+    "tokensHint": "Includes subagent child sessions"
+  },
+  "radar": {
+    "title": "Score in the 5 skill groups",
+    "description": "Average of the weekly scores in the selected range, weighted by sessions per week. The dashed line is the team average.",
+    "member": "Member",
+    "team": "Team average",
+    "noScore": "No session was scored in this range."
+  },
+  "categories": {
+    "prompt_quality": "Prompt quality",
+    "context": "Context",
+    "correction_loop": "Correction loop",
+    "session_management": "Session management",
+    "verification": "Verification"
+  },
+  "trend": {
+    "title": "Weekly score trend",
+    "tableCaption": "Weekly figures (Monday is the first day of the week); the small number below is the team average",
+    "columns": {
+      "week": "Week",
+      "sessions": "Sessions",
+      "tokens": "Tokens"
+    },
+    "team": "team {value}",
+    "noValue": "—"
+  },
+  "patterns": {
+    "title": "Common anti-patterns",
+    "description": "Rules this member broke most often in the selected range, with examples and advice.",
+    "empty": "No anti-pattern recorded yet.",
+    "count": "{count} times",
+    "advice": "Advice",
+    "examples": "Examples",
+    "noExcerpt": "No excerpt (the turn has no text or is past its retention period)",
+    "openSession": "Open session",
+    "turn": "turn {seq}",
+    "severity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
+  "recent": {
+    "title": "Latest sessions",
+    "viewAll": "View all sessions",
+    "empty": "No sessions yet.",
+    "error": "Could not load the session list.",
+    "columns": {
+      "startedAt": "Started",
+      "agent": "Agent",
+      "title": "First prompt"
+    }
+  },
+  "empty": {
+    "title": "No data in this range",
+    "description": "Figures appear once the member sends sessions (tl sync). Try a longer time range."
+  },
+  "error": {
+    "title": "Could not load the member profile"
+  }
+}
