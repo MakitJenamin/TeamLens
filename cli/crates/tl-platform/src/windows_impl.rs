@@ -7,8 +7,8 @@ use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS
 use windows::Win32::System::Threading::CreateMutexW;
 
 use crate::{
-    default_data_dir, CredentialStore, InstanceGuard, KeyringCredentialStore, Platform,
-    PlatformError,
+    autostart_command, default_data_dir, scheduler, CredentialStore, InstanceGuard,
+    KeyringCredentialStore, Platform, PlatformError, AUTOSTART_TASK_NAME,
 };
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -54,17 +54,20 @@ impl Platform for WindowsPlatform {
         }
     }
 
-    fn register_autostart(&self, _exe: &Path) -> Result<(), PlatformError> {
-        Err(PlatformError::NotImplemented {
-            feature: "Đăng ký Task Scheduler",
-            task: "M3.8",
-        })
+    fn register_autostart(&self, exe: &Path) -> Result<(), PlatformError> {
+        let (command, arguments) = autostart_command(exe)?;
+        scheduler::register_task(AUTOSTART_TASK_NAME, &command, &arguments)
     }
 
     fn unregister_autostart(&self) -> Result<(), PlatformError> {
-        Err(PlatformError::NotImplemented {
-            feature: "Gỡ Task Scheduler",
-            task: "M3.8",
-        })
+        scheduler::unregister_task(AUTOSTART_TASK_NAME)
+    }
+
+    fn autostart_registered(&self) -> Result<bool, PlatformError> {
+        scheduler::task_exists(AUTOSTART_TASK_NAME)
+    }
+
+    fn start_autostart(&self) -> Result<(), PlatformError> {
+        scheduler::run_task(AUTOSTART_TASK_NAME)
     }
 }

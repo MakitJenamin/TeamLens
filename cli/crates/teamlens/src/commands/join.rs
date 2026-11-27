@@ -10,21 +10,25 @@
 //! 4. Lưu token (chỉ khi server trả token mới) vào Credential Manager, lưu server và bản
 //!    đồng ý vào config.
 //!
-//! Đăng ký chạy nền bằng Task Scheduler là task M3.8, chưa làm ở đây.
+//! 5. Đăng ký `tl daemon` chạy nền khi đăng nhập Windows (Task Scheduler, M3.8) và chạy ngay.
+//!    Việc này nằm ở [`run`], không ở [`run_with`], để test không đụng Task Scheduler thật.
+//!    Đăng ký lỗi thì chỉ cảnh báo: người dùng vẫn đã tham gia và dùng được `tl sync`.
 
 use std::io::{BufRead, Write};
+use std::path::Path;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Local, Utc};
 use clap::Args;
 use tl_adapters::Adapter;
+use tl_platform::Platform;
 
 use crate::api_client::{
     ApiClient, ApiError, ApiErrorCode, InvitePreview, JoinConsent, JoinRequest, JoinResult,
 };
 use crate::config::normalize_server_url;
 use crate::consent::{self, ProjectConsent};
-use crate::context::AppContext;
+use crate::context::{AppContext, DATA_DIR_ENV};
 use crate::error::AppError;
 use crate::sync::Sources;
 
@@ -120,9 +124,80 @@ pub async fn run(ctx: &AppContext, args: JoinArgs, out: &mut dyn Write) -> Resul
     let sources = Sources::from_env();
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
-    run_with(ctx, args, &sources.adapter_refs(), &mut input, out)
-        .await
-        .map(|_| ())
+    run_with(ctx, args, &sources.adapter_refs(), &mut input, out).await?;
+    setup_background(out);
+    Ok(())
+}
+
+/// Kết quả đăng ký chạy nền sau khi tham gia.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackgroundSetup {
+    /// Đã đăng ký và khởi động daemon ngay.
+    Started,
+    /// Đã đăng ký nhưng chưa khởi động ngay được (sẽ chạy ở lần đăng nhập sau).
+    Registered,
+    /// Không đăng ký được.
+    Failed,
+}
+
+/// Đăng ký daemon chạy nền cho `tl.exe` đang chạy. Dùng thư mục dữ liệu riêng (`TL_DATA_DIR`)
+/// thì bỏ qua: task chạy với thư mục dữ liệu mặc định nên sẽ không khớp.
+fn setup_background(out: &mut dyn Write) {
+    if std::env::var_os(DATA_DIR_ENV).is_some_and(|v| !v.is_empty()) {
+        say(
+            out,
+            "Đang dùng thư mục dữ liệu riêng (TL_DATA_DIR) nên không đăng ký chạy nền; chạy `tl daemon` khi cần.",
+        );
+        return;
+    }
+    match std::env::current_exe() {
+        Ok(exe) => {
+            register_background(tl_platform::current().as_ref(), &exe, out);
+        }
+        Err(e) => say(
+            out,
+            &format!(
+                "Không xác định được đường dẫn tl.exe ({e}) nên chưa đăng ký chạy nền. Chạy `tl sync` để gửi."
+            ),
+        ),
+    }
+}
+
+/// Đăng ký rồi khởi động daemon nền; không bao giờ làm lệnh `join` thất bại.
+pub fn register_background(
+    platform: &dyn Platform,
+    exe: &Path,
+    out: &mut dyn Write,
+) -> BackgroundSetup {
+    if let Err(e) = platform.register_autostart(exe) {
+        tracing::debug!(error = ?e, "đăng ký chạy nền thất bại");
+        say(
+            out,
+            &format!(
+                "Chưa đăng ký được chạy nền ({e}). Vẫn dùng được: chạy `tl sync` để gửi, hoặc `tl daemon` để chạy thủ công."
+            ),
+        );
+        return BackgroundSetup::Failed;
+    }
+    match platform.start_autostart() {
+        Ok(()) => {
+            say(
+                out,
+                "Đã đăng ký chạy nền: tl tự chạy mỗi khi bạn đăng nhập Windows (không cần quyền admin) và đã khởi động ngay, nên session sẽ tự lên dashboard.",
+            );
+            BackgroundSetup::Started
+        }
+        Err(e) => {
+            tracing::debug!(error = ?e, "chưa khởi động ngay được daemon nền");
+            say(
+                out,
+                &format!(
+                    "Đã đăng ký chạy nền (tự chạy mỗi khi bạn đăng nhập Windows) nhưng chưa khởi động ngay được ({e}); chạy `tl daemon` hoặc đăng nhập lại Windows."
+                ),
+            );
+            BackgroundSetup::Registered
+        }
+    }
 }
 
 /// Như [`run`] nhưng nhận adapter (để đếm session cũ) và nguồn nhập (để test).
@@ -535,7 +610,7 @@ fn print_done(
             "Chỉ gửi session từ bây giờ (không gửi lịch sử cũ)."
         }
     );
-    let _ = writeln!(out, "Chạy `tl sync` để gửi ngay; chạy nền sẽ có ở bản sau.");
+    let _ = writeln!(out, "Chạy `tl sync` để gửi ngay.");
     let _ = writeln!(out, "Xem dashboard: `tl open`.");
     let _ = out.flush();
 }
@@ -590,6 +665,96 @@ mod tests {
     fn debug_khong_lo_ma_moi() {
         let l = parse_invite_url("https://tl.congty.com/i/AbcDEF_123-xyz").unwrap();
         assert!(!format!("{l:?}").contains("AbcDEF"));
+    }
+
+    /// Platform giả: ghi lại lời gọi, trả lỗi theo cấu hình.
+    #[derive(Default)]
+    struct FakePlatform {
+        fail_register: bool,
+        fail_start: bool,
+        calls: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl Platform for FakePlatform {
+        fn data_dir(&self) -> Result<std::path::PathBuf, tl_platform::PlatformError> {
+            unreachable!("join không dùng thư mục dữ liệu của platform")
+        }
+        fn credential_store(&self) -> Box<dyn tl_platform::CredentialStore> {
+            unreachable!("join không dùng credential store của platform")
+        }
+        fn acquire_single_instance(
+            &self,
+            _name: &str,
+        ) -> Result<Option<tl_platform::InstanceGuard>, tl_platform::PlatformError> {
+            unreachable!("join không giữ mutex")
+        }
+        fn register_autostart(&self, exe: &Path) -> Result<(), tl_platform::PlatformError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("register {}", exe.display()));
+            if self.fail_register {
+                return Err(tl_platform::PlatformError::Os("bị chặn".into()));
+            }
+            Ok(())
+        }
+        fn unregister_autostart(&self) -> Result<(), tl_platform::PlatformError> {
+            unreachable!("join không gỡ task")
+        }
+        fn autostart_registered(&self) -> Result<bool, tl_platform::PlatformError> {
+            unreachable!("join không hỏi trạng thái task")
+        }
+        fn start_autostart(&self) -> Result<(), tl_platform::PlatformError> {
+            self.calls.lock().unwrap().push("start".into());
+            if self.fail_start {
+                return Err(tl_platform::PlatformError::Os("không chạy được".into()));
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn dang_ky_chay_nen_thanh_cong_thi_khoi_dong_ngay() {
+        let platform = FakePlatform::default();
+        let mut out = Vec::new();
+        let outcome = register_background(&platform, Path::new(r"C:\tl\tl.exe"), &mut out);
+        assert_eq!(outcome, BackgroundSetup::Started);
+        assert_eq!(
+            *platform.calls.lock().unwrap(),
+            vec![r"register C:\tl\tl.exe".to_owned(), "start".to_owned()]
+        );
+        let printed = String::from_utf8(out).unwrap();
+        assert!(printed.contains("Đã đăng ký chạy nền"), "{printed}");
+        assert!(printed.contains("đã khởi động ngay"), "{printed}");
+    }
+
+    #[test]
+    fn dang_ky_duoc_nhung_chua_khoi_dong_duoc_thi_bao_chay_o_lan_dang_nhap_sau() {
+        let platform = FakePlatform {
+            fail_start: true,
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let outcome = register_background(&platform, Path::new("tl.exe"), &mut out);
+        assert_eq!(outcome, BackgroundSetup::Registered);
+        let printed = String::from_utf8(out).unwrap();
+        assert!(printed.contains("chưa khởi động ngay được"), "{printed}");
+        assert!(printed.contains("đăng nhập lại Windows"), "{printed}");
+    }
+
+    #[test]
+    fn dang_ky_loi_thi_chi_canh_bao_va_khong_khoi_dong() {
+        let platform = FakePlatform {
+            fail_register: true,
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let outcome = register_background(&platform, Path::new("tl.exe"), &mut out);
+        assert_eq!(outcome, BackgroundSetup::Failed);
+        assert_eq!(*platform.calls.lock().unwrap(), vec!["register tl.exe"]);
+        let printed = String::from_utf8(out).unwrap();
+        assert!(printed.contains("Chưa đăng ký được chạy nền"), "{printed}");
+        assert!(printed.contains("tl sync"), "{printed}");
     }
 
     #[test]
