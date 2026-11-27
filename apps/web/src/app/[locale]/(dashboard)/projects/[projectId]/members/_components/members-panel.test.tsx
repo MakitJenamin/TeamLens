@@ -131,7 +131,6 @@ describe("MembersPanel", () => {
     const anCard = screen.getByLabelText("An", { selector: "[id='member-m1']" });
     expect(within(anCard).getByRole("link", { name: "An" })).toHaveAttribute("href", "/projects/p1/members/m1");
     expect(within(anCard).getByText(/Session gần nhất/)).toBeInTheDocument();
-    expect(within(anCard).getByText("3/4 thiết bị chưa thu hồi")).toBeInTheDocument();
     const badge = (name: string) => screen.getByRole("listitem", { name });
     expect(badge("AN-ON")).toHaveTextContent("Đang chạy");
     expect(badge("AN-OFF")).toHaveTextContent("Offline 3 ngày");

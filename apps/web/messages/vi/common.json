@@ -16,27 +16,25 @@
     "generic": "Đã có lỗi xảy ra. Vui lòng thử lại.",
     "network": "Không kết nối được tới máy chủ.",
     "dashboardTitle": "Không tải được dữ liệu",
-    "dashboardDescription": "Máy chủ API không phản hồi hoặc trả về lỗi. Kiểm tra API đang chạy rồi thử lại."
+    "dashboardDescription": "Máy chủ API không phản hồi hoặc trả lỗi."
   },
   "notFound": {
-    "title": "Không tìm thấy trang",
-    "description": "Trang bạn tìm không tồn tại hoặc đã bị di chuyển."
+    "title": "Không tìm thấy trang"
   },
   "home": {
     "noProjectsTitle": "Chưa có project",
-    "noProjectsDescription": "Bạn chưa thuộc project nào. Hãy nhờ leader hoặc admin thêm bạn vào một project.",
-    "noProjectsAdmin": "Vào trang Quản trị để tạo project đầu tiên."
+    "noProjectsDescription": "Nhờ leader thêm bạn vào project.",
+    "noProjectsAdmin": "Tạo project"
   },
   "copy": "Sao chép",
   "copied": "Đã chép",
-  "copyFailed": "Không sao chép được, hãy chọn và copy tay.",
+  "copyFailed": "Không sao chép được. Hãy chọn và sao chép tay.",
   "installSteps": {
-    "installTitle": "Bước 1: Cài tl",
-    "installHint": "Bỏ qua nếu máy đã có tl. Mở PowerShell rồi chạy lệnh đầu; nếu dùng CMD thì chạy lệnh thứ hai.",
+    "installTitle": "1. Cài tl",
     "powershell": "PowerShell",
-    "cmd": "CMD (Command Prompt)",
-    "joinTitle": "Bước 2: Tham gia project",
-    "joinHint": "Mở terminal mới rồi chạy lệnh sau. tl hỏi tên bạn và xin đồng ý trước khi gửi dữ liệu.",
+    "cmd": "CMD",
+    "joinTitle": "2. Tham gia",
+    "joinHint": "Chạy trong terminal mới.",
     "joinCommand": "Lệnh tham gia"
   }
 }

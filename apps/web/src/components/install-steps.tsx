@@ -19,7 +19,6 @@ export function InstallSteps({
     <div className="flex flex-col gap-5">
       <section className="space-y-2">
         <Heading className="text-sm font-semibold">{t("installTitle")}</Heading>
-        <p className="text-muted-foreground text-xs">{t("installHint")}</p>
         <CopyField label={t("powershell")} value={installCommand} />
         <CopyField label={t("cmd")} value={installCommandCmd} />
       </section>
