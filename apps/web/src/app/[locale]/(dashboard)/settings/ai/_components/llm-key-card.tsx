@@ -162,7 +162,7 @@ function LlmKeyForm({ saved }: { saved: LlmKey | null }) {
               <label
                 key={value}
                 className={cn(
-                  "flex cursor-pointer gap-2 rounded-lg border p-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                  "flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring",
                   provider === value && "border-primary bg-primary/5",
                 )}
               >
@@ -177,7 +177,7 @@ function LlmKeyForm({ saved }: { saved: LlmKey | null }) {
                   }}
                   className="mt-0.5 accent-primary"
                 />
-                <span className="grid gap-0.5">
+                <span className="grid content-start gap-0.5">
                   <span className="font-medium">{t(`providers.${value}`)}</span>
                   <span className="text-muted-foreground">{t(`providerHint.${value}`)}</span>
                 </span>
