@@ -12,4 +12,99 @@
 #        $ref: './admin.yaml#/paths/~1agent~1v1~1ingest'
 #    (`/` trong path viết thành `~1` theo JSON Pointer).
 # 3. Chạy `pnpm --filter @teamlens/schema build` và commit cả src/generated/api.ts.
-paths: {}
+paths:
+  /api/v1/audit:
+    get:
+      operationId: listAuditLog
+      tags: [admin]
+      summary: Nhật ký audit toàn server (chỉ leader)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 20
+            maximum: 100
+            default: 20
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: targetType
+          in: query
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Danh sách audit theo thứ tự thời gian giảm dần, phân trang ổn định.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPage'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+components:
+  schemas:
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required: [id, actorId, actorName, action, targetType, targetId, at]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        actorId:
+          type: [string, 'null']
+          format: uuid
+        actorName:
+          type: [string, 'null']
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        at:
+          type: string
+          format: date-time
+
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        nextCursor:
+          type: [string, 'null']
