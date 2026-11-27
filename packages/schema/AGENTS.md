@@ -6,10 +6,10 @@ Nguồn chân lý cho API (`apps/api`), web (`apps/web`) và CLI (`cli/`). Đổ
 
 | Đường dẫn | Nội dung |
 | --- | --- |
-| `openapi/openapi.yaml` | File gốc OpenAPI 3.1: info, server, security scheme (`cookieAuth`, `deviceToken`; Mốc 6 thêm `agentToken` cho token `tlp_`), tag, `$ref` tới từng path |
+| `openapi/openapi.yaml` | File gốc OpenAPI 3.1: info, server, security scheme (`cookieAuth`, `deviceToken`, `agentToken` cho token cá nhân `tlp_`), tag, `$ref` tới từng path |
 | `openapi/common.yaml` | Schema, response lỗi, tham số, header dùng chung (`Error`, `User`, `Project`, ...) |
-| `openapi/<nhóm>.yaml` | Mỗi nhóm endpoint một file: `health`, `setup`, `auth`, `projects`, `users`, `devices`, `agent-auth`, `sessions` (đã viết); `agent` (ingest, config); `invites`, `consent`, `rules`, `stats`, `admin` (khung, task phụ trách ghi ở đầu file); Mốc 6 thêm `ai`, `agent-tokens`, `mcp`, `skills`, `prompt-library` (M6.0) |
-| `mcp/` | Mốc 6: JSON Schema đầu vào và đầu ra của từng tool MCP (xem [docs/AI_PLAN.md](../../docs/AI_PLAN.md) mục 4.2) |
+| `openapi/<nhóm>.yaml` | Mỗi nhóm endpoint một file: `health`, `setup`, `auth`, `projects`, `users`, `devices`, `agent-auth`, `sessions` (đã viết); `agent` (ingest, config); `invites`, `consent`, `rules`, `stats`, `members`; Mốc 6: `ai` (key AI của tôi, kết quả AI A1/A4/A5, mã lỗi `llm_*`), `agent-tokens` (token `tlp_`), `mcp` (endpoint `/api/v1/mcp`); khung `paths: {}` (task phụ trách ghi ở đầu file): `admin`, `skills`, `prompt-library` |
+| `mcp/` | Mốc 6: mỗi tool MCP một file `<tên>.json` (`name`, `description`, `inputSchema`, `outputSchema`), xem [mcp/README.md](mcp/README.md) và [docs/AI_PLAN.md](../../docs/AI_PLAN.md) mục 4.2 |
 | `session.v1.schema.json` | JSON Schema draft 2020-12 cho batch ingest (`IngestBatch` → `SessionEnvelope` → `Session`, `Turn`), snake_case |
 | `examples/*.json` | Batch mẫu hợp lệ (dữ liệu giả); CLI và API dùng để test |
 | `src/index.ts` | Export `paths`, `components`, `operations` và kiểu tiện dụng (`User`, `RequestBody<'login'>`, `ResponseBody<'getMe', 200>`...) |
@@ -21,7 +21,7 @@ Nguồn chân lý cho API (`apps/api`), web (`apps/web`) và CLI (`cli/`). Đổ
 ```bash
 pnpm --filter @teamlens/schema build        # lint + bundle ra dist/openapi.yaml, rồi sinh src/generated/api.ts
 pnpm --filter @teamlens/schema lint         # redocly lint (cấu hình redocly.yaml)
-pnpm --filter @teamlens/schema test         # kiểm tra examples/ khớp session.v1.schema.json + ca phải bị từ chối
+pnpm --filter @teamlens/schema test         # kiểm tra examples/ khớp session.v1.schema.json + ca phải bị từ chối + mcp/*.json compile được
 pnpm --filter @teamlens/schema typecheck    # tsc --noEmit
 ```
 

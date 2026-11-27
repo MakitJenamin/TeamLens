@@ -909,6 +909,228 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/llm-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cấu hình API key AI của chính người gọi
+         * @description Trả `key: null` khi chưa nhập key. Không bao giờ trả key nguyên văn, chỉ `keyHint`.
+         */
+        get: operations["getMyLlmKey"];
+        /**
+         * Lưu hoặc đổi API key AI của chính người gọi
+         * @description `apiKey` bắt buộc khi chưa có key; bỏ trống khi đã có key nghĩa là giữ key cũ, chỉ đổi
+         *     `provider`/`baseUrl`/`model`. `openai_compatible` bắt buộc `baseUrl` (vd. `http://localhost:11434/v1`);
+         *     `anthropic` bỏ qua `baseUrl` (null = mặc định `https://api.anthropic.com`).
+         *     Thiếu `apiKey` khi chưa có key, hoặc thiếu `baseUrl` với `openai_compatible`, trả `400 validation_error`.
+         *     Server lưu không kiểm tra key với provider; muốn kiểm tra dùng `POST /api/v1/me/llm-key/test`.
+         *     Key mã hóa AES-GCM bằng `TEAMLENS_SECRET_KEY` trước khi lưu.
+         */
+        put: operations["putMyLlmKey"];
+        post?: never;
+        /**
+         * Xóa API key AI của chính người gọi
+         * @description Gọi khi chưa có key cũng trả 204. Kết quả AI đã tạo vẫn giữ.
+         */
+        delete: operations["deleteMyLlmKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/llm-key/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiểm tra cấu hình key bằng một lời gọi nhỏ tới provider
+         * @description Body giống `PUT /api/v1/me/llm-key` nhưng mọi trường tùy chọn; trường thiếu lấy từ key đã lưu
+         *     (body rỗng = kiểm tra key đang lưu). Không lưu gì. Thiếu key ở cả body lẫn DB trả `409 llm_key_missing`.
+         */
+        post: operations["testMyLlmKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Kết quả AI của người gọi cho một session
+         * @description Chỉ kết quả CỦA NGƯỜI GỌI (kind `session_summary`, `session_outcome` của session và
+         *     `finding_explain` của các finding thuộc session), đúng `locale`. Chưa có thì `null`/mảng rỗng.
+         *     Quyền xem như `GET /api/v1/sessions/{sessionId}`: member chỉ session của mình, leader mọi session
+         *     (ghi audit khi xem session của người khác).
+         */
+        get: operations["getSessionAiResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/ai/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A1 · tóm tắt session bằng key của người gọi
+         * @description Trả `AiResult` kind `session_summary`, subjectType `session`, `result` theo `SessionSummaryResult`.
+         *     Ghi đè bản cũ của người gọi (cùng session, cùng locale). Quyền như xem session.
+         */
+        post: operations["runSessionSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/ai/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A5 · đánh giá kết quả session bằng key của người gọi
+         * @description Trả `AiResult` kind `session_outcome`, subjectType `session`, `result` theo `SessionOutcomeResult`.
+         *     Ghi đè bản cũ của người gọi (cùng session, cùng locale). Quyền như xem session.
+         */
+        post: operations["runSessionOutcome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/findings/{findingId}/ai/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A4 · giải thích một finding bằng key của người gọi
+         * @description Trả `AiResult` kind `finding_explain`, subjectType `finding`, `result` theo `FindingExplainResult`.
+         *     Ghi đè bản cũ của người gọi (cùng finding, cùng locale). Quyền như xem session chứa finding.
+         */
+        post: operations["runFindingExplain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agent-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Token cho agent của chính người gọi
+         * @description Chỉ token chưa thu hồi, mới nhất trước.
+         */
+        get: operations["listMyAgentTokens"];
+        put?: never;
+        /**
+         * Tạo token cho agent
+         * @description `secret` (dạng `tlp_...`) chỉ trả đúng một lần trong response này; server không lưu nguyên văn.
+         */
+        post: operations["createMyAgentToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agent-tokens/{tokenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tokenId: components["parameters"]["TokenId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Thu hồi token cho agent
+         * @description Đặt `revoked_at`; token không dùng được nữa. Token không tồn tại, của người khác hoặc đã thu hồi
+         *     trả `404 not_found`.
+         */
+        delete: operations["revokeMyAgentToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mở luồng SSE để server gửi message cho client
+         * @description Server không hỗ trợ luồng này thì trả `405` theo đặc tả MCP.
+         */
+        get: operations["mcpGet"];
+        put?: never;
+        /**
+         * Gửi message JSON-RPC 2.0 tới server MCP
+         * @description Client gửi một request, notification hoặc response JSON-RPC 2.0 (MCP Streamable HTTP).
+         *     Request trả `application/json` (một response JSON-RPC) hoặc `text/event-stream`; notification/response
+         *     trả `202`. Header `Mcp-Session-Id` do server cấp ở `initialize`, client gửi lại ở mọi request sau.
+         */
+        post: operations["mcpPost"];
+        /** Kết thúc phiên MCP */
+        delete: operations["mcpDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1740,6 +1962,185 @@ export interface components {
             /** @description Nội dung ghi chú (văn bản thuần, cắt khoảng trắng hai đầu). */
             body: string;
         };
+        /**
+         * @description `anthropic`: Messages API của Anthropic. `openai_compatible`: mọi server theo Chat Completions của OpenAI
+         *     (OpenAI, OpenRouter, Ollama, LM Studio...), cần `baseUrl`.
+         * @enum {string}
+         */
+        LlmProvider: "anthropic" | "openai_compatible";
+        /** @description Cấu hình key AI của một người. Không bao giờ chứa key nguyên văn. */
+        LlmKey: {
+            provider: components["schemas"]["LlmProvider"];
+            /**
+             * @description URL gốc của provider; null = mặc định của provider (chỉ với `anthropic`).
+             * @example http://localhost:11434/v1
+             */
+            baseUrl: string | null;
+            /** @example claude-sonnet-5-5 */
+            model: string;
+            /**
+             * @description 4 ký tự cuối của key để người dùng nhận ra, vd. `…a1B2`.
+             * @example …a1B2
+             */
+            keyHint: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        PutLlmKeyRequest: {
+            provider: components["schemas"]["LlmProvider"];
+            /**
+             * Format: uri
+             * @description Bắt buộc với `openai_compatible`; `anthropic` để null để dùng mặc định.
+             */
+            baseUrl?: string | null;
+            model: string;
+            /** @description Bắt buộc khi chưa có key; bỏ trống để giữ key cũ. */
+            apiKey?: string;
+        };
+        /** @description Như `PutLlmKeyRequest` nhưng mọi trường tùy chọn; trường thiếu lấy từ key đã lưu. */
+        TestLlmKeyRequest: {
+            provider?: components["schemas"]["LlmProvider"];
+            /** Format: uri */
+            baseUrl?: string | null;
+            model?: string;
+            apiKey?: string;
+        };
+        LlmKeyTestResult: {
+            /** @constant */
+            ok: true;
+            provider: components["schemas"]["LlmProvider"];
+            model: string;
+            latencyMs: number;
+        };
+        /**
+         * @description Ngôn ngữ của kết quả AI.
+         * @enum {string}
+         */
+        AiLocale: "vi" | "en";
+        /**
+         * @description Loại kết quả AI (AI_PLAN mục 5).
+         * @enum {string}
+         */
+        AiKind: "session_summary" | "session_outcome" | "finding_explain" | "weekly_user" | "weekly_team" | "context_suggestions" | "skill_triage" | "skill_content" | "catalog_picks" | "prompt_candidates";
+        /**
+         * @description Loại đối tượng mà kết quả AI nói về.
+         * @enum {string}
+         */
+        AiSubjectType: "session" | "finding" | "user_week" | "project_week" | "project" | "skill_cluster";
+        /** @description Một kết quả AI đã lưu ở `ai_results`. Chỉ người tạo đọc được. */
+        AiResult: {
+            id: components["schemas"]["Id"];
+            kind: components["schemas"]["AiKind"];
+            subjectType: components["schemas"]["AiSubjectType"];
+            subjectId: components["schemas"]["Id"];
+            locale: components["schemas"]["AiLocale"];
+            provider: components["schemas"]["LlmProvider"];
+            model: string;
+            /**
+             * @description Phiên bản prompt, vd. `session_summary@1`.
+             * @example session_summary@1
+             */
+            promptVersion: string;
+            inputTokens: number | null;
+            outputTokens: number | null;
+            /**
+             * @description Nội dung kết quả, dạng theo `kind`: `session_summary` → `SessionSummaryResult`,
+             *     `session_outcome` → `SessionOutcomeResult`, `finding_explain` → `FindingExplainResult`.
+             *     Các kind khác do task phụ trách định nghĩa sau.
+             */
+            result: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SessionAiResults: {
+            /** @description Kết quả `session_summary` của người gọi, hoặc null. */
+            summary: components["schemas"]["AiResult"] | null;
+            /** @description Kết quả `session_outcome` của người gọi, hoặc null. */
+            outcome: components["schemas"]["AiResult"] | null;
+            /** @description Các kết quả `finding_explain` của người gọi cho finding thuộc session (`subjectId` = id finding). */
+            findingExplains: components["schemas"]["AiResult"][];
+        };
+        RunAiRequest: {
+            locale: components["schemas"]["AiLocale"];
+        };
+        /** @description Trích dẫn một turn bằng `seq` để web nhảy tới đúng turn. */
+        AiTurnRef: {
+            seq: number;
+            note: string;
+        };
+        /**
+         * @description Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4.
+         * @enum {string}
+         */
+        SessionWorkType: "bugfix" | "feature" | "refactor" | "question" | "ops" | "docs" | "test" | "other";
+        /** @description `result` của kind `session_summary` (A1). */
+        SessionSummaryResult: {
+            title: string;
+            summary: string;
+            workType: components["schemas"]["SessionWorkType"];
+            outcome: string;
+            filesTouched: string[];
+            keyTurns: components["schemas"]["AiTurnRef"][];
+        };
+        /** @description `result` của kind `session_outcome` (A5). */
+        SessionOutcomeResult: {
+            /** @enum {string} */
+            status: "completed" | "abandoned" | "stuck_loop" | "unclear";
+            explanation: string;
+            evidence: components["schemas"]["AiTurnRef"][];
+        };
+        /** @description `result` của kind `finding_explain` (A4). */
+        FindingExplainResult: {
+            why: string;
+            advice: string;
+            turns: components["schemas"]["AiTurnRef"][];
+        };
+        /** @description Token cá nhân cho MCP (không chứa secret). */
+        AgentToken: {
+            id: components["schemas"]["Id"];
+            /** @example Claude Code trên laptop */
+            name: string;
+            /** Format: date-time */
+            lastUsedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            revokedAt: string | null;
+        };
+        CreateAgentTokenRequest: {
+            name: string;
+        };
+        CreatedAgentToken: {
+            token: components["schemas"]["AgentToken"];
+            /**
+             * @description Token nguyên văn, chỉ trả đúng một lần.
+             * @example tlp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+             */
+            secret: string;
+        };
+        /** @description Message JSON-RPC 2.0 (request, notification hoặc response). Chi tiết theo đặc tả MCP. */
+        JsonRpcMessage: {
+            /** @constant */
+            jsonrpc: "2.0";
+            id?: string | number | null;
+            /** @example tools/call */
+            method?: string;
+            params?: {
+                [key: string]: unknown;
+            };
+            result?: {
+                [key: string]: unknown;
+            };
+            error?: {
+                code: number;
+                message: string;
+                data?: unknown;
+            };
+        };
         SourceId: string;
         Session: {
             /** @description `<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id). */
@@ -1971,6 +2372,99 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Người gọi chưa nhập API key AI (`error`: `llm_key_missing`). */
+        LlmKeyMissing: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "llm_key_missing",
+                 *       "message": "Bạn chưa nhập API key AI. Vào Cài đặt AI để nhập key."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /**
+         * @description Provider từ chối cấu hình key (`error`: `llm_key_invalid` khi provider báo key sai 401/403,
+         *     `llm_model_not_found` khi model không tồn tại).
+         */
+        LlmKeyRejected: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Provider báo hết quota hoặc vượt giới hạn tần suất (`error`: `llm_quota_exceeded`). */
+        LlmQuotaExceeded: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "llm_quota_exceeded",
+                 *       "message": "Provider báo hết quota hoặc gọi quá nhanh. Thử lại sau."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /**
+         * @description Lỗi phía provider (`error`: `llm_provider_error` khi provider lỗi hoặc không kết nối được,
+         *     `llm_bad_output` khi đầu ra không đúng JSON schema sau 1 lần thử lại).
+         */
+        LlmProviderError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Provider không trả lời trong thời gian chờ, mặc định 60 giây (`error`: `llm_timeout`). */
+        LlmTimeout: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "llm_timeout",
+                 *       "message": "AI trả lời quá lâu. Thử lại sau."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Kết quả AI vừa tạo (đã lưu, ghi đè bản cũ của người gọi). */
+        AiResultOk: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AiResult"];
+            };
+        };
+        /** @description Thiếu token, token sai hoặc đã thu hồi (`error`: `invalid_token`). */
+        McpInvalidToken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "invalid_token",
+                 *       "message": "Token không hợp lệ hoặc đã bị thu hồi."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         ProjectId: components["schemas"]["Id"];
@@ -1980,6 +2474,12 @@ export interface components {
         SessionId: components["schemas"]["Id"];
         /** @description Mã mời lấy từ link `/i/<code>`. */
         InviteCode: string;
+        /** @description Ngôn ngữ của kết quả, mặc định `vi`. */
+        AiLocaleQuery: components["schemas"]["AiLocale"];
+        FindingId: components["schemas"]["Id"];
+        TokenId: components["schemas"]["Id"];
+        /** @description Mã phiên MCP do server cấp ở `initialize`. */
+        McpSessionId: string;
     };
     requestBodies: never;
     headers: {
@@ -3877,6 +4377,380 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMyLlmKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cấu hình key hiện tại (hoặc null). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        key: components["schemas"]["LlmKey"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    putMyLlmKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutLlmKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Đã lưu. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        key: components["schemas"]["LlmKey"];
+                    };
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    deleteMyLlmKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    testMyLlmKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestLlmKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Provider trả lời được. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmKeyTestResult"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    getSessionAiResults: {
+        parameters: {
+            query?: {
+                /** @description Ngôn ngữ của kết quả, mặc định `vi`. */
+                locale?: components["parameters"]["AiLocaleQuery"];
+            };
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả AI đã lưu. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionAiResults"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runSessionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    runSessionOutcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    runFindingExplain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    listMyAgentTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tokens: components["schemas"]["AgentToken"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    createMyAgentToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Đã tạo. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedAgentToken"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    revokeMyAgentToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tokenId: components["parameters"]["TokenId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã thu hồi. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    mcpGet: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Luồng SSE chứa các message JSON-RPC 2.0. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["McpInvalidToken"];
+            /** @description Server không mở luồng SSE riêng. */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mcpPost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JsonRpcMessage"];
+            };
+        };
+        responses: {
+            /** @description Response JSON-RPC 2.0 (hoặc luồng SSE chứa các message JSON-RPC). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JsonRpcMessage"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Đã nhận notification hoặc response JSON-RPC. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["McpInvalidToken"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    mcpDelete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã kết thúc phiên. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["McpInvalidToken"];
             404: components["responses"]["NotFound"];
         };
     };

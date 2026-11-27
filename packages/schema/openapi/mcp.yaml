@@ -1,0 +1,136 @@
+# Nhóm `mcp`: endpoint MCP của server (Streamable HTTP, docs/AI_PLAN.md mục 4). Task: M6.3 (khung endpoint,
+# guard, cửa ra che secret, audit), M6.15 (tool đọc), M6.16 (tool ghi cho leader + MCP prompts). Người 3.
+#
+# - Một endpoint duy nhất `/api/v1/mcp` (đặt dưới `/api/` để dùng lại rewrite của web và Caddy).
+# - Route `@Public()` với guard riêng, nhận device token `tld_` (qua `tl mcp`) hoặc token cá nhân `tlp_`
+#   (agent-tokens.yaml). Quyền tính theo user của token, giống hệt dashboard; đọc dữ liệu người khác ghi audit.
+# - Body và response là JSON-RPC 2.0 theo đặc tả MCP; tên tool, JSON Schema đầu vào/đầu ra ở `packages/schema/mcp/`.
+#   OpenAPI chỉ mô tả lớp HTTP, không mô tả từng tool.
+paths:
+  /api/v1/mcp:
+    post:
+      operationId: mcpPost
+      tags: [mcp]
+      summary: Gửi message JSON-RPC 2.0 tới server MCP
+      description: |
+        Client gửi một request, notification hoặc response JSON-RPC 2.0 (MCP Streamable HTTP).
+        Request trả `application/json` (một response JSON-RPC) hoặc `text/event-stream`; notification/response
+        trả `202`. Header `Mcp-Session-Id` do server cấp ở `initialize`, client gửi lại ở mọi request sau.
+      security:
+        - deviceToken: []
+        - agentToken: []
+      parameters:
+        - $ref: '#/components/parameters/McpSessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JsonRpcMessage'
+      responses:
+        '200':
+          description: Response JSON-RPC 2.0 (hoặc luồng SSE chứa các message JSON-RPC).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonRpcMessage'
+            text/event-stream:
+              schema:
+                type: string
+        '202':
+          description: Đã nhận notification hoặc response JSON-RPC.
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/McpInvalidToken'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    get:
+      operationId: mcpGet
+      tags: [mcp]
+      summary: Mở luồng SSE để server gửi message cho client
+      description: Server không hỗ trợ luồng này thì trả `405` theo đặc tả MCP.
+      security:
+        - deviceToken: []
+        - agentToken: []
+      parameters:
+        - $ref: '#/components/parameters/McpSessionId'
+      responses:
+        '200':
+          description: Luồng SSE chứa các message JSON-RPC 2.0.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/McpInvalidToken'
+        '405':
+          description: Server không mở luồng SSE riêng.
+    delete:
+      operationId: mcpDelete
+      tags: [mcp]
+      summary: Kết thúc phiên MCP
+      security:
+        - deviceToken: []
+        - agentToken: []
+      parameters:
+        - $ref: '#/components/parameters/McpSessionId'
+      responses:
+        '204':
+          description: Đã kết thúc phiên.
+        '401':
+          $ref: '#/components/responses/McpInvalidToken'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  parameters:
+    McpSessionId:
+      name: Mcp-Session-Id
+      in: header
+      required: false
+      description: Mã phiên MCP do server cấp ở `initialize`.
+      schema:
+        type: string
+
+  responses:
+    McpInvalidToken:
+      description: 'Thiếu token, token sai hoặc đã thu hồi (`error`: `invalid_token`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: invalid_token
+            message: Token không hợp lệ hoặc đã bị thu hồi.
+
+  schemas:
+    JsonRpcMessage:
+      type: object
+      description: Message JSON-RPC 2.0 (request, notification hoặc response). Chi tiết theo đặc tả MCP.
+      required: [jsonrpc]
+      properties:
+        jsonrpc:
+          type: string
+          const: '2.0'
+        id:
+          type: [string, integer, 'null']
+        method:
+          type: string
+          examples: [tools/call]
+        params:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data: {}
+      additionalProperties: false

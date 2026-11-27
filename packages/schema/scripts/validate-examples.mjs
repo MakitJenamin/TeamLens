@@ -101,6 +101,33 @@ if (validate(freeInput)) {
   console.error('✗ tool.input phải chấp nhận trường tùy ý');
 }
 
+// 4. JSON Schema của tool MCP (mcp/*.json) phải đủ trường và compile được.
+const mcpDir = join(root, 'mcp');
+const mcpFiles = readdirSync(mcpDir).filter((f) => f.endsWith('.json')).sort();
+for (const file of mcpFiles) {
+  const tool = JSON.parse(readFileSync(join(mcpDir, file), 'utf8'));
+  const problems = [];
+  if (`${tool.name}.json` !== file) problems.push('`name` phải trùng tên file');
+  if (typeof tool.description !== 'string' || tool.description.length === 0) problems.push('thiếu `description`');
+  for (const key of ['inputSchema', 'outputSchema']) {
+    if (tool[key]?.type !== 'object') {
+      problems.push(`\`${key}\` phải là schema kiểu object`);
+      continue;
+    }
+    try {
+      ajv.compile(tool[key]);
+    } catch (err) {
+      problems.push(`\`${key}\` không compile được: ${err.message}`);
+    }
+  }
+  if (problems.length > 0) {
+    failed++;
+    console.error(`✗ mcp/${file}: ${problems.join('; ')}`);
+  } else {
+    console.log(`✓ mcp/${file}`);
+  }
+}
+
 if (failed > 0) {
   console.error(`\n${failed} kiểm tra thất bại.`);
   process.exit(1);

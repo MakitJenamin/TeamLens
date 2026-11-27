@@ -2,7 +2,7 @@
 # - GET /api/v1/projects/{projectId}/sessions: danh sách session của project (lọc cơ bản, phân trang cursor).
 # - GET /api/v1/sessions/{sessionId}: chi tiết session kèm toàn bộ turn.
 # - GET/POST /api/v1/sessions/{sessionId}/notes, DELETE .../notes/{noteId}: ghi chú của leader theo turn (M3.4).
-# M4.1: tìm kiếm full-text bằng query `q` của danh sách session. Để sau: `POST /api/v1/sessions/{sessionId}/llm-review`.
+# M4.1: tìm kiếm full-text bằng query `q` của danh sách session.
 #
 # Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session. Xem session của người khác đi qua `AccessService` và ghi audit.
 # Trường lấy từ bảng `sessions`/`turns` (apps/api/src/db/schema/sessions.ts), đổi sang camelCase.

@@ -1,0 +1,130 @@
+# Nhóm `agent-tokens`: token cá nhân `tlp_` để agent (Claude Code, Codex...) gọi MCP `/api/v1/mcp`
+# (docs/AI_PLAN.md mục 4.1). Task: M6.0 (contract), M6.2 (trang Cài đặt AI → Token cho agent), M6.3 (guard MCP).
+#
+# - GET /api/v1/me/agent-tokens: token chưa thu hồi của chính người gọi.
+# - POST /api/v1/me/agent-tokens: tạo token, trả `secret` đúng một lần.
+# - DELETE /api/v1/me/agent-tokens/{tokenId}: thu hồi (đặt `revoked_at`).
+#
+# DB chỉ lưu SHA-256 của token (như device token). Quyền của token = quyền của user tạo ra nó.
+paths:
+  /api/v1/me/agent-tokens:
+    get:
+      operationId: listMyAgentTokens
+      tags: [agent-tokens]
+      summary: Token cho agent của chính người gọi
+      description: Chỉ token chưa thu hồi, mới nhất trước.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokens]
+                properties:
+                  tokens:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AgentToken'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    post:
+      operationId: createMyAgentToken
+      tags: [agent-tokens]
+      summary: Tạo token cho agent
+      description: '`secret` (dạng `tlp_...`) chỉ trả đúng một lần trong response này; server không lưu nguyên văn.'
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentTokenRequest'
+      responses:
+        '201':
+          description: Đã tạo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedAgentToken'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/me/agent-tokens/{tokenId}:
+    parameters:
+      - $ref: '#/components/parameters/TokenId'
+    delete:
+      operationId: revokeMyAgentToken
+      tags: [agent-tokens]
+      summary: Thu hồi token cho agent
+      description: |
+        Đặt `revoked_at`; token không dùng được nữa. Token không tồn tại, của người khác hoặc đã thu hồi
+        trả `404 not_found`.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã thu hồi.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  parameters:
+    TokenId:
+      name: tokenId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+
+  schemas:
+    AgentToken:
+      type: object
+      description: Token cá nhân cho MCP (không chứa secret).
+      required: [id, name, lastUsedAt, createdAt, revokedAt]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          examples: [Claude Code trên laptop]
+        lastUsedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+
+    CreateAgentTokenRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    CreatedAgentToken:
+      type: object
+      required: [token, secret]
+      properties:
+        token:
+          $ref: '#/components/schemas/AgentToken'
+        secret:
+          type: string
+          pattern: '^tlp_'
+          description: Token nguyên văn, chỉ trả đúng một lần.
+          examples: [tlp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]

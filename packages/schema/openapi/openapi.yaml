@@ -6,7 +6,9 @@
 #
 # members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   admin.yaml
+#   admin.yaml, skills.yaml (M6.11–M6.13), prompt-library.yaml (M6.14)
+# Mốc 6 (M6.0): ai.yaml (key AI của tôi, kết quả AI A1/A4/A5), agent-tokens.yaml (token `tlp_`),
+# mcp.yaml (endpoint `/api/v1/mcp`, chi tiết tool ở packages/schema/mcp/).
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
 # stats.yaml có overview (M2.9) và profile (M2.10); leaderboard thêm sau.
 # agent.yaml có ingest, config, heartbeat.
@@ -18,6 +20,7 @@ info:
   description: |
     - Dashboard: prefix `/api/v1`, xác thực bằng cookie `tl_session`.
     - CLI: prefix `/agent/v1`, header `Authorization: Bearer tld_...`.
+    - MCP: `/api/v1/mcp`, header `Authorization: Bearer tld_...` hoặc `Bearer tlp_...` (token cá nhân).
     - JSON của REST API dùng camelCase; riêng payload ingest session theo `session.v1.schema.json` (snake_case).
     - Lỗi luôn có dạng `{ "error": "<mã>", "message": "<mô tả tiếng Việt>" }`.
       Mã chung: `unauthenticated` (401), `forbidden` (403), `not_found` (404), `validation_error` (400),
@@ -59,6 +62,12 @@ tags:
     description: Đồng ý và rút đồng ý thu thập dữ liệu (CLI).
   - name: members
     description: Trang Thành viên (leader) kèm thiết bị và trạng thái.
+  - name: ai
+    description: API key AI của tôi (BYO) và kết quả AI trên session.
+  - name: agent-tokens
+    description: Token cá nhân `tlp_` cho agent gọi MCP.
+  - name: mcp
+    description: Endpoint MCP (Streamable HTTP, JSON-RPC 2.0) cho agent.
 
 paths:
   # health.yaml
@@ -164,7 +173,31 @@ paths:
   /api/v1/projects/{projectId}/member-status:
     $ref: './members.yaml#/paths/~1api~1v1~1projects~1{projectId}~1member-status'
 
-  # admin.yaml:
+  # ai.yaml
+  /api/v1/me/llm-key:
+    $ref: './ai.yaml#/paths/~1api~1v1~1me~1llm-key'
+  /api/v1/me/llm-key/test:
+    $ref: './ai.yaml#/paths/~1api~1v1~1me~1llm-key~1test'
+  /api/v1/sessions/{sessionId}/ai:
+    $ref: './ai.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1ai'
+  /api/v1/sessions/{sessionId}/ai/summary:
+    $ref: './ai.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1ai~1summary'
+  /api/v1/sessions/{sessionId}/ai/outcome:
+    $ref: './ai.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1ai~1outcome'
+  /api/v1/findings/{findingId}/ai/explain:
+    $ref: './ai.yaml#/paths/~1api~1v1~1findings~1{findingId}~1ai~1explain'
+
+  # agent-tokens.yaml
+  /api/v1/me/agent-tokens:
+    $ref: './agent-tokens.yaml#/paths/~1api~1v1~1me~1agent-tokens'
+  /api/v1/me/agent-tokens/{tokenId}:
+    $ref: './agent-tokens.yaml#/paths/~1api~1v1~1me~1agent-tokens~1{tokenId}'
+
+  # mcp.yaml
+  /api/v1/mcp:
+    $ref: './mcp.yaml#/paths/~1api~1v1~1mcp'
+
+  # admin.yaml, skills.yaml, prompt-library.yaml:
   # thêm `$ref` ở đây khi file đó có path.
 
 components:
@@ -179,6 +212,11 @@ components:
       scheme: bearer
       bearerFormat: tld_<token>
       description: Device token của CLI, lấy qua `POST /agent/v1/join` (`tl join <link mời>`).
+    agentToken:
+      type: http
+      scheme: bearer
+      bearerFormat: tlp_<token>
+      description: Token cá nhân cho agent gọi MCP, tạo ở `POST /api/v1/me/agent-tokens` (trang Cài đặt AI).
 
   # Đăng ký lại schema dùng chung để type sinh ra có tên ổn định (components["schemas"]["User"]...).
   schemas:
@@ -360,3 +398,49 @@ components:
       $ref: './sessions.yaml#/components/schemas/SessionNoteList'
     CreateSessionNoteRequest:
       $ref: './sessions.yaml#/components/schemas/CreateSessionNoteRequest'
+
+    # ai.yaml
+    LlmProvider:
+      $ref: './ai.yaml#/components/schemas/LlmProvider'
+    LlmKey:
+      $ref: './ai.yaml#/components/schemas/LlmKey'
+    PutLlmKeyRequest:
+      $ref: './ai.yaml#/components/schemas/PutLlmKeyRequest'
+    TestLlmKeyRequest:
+      $ref: './ai.yaml#/components/schemas/TestLlmKeyRequest'
+    LlmKeyTestResult:
+      $ref: './ai.yaml#/components/schemas/LlmKeyTestResult'
+    AiLocale:
+      $ref: './ai.yaml#/components/schemas/AiLocale'
+    AiKind:
+      $ref: './ai.yaml#/components/schemas/AiKind'
+    AiSubjectType:
+      $ref: './ai.yaml#/components/schemas/AiSubjectType'
+    AiResult:
+      $ref: './ai.yaml#/components/schemas/AiResult'
+    SessionAiResults:
+      $ref: './ai.yaml#/components/schemas/SessionAiResults'
+    RunAiRequest:
+      $ref: './ai.yaml#/components/schemas/RunAiRequest'
+    AiTurnRef:
+      $ref: './ai.yaml#/components/schemas/AiTurnRef'
+    SessionWorkType:
+      $ref: './ai.yaml#/components/schemas/SessionWorkType'
+    SessionSummaryResult:
+      $ref: './ai.yaml#/components/schemas/SessionSummaryResult'
+    SessionOutcomeResult:
+      $ref: './ai.yaml#/components/schemas/SessionOutcomeResult'
+    FindingExplainResult:
+      $ref: './ai.yaml#/components/schemas/FindingExplainResult'
+
+    # agent-tokens.yaml
+    AgentToken:
+      $ref: './agent-tokens.yaml#/components/schemas/AgentToken'
+    CreateAgentTokenRequest:
+      $ref: './agent-tokens.yaml#/components/schemas/CreateAgentTokenRequest'
+    CreatedAgentToken:
+      $ref: './agent-tokens.yaml#/components/schemas/CreatedAgentToken'
+
+    # mcp.yaml
+    JsonRpcMessage:
+      $ref: './mcp.yaml#/components/schemas/JsonRpcMessage'
