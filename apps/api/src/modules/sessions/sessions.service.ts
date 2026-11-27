@@ -11,6 +11,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   lt,
   type SQL,
@@ -43,11 +44,28 @@ export interface ListSessionsQuery {
   from?: Date;
   to?: Date;
   includeSubagents: boolean;
+  /** Từ khóa full-text (đã trim, 1–200 ký tự). Là nội dung prompt: không log. */
+  q?: string;
   limit: number;
   cursor?: string;
 }
 
 const sessionNotFound = () => notFound('Không tìm thấy session');
+
+/**
+ * tsquery của từ khóa tìm kiếm, cú pháp kiểu web search, cấu hình `simple` khớp với cột `turns.tsv`.
+ * `q` luôn đi qua tham số bind. Nếu `q` không còn từ nào (chỉ dấu câu), tsquery rỗng không khớp
+ * turn nào nên danh sách rỗng.
+ */
+const tsQuery = (q: string) => sql`websearch_to_tsquery('simple', ${q})`;
+
+/** Đoạn trích quanh từ khóa; từ khớp bao bởi «…» (client tự đánh dấu, không render HTML). */
+const HEADLINE_OPTIONS = 'MaxWords=20, MinWords=8, StartSel=«, StopSel=»';
+
+/** Gộp khoảng trắng (xuống dòng, tab) để đoạn trích hiển thị gọn trên một dòng. */
+export function normalizeSnippet(snippet: string): string {
+  return snippet.replace(/\s+/g, ' ').trim();
+}
 
 /** Cột dùng chung cho danh sách và chi tiết. */
 const summaryColumns = {
@@ -185,6 +203,21 @@ export class SessionsService {
       conditions.push(isNull(sessions.parentSessionId));
       conditions.push(isNull(sessions.parentSourceId));
     }
+    if (query.q !== undefined) {
+      const tsq = tsQuery(query.q);
+      // Khớp ở turn của chính session, hoặc của session con trực tiếp (để mặc định
+      // includeSubagents=false vẫn tìm thấy session gốc khi từ khóa nằm trong subagent).
+      conditions.push(sql`(
+        EXISTS (
+          SELECT 1 FROM ${turns} t
+          WHERE t.session_id = ${sessions.id} AND t.tsv @@ ${tsq}
+        )
+        OR EXISTS (
+          SELECT 1 FROM ${sessions} c JOIN ${turns} t ON t.session_id = c.id
+          WHERE c.parent_session_id = ${sessions.id} AND t.tsv @@ ${tsq}
+        )
+      )`);
+    }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       conditions.push(
@@ -202,13 +235,61 @@ export class SessionsService {
 
     const page = rows.slice(0, query.limit);
     const last = page.at(-1);
+    let items = page.map(toSummary);
+    if (query.q !== undefined) {
+      const matches = await this.findMatches(
+        query.q,
+        page.map((row) => row.id),
+      );
+      items = items.map((item) => ({
+        ...item,
+        match: matches.get(item.id) ?? null,
+      }));
+    }
     return {
-      items: page.map(toSummary),
+      items,
       nextCursor:
         rows.length > query.limit && last
           ? encodeCursor({ startedAt: last.startedAtExact, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Turn khớp đầu tiên (theo `seq`) và đoạn trích cho các session của trang hiện tại.
+   * `ts_headline` chỉ chạy trên đúng một turn mỗi session, không trên mọi turn khớp.
+   */
+  private async findMatches(
+    q: string,
+    sessionIds: string[],
+  ): Promise<Map<string, { turnSeq: number; snippet: string }>> {
+    const result = new Map<string, { turnSeq: number; snippet: string }>();
+    if (sessionIds.length === 0) return result;
+    const tsq = tsQuery(q);
+    const rows = await this.db
+      .select({
+        sessionId: turns.sessionId,
+        seq: turns.seq,
+        snippet: sql<string>`ts_headline('simple', coalesce(${turns.text}, ''), ${tsq}, ${HEADLINE_OPTIONS})`,
+      })
+      .from(turns)
+      .where(
+        and(
+          inArray(turns.sessionId, sessionIds),
+          sql`${turns.seq} = (
+            SELECT min(t2.seq) FROM ${turns} t2
+            WHERE t2.session_id = ${turns.sessionId} AND t2.tsv @@ ${tsq}
+          )`,
+        ),
+      );
+    for (const row of rows) {
+      if (!result.has(row.sessionId))
+        result.set(row.sessionId, {
+          turnSeq: row.seq,
+          snippet: normalizeSnippet(row.snippet),
+        });
+    }
+    return result;
   }
 
   /** Chi tiết session kèm turn theo `seq`. Xem session của người khác ghi audit `session.view`. */

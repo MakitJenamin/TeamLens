@@ -310,6 +310,135 @@ describe('Sessions (e2e)', () => {
     });
   });
 
+  // Tìm kiếm full-text (M4.1).
+  describe('GET /api/v1/projects/:projectId/sessions?q=', () => {
+    beforeAll(async () => {
+      const ts = '2026-11-20T09:00:00.000Z';
+      const rows: [string, number, string][] = [
+        [member1Sessions[1], 0, 'Sửa lỗi đăng nhập khi token hết hạn'],
+        [member1Sessions[1], 1, 'Đã sửa, thêm test chung cho đăng nhập'],
+        [member1Sessions[2], 0, 'Viết tài liệu'],
+        [member1Sessions[2], 1, 'Dọn code\n\nchung'],
+        [member1Sessions[3], 0, 'chung'],
+        [member2Session, 0, 'Đăng nhập bằng SSO'],
+        [childSession, 0, 'Triển khai kubernetes cho staging'],
+      ];
+      for (const [sessionId, seq, text] of rows) {
+        await querySql(
+          `INSERT INTO turns (session_id, seq, role, kind, ts, text)
+           VALUES ($1, $2, 'user', 'prompt', $3::timestamptz, $4)`,
+          [sessionId, seq, ts, text],
+        );
+      }
+    });
+
+    const search = (q: string, extra = '') =>
+      `/api/v1/projects/${projectId}/sessions?q=${encodeURIComponent(q)}${extra}`;
+
+    it('tìm theo nội dung prompt, trả turn khớp đầu tiên và đoạn trích', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const res = await member1.get(search('  đăng nhập ')).expect(200);
+      expect(res.body.items.map((s: { id: string }) => s.id)).toEqual([
+        member1Sessions[1],
+      ]);
+      expect(res.body.items[0].match).toEqual({
+        turnSeq: 0,
+        snippet: 'Sửa lỗi «đăng» «nhập» khi token hết hạn',
+      });
+    });
+
+    it('member không thấy session người khác; leader thấy mọi session khớp', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const mine = await member1.get(search('SSO')).expect(200);
+      expect(mine.body.items).toEqual([]);
+      const leader = await loginAs('leader@teamlens.local');
+      const all = await leader.get(search('đăng nhập')).expect(200);
+      expect(all.body.items.map((s: { id: string }) => s.id)).toEqual([
+        member1Sessions[1],
+        member2Session,
+      ]);
+    });
+
+    it('không có q thì không có trường match', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const res = await member1
+        .get(`/api/v1/projects/${projectId}/sessions`)
+        .expect(200);
+      expect(res.body.items[0]).not.toHaveProperty('match');
+    });
+
+    it('từ khóa chỉ trong session con vẫn tìm thấy session gốc (match null)', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const res = await member1.get(search('kubernetes')).expect(200);
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0]).toMatchObject({
+        id: member1Sessions[0],
+        match: null,
+      });
+      const withSub = await member1
+        .get(search('kubernetes', '&includeSubagents=true'))
+        .expect(200);
+      expect(withSub.body.items.map((s: { id: string }) => s.id)).toEqual([
+        childSession,
+        member1Sessions[0],
+      ]);
+      expect(withSub.body.items[0].match).toMatchObject({ turnSeq: 0 });
+    });
+
+    it('cú pháp web search: cụm từ, loại trừ', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      const phrase = await leader.get(search('"nhập bằng"')).expect(200);
+      expect(phrase.body.items.map((s: { id: string }) => s.id)).toEqual([
+        member2Session,
+      ]);
+      const exclude = await leader.get(search('nhập -sso')).expect(200);
+      expect(exclude.body.items.map((s: { id: string }) => s.id)).toEqual([
+        member1Sessions[1],
+      ]);
+    });
+
+    it('cursor đúng khi có q, đoạn trích gộp khoảng trắng', async () => {
+      const member1 = await loginAs('member1@teamlens.local');
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const url: string = search(
+          'chung',
+          '&limit=2' + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''),
+        );
+        const res = await member1.get(url).expect(200);
+        seen.push(...res.body.items.map((s: { id: string }) => s.id));
+        for (const item of res.body.items) {
+          if (item.id === member1Sessions[2])
+            expect(item.match).toEqual({
+              turnSeq: 1,
+              snippet: 'Dọn code «chung»',
+            });
+        }
+        cursor = res.body.nextCursor;
+        pages++;
+      } while (cursor && pages < 10);
+      expect(pages).toBe(2);
+      expect(seen).toEqual(member1Sessions.slice(1, 4));
+    });
+
+    it('q không còn từ nào để tìm trả danh sách rỗng', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      const res = await leader.get(search('!!! ...')).expect(200);
+      expect(res.body).toEqual({ items: [], nextCursor: null });
+    });
+
+    it('q rỗng hoặc quá 200 ký tự trả 400', async () => {
+      const leader = await loginAs('leader@teamlens.local');
+      for (const q of ['', '   ', 'a'.repeat(201)]) {
+        const res = await leader.get(search(q)).expect(400);
+        expect(res.body.error).toBe('validation_error');
+      }
+      await leader.get(search(`  ${'a'.repeat(200)}  `)).expect(200);
+    });
+  });
+
   describe('GET /api/v1/sessions/:sessionId', () => {
     it('chủ session xem được, turn theo seq, không ghi audit', async () => {
       const member1 = await loginAs('member1@teamlens.local');

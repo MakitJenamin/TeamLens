@@ -6,7 +6,9 @@
       "agent": "Agent",
       "user": "Thành viên",
       "allAgents": "Mọi agent",
-      "allUsers": "Mọi thành viên"
+      "allUsers": "Mọi thành viên",
+      "search": "Tìm trong nội dung",
+      "searchPlaceholder": "Từ khóa, \"cụm từ\", -loại trừ"
     },
     "columns": {
       "user": "Người",
@@ -26,7 +28,10 @@
     "emptyDescription": "Session sẽ hiện ở đây sau khi CLI gửi lên (tl sync). Nếu đang lọc, thử bỏ bộ lọc.",
     "errorTitle": "Không tải được danh sách session",
     "tokensDetail": "Input {input} · output {output} · cache đọc {cacheRead} · cache ghi {cacheWrite}",
-    "children": "{count} session con"
+    "children": "{count} session con",
+    "noResultsTitle": "Không tìm thấy session khớp",
+    "noResultsDescription": "Không có session nào chứa “{q}”. Thử từ khóa khác hoặc bỏ bộ lọc.",
+    "matchTurn": "Turn #{seq}:"
   },
   "agents": {
     "claude_code": "Claude Code",
