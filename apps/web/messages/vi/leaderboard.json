@@ -1,4 +1,10 @@
 {
   "title": "Leaderboard",
-  "description": "Xếp hạng theo điểm rule tổng và từng nhóm, trong tuần hoặc tháng; chỉ tính người có từ 5 session trong kỳ; leader bật/tắt chế độ công khai theo project."
+  "description": "Xếp hạng theo tuần hoặc tháng. Chỉ những người có ít nhất 5 session gốc trong kỳ mới vào bảng.",
+  "period": "Kỳ", "week": "Tuần", "month": "Tháng", "at": "Ngày trong kỳ", "categoryLabel": "Nhóm điểm",
+  "categories": { "overall": "Điểm tổng", "prompt_quality": "Chất lượng prompt", "context": "Ngữ cảnh", "correction_loop": "Vòng sửa lỗi", "session_management": "Quản lý session", "verification": "Kiểm chứng" },
+  "enabled": "Bật bảng xếp hạng", "public": "Cho member xem ẩn danh", "memberVisible": "Member đang thấy bảng ẩn danh.", "memberHidden": "Member hiện không thấy bảng.",
+  "loading": "Đang tải bảng xếp hạng...", "error": "Không lưu được cài đặt.", "private": "Bảng xếp hạng chưa được công khai.", "disabled": "Bảng xếp hạng đang tắt.",
+  "range": "Từ {from} đến trước {to} (UTC)", "progress": "Bạn có {count}/5 session gốc; cần thêm {needed} để được xếp hạng.", "empty": "Chưa có ai đủ điều kiện xếp hạng trong kỳ này.",
+  "rank": "Hạng", "member": "Thành viên", "sessions": "Session gốc", "score": "Điểm", "anonymous": "Thành viên ẩn danh", "you": "bạn"
 }
