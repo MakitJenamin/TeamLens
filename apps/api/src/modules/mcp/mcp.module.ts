@@ -27,9 +27,16 @@ import {
   SearchSessionsTool,
 } from './tools/session-tools.js';
 import { WhoamiTool } from './tools/whoami.tool.js';
+import {
+  AddSessionNoteTool,
+  DraftRuleTool,
+  SaveRuleTool,
+  SetRuleEnabledTool,
+  TestRuleTool,
+} from './tools/write-tools.js';
 
 /**
- * Endpoint MCP `/api/v1/mcp` (M6.3) và các tool đọc (M6.15). Thêm tool mới: viết lớp kế thừa `BaseMcpTool`
+ * Endpoint MCP `/api/v1/mcp` (M6.3), các tool đọc (M6.15), tool ghi cho leader và prompt (M6.16). Thêm tool mới: viết lớp kế thừa `BaseMcpTool`
  * trong `tools/`, khai báo provider ở đây (tool tự đăng ký vào `McpToolRegistry`). Xem README.md.
  * Chỉ import dịch vụ đã export của `projects`, `sessions`, `stats`, `rules`, `llm`; không sửa code của họ.
  */
@@ -59,6 +66,11 @@ import { WhoamiTool } from './tools/whoami.tool.js';
     ListRulesTool,
     GetRuleTool,
     GetMyAiResultsTool,
+    DraftRuleTool,
+    TestRuleTool,
+    SaveRuleTool,
+    SetRuleEnabledTool,
+    AddSessionNoteTool,
   ],
 })
 export class McpModule {}

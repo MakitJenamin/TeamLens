@@ -16,7 +16,10 @@ const addFormats = require('ajv-formats') as (ajv: Ajv2020) => Ajv2020;
 
 const PASSWORD = 'teamlens123';
 const ACCEPT = 'application/json, text/event-stream';
+// Đọc (M6.15) và ghi cho leader (M6.16), theo thứ tự tên như `tools/list`.
 const TOOL_NAMES = [
+  'add_session_note',
+  'draft_rule',
   'get_findings',
   'get_member_profile',
   'get_my_ai_results',
@@ -26,7 +29,10 @@ const TOOL_NAMES = [
   'list_members',
   'list_projects',
   'list_rules',
+  'save_rule',
   'search_sessions',
+  'set_rule_enabled',
+  'test_rule',
   'whoami',
 ];
 
