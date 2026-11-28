@@ -25,13 +25,19 @@ Mỗi tool một file `<tên-tool>.json`:
 
 | Nhóm | Tool | Ai | File |
 | --- | --- | --- | --- |
-| Định hướng | `whoami`, `list_projects`, `list_members` | Mọi người (member chỉ thấy mình) | [`whoami.json`](whoami.json) |
-| Số liệu | `get_overview`, `get_leaderboard`, `get_member_profile` (điểm 5 nhóm theo tuần, token) | Theo quyền | |
-| Session | `search_sessions` (người, agent, ngày, từ khóa, loại việc B4), `get_session` (phân trang turn), `get_findings` | Theo quyền | |
-| Rule | `list_rules`, `get_rule` | Mọi người | |
-| Tri thức team | `get_skill_clusters` (S0), `get_prompt_library` (C2, mục đã duyệt) | Theo quyền | |
-| Kết quả AI | `get_my_ai_results` (kết quả AI chính người gọi đã tạo trên dashboard) | Mọi người | |
+| Định hướng | `whoami`, `list_projects`, `list_members` | Mọi người (member chỉ thấy mình) | [`whoami`](whoami.json), [`list_projects`](list_projects.json), [`list_members`](list_members.json) |
+| Số liệu | `get_overview` (chỉ leader), `get_leaderboard` (chưa có: chờ M4.3), `get_member_profile` (điểm 5 nhóm theo tuần, token) | Theo quyền | [`get_overview`](get_overview.json), [`get_member_profile`](get_member_profile.json) |
+| Session | `search_sessions` (người, agent, ngày, từ khóa; lọc loại việc B4 khi B4 xong), `get_session` (phân trang turn), `get_findings` | Theo quyền | [`search_sessions`](search_sessions.json), [`get_session`](get_session.json), [`get_findings`](get_findings.json) |
+| Rule | `list_rules`, `get_rule` | Mọi người | [`list_rules`](list_rules.json), [`get_rule`](get_rule.json) |
+| Tri thức team | `get_skill_clusters` (S0, chờ M6.11), `get_prompt_library` (C2, mục đã duyệt, chờ M6.14) | Theo quyền | (chưa có) |
+| Kết quả AI | `get_my_ai_results` (kết quả AI chính người gọi đã tạo trên dashboard) | Mọi người | [`get_my_ai_results`](get_my_ai_results.json) |
 | Ghi (leader) | `draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_note` | Leader | |
 | MCP prompts | `/teamlens:coach-me`, `/teamlens:weekly-review`, `/teamlens:find-skills`, `/teamlens:improve-agents-md` | Theo quyền | |
 
 Thêm tool: tạo file `<tên-tool>.json`, điền cột "File" của bảng trên, chạy `test`.
+
+## Quy ước chung của tool đọc (M6.15)
+
+- Schema đầu ra của `get_overview`, `get_member_profile`, `search_sessions`, `get_findings` và `get_my_ai_results` **sinh từ các schema OpenAPI cùng tên** (`ProjectOverview`, `MemberProfile`, `SessionPage`, `SessionFindings`, `AiResult`): cùng hình dạng với REST của dashboard, chỉ bỏ từ khóa riêng của OpenAPI, gộp `allOf` và đóng kín object (`additionalProperties: false`). Đổi schema OpenAPI thì sinh lại các file này (và e2e `test/mcp-read-tools.e2e-spec.ts` kiểm từng kết quả thật bằng Ajv sẽ báo nếu lệch).
+- Đầu vào của `search_sessions` và `get_session` chặt hơn REST để bảo vệ ngữ cảnh của agent: `limit` tối đa 50 (mặc định 20); `get_session` phân trang turn theo `fromSeq`/`page.nextFromSeq`, mỗi đoạn văn dài cắt ở 2000 ký tự (cờ `textTruncated`/`truncated`), diff chỉ có đường dẫn và số dòng.
+- `get_overview` chỉ leader; `list_members` không trả email.

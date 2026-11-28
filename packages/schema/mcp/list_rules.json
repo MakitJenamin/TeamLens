@@ -1,0 +1,77 @@
+{
+  "name": "list_rules",
+  "description": "Liệt kê rule chấm điểm đang áp dụng (khóa, nhóm, mức độ, bật hay tắt, phiên bản; không gồm định nghĩa, dùng `get_rule`). Bỏ `projectId` thì chỉ rule mặc định; có `projectId` thì rule hiệu lực của project (rule riêng của project ghi đè rule mặc định cùng khóa).",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [],
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần xem rule hiệu lực (từ `list_projects`)."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "rules"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "rules": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "key",
+            "category",
+            "severity",
+            "enabled",
+            "version",
+            "scope"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "type": "string",
+              "examples": [
+                "no-test-after-edit"
+              ]
+            },
+            "category": {
+              "type": "string",
+              "description": "Nhóm kỹ năng của rule."
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "default",
+                "project"
+              ],
+              "description": "`default`: rule mặc định toàn server; `project`: rule riêng của project (ghi đè rule mặc định cùng `key`)."
+            }
+          }
+        }
+      }
+    }
+  }
+}
