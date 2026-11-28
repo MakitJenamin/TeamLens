@@ -483,11 +483,22 @@ describe('Sessions (e2e)', () => {
     it('leader xem session của member thì ghi audit session.view', async () => {
       const leader = await loginAs('leader@teamlens.local');
       await leader.get(`/api/v1/sessions/${member2Session}`).expect(200);
-      const rows = await querySql<{ actor_id: string; target_type: string }>(
-        `SELECT actor_id, target_type FROM audit_log WHERE action = 'session.view' AND target_id = $1`,
+      // Trang session gọi tiếp findings: vẫn chỉ một dòng audit cho một lần mở.
+      await leader
+        .get(`/api/v1/sessions/${member2Session}/findings`)
+        .expect(200);
+      const rows = await querySql<{
+        actor_id: string;
+        target_type: string;
+        owner: string;
+      }>(
+        `SELECT actor_id, target_type, metadata->>'ownerId' AS owner
+         FROM audit_log WHERE action = 'session.view' AND target_id = $1`,
         [member2Session],
       );
-      expect(rows).toEqual([{ actor_id: ids.leader, target_type: 'session' }]);
+      expect(rows).toEqual([
+        { actor_id: ids.leader, target_type: 'session', owner: ids.member2 },
+      ]);
     });
 
     it('leader bị hạ xuống member thì không xem được nữa', async () => {

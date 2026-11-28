@@ -32,6 +32,6 @@ Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), xóa dữ liệu 
 ## Nhật ký audit (M4.5)
 
 `GET /api/v1/audit` (`audit.controller.ts`, `audit-query.service.ts`):
-- Lọc theo `action`, `actorId`, `from`, `to`; phân trang cursor `at` + `id` (`audit-cursor.ts`, dùng chung với `/me/session-views` của module `consent`).
+- Lọc theo `action`, `actorId`, `from`, `to`; phân trang cursor `at` + `id` (`audit-cursor.ts`, dùng chung với `/me/session-views` của module `consent`). Cursor giữ `at` dạng chuỗi Postgres in ra (đủ micro giây, cột `cursorAt` trong select) và so sánh `(at, id) < (...)` ngay trong SQL, không đi qua `Date` của JS (chỉ tới mili giây).
 - **Lỗi đã biết:** cursor chỉ chính xác tới mili giây, trong khi `audit_log.at` chính xác tới micro giây, nên các dòng ghi cùng transaction có thể bị bỏ khi chuyển trang.
 - Response chưa trả cột `details` (MCP ghi) hay `metadata` (M4.4, M4.6 ghi).

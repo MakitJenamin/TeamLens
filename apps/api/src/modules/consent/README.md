@@ -14,6 +14,6 @@ Văn bản đồng ý hiện hành nằm ở bảng `settings`, khóa `consent_t
 
 `my-data.controller.ts`, `my-data.service.ts` (cookie, cả leader và member, luôn lấy user từ phiên đăng nhập):
 - `GET /api/v1/me/consents`: các bản đồng ý của mọi thiết bị của mình.
-- `GET /api/v1/me/session-views`: ai đã xem session của mình. Đọc `audit_log` action `session.view`, phân trang cursor như `/api/v1/audit`.
-
-**Hạn chế đã biết:** chưa tính `session.ai` và `profile.view`. Mỗi lần mở session có 2 dòng (`sessions` và `findings` cùng ghi). Lượt xem của session đã bị xóa không hiện, vì truy vấn dùng `innerJoin`.
+- `GET /api/v1/me/session-views`: ai đã xem dữ liệu của mình. Đọc `audit_log` action `session.view`, `session.ai` (target là session của mình) và `profile.view` (target là chính mình), phân trang cursor như `/api/v1/audit`. Mỗi dòng có `action`; `sessionId` null với `profile.view`.
+- Session đã bị xóa (retention) vẫn hiện, `sessionStartedAt` null: `sessions` và `sessions-ai` ghi `metadata.ownerId` (chủ session) vào audit, truy vấn `leftJoin` session rồi lấy chủ từ session còn sống hoặc từ `ownerId`. Dòng ghi trước khi có `ownerId` của session đã xóa thì không xác định được chủ nên không hiện. Sau khi gộp user (J.8), `ownerId` của session đã xóa vẫn trỏ user cũ.
+- Mở session một lần chỉ có một dòng `session.view`: `GET /sessions/:id` ghi, còn `GET /sessions/:id/findings` (module `rules`) bỏ qua nếu người đó đã có `session.view` cho session này trong 30 phút gần nhất. Gọi findings riêng (tool MCP `get_findings`) vẫn ghi.

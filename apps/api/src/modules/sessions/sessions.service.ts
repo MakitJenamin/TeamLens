@@ -311,8 +311,11 @@ export class SessionsService {
     if (!row) throw sessionNotFound();
 
     if (!this.access.canViewUserData(viewer, row.userId)) throw forbidden();
+    // `ownerId` giữ chủ session trong audit để trang "Của tôi" còn hiện lượt xem khi session đã bị xóa.
     if (viewer.id !== row.userId)
-      await this.audit.record(viewer.id, 'session.view', 'session', row.id);
+      await this.audit.record(viewer.id, 'session.view', 'session', row.id, undefined, undefined, {
+        ownerId: row.userId,
+      });
 
     const [children, turnRows] = await Promise.all([
       this.db

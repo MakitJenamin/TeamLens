@@ -217,7 +217,9 @@ export class SessionsAiService {
     if (!row) throw sessionNotFound();
     if (!this.access.canViewUserData(viewer, row.userId)) throw forbidden();
     if (action && viewer.id !== row.userId)
-      await this.audit.record(viewer.id, action, 'session', row.id);
+      await this.audit.record(viewer.id, action, 'session', row.id, undefined, undefined, {
+        ownerId: row.userId,
+      });
     return row;
   }
 

@@ -1,12 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { forbidden, notFound } from '../../common/api-error.js';
 import type { AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
-import { findings, rules, sessions, turns } from '../../db/schema/index.js';
+import { auditLog, findings, rules, sessions, turns } from '../../db/schema/index.js';
 import { AccessService, isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
+
+/** Khoảng thời gian coi lần gọi findings là cùng một lượt xem với lần mở session trước đó. */
+const VIEW_DEDUP_WINDOW = '30 minutes';
 
 export interface SessionFindingItem {
   id: string;
@@ -41,8 +44,10 @@ export class FindingsService {
       .where(eq(sessions.id, sessionId));
     if (!session) throw notFound('Không tìm thấy session');
     if (!this.access.canViewUserData(user, session.userId)) throw forbidden();
-    if (user.id !== session.userId)
-      await this.audit.record(user.id, 'session.view', 'session', sessionId);
+    if (user.id !== session.userId && !(await this.viewedRecently(user.id, sessionId)))
+      await this.audit.record(user.id, 'session.view', 'session', sessionId, undefined, undefined, {
+        ownerId: session.userId,
+      });
     const items = await this.db
       .select({
         id: findings.id,
@@ -66,5 +71,26 @@ export class FindingsService {
       .where(eq(findings.sessionId, sessionId))
       .orderBy(asc(findings.turnSeq), asc(rules.key));
     return { items };
+  }
+
+  /**
+   * Trang session gọi `GET /sessions/:id` (đã ghi `session.view`) rồi mới gọi findings. Không ghi thêm
+   * dòng thứ hai nếu người này vừa xem session đó; gọi findings riêng (vd. tool MCP) vẫn ghi audit.
+   */
+  private async viewedRecently(actorId: string, sessionId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: auditLog.id })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, 'session'),
+          eq(auditLog.targetId, sessionId),
+          eq(auditLog.actorId, actorId),
+          eq(auditLog.action, 'session.view'),
+          gt(auditLog.at, sql`now() - ${VIEW_DEDUP_WINDOW}::interval`),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
   }
 }
