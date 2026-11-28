@@ -1135,6 +1135,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/skill-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Các cụm prompt lặp lại của project (Skill Finder, S0)
+         * @description Gom những prompt người dùng gõ lặp lại gần như giống nhau trong project, để gợi ý biến chúng thành skill hoặc
+         *     chỉ dẫn dùng chung. Heuristic thuần, không gọi LLM, không tốn tiền.
+         *
+         *     **Quyền:** leader thấy mọi thành viên (lọc được theo `userId`; xem dữ liệu của người khác ghi audit
+         *     `skill_clusters.view`); member chỉ thấy prompt của chính mình (đặt `userId` của người khác trả `403`).
+         *
+         *     **Cách gom (SPEC và AI_PLAN 3.2):** chỉ dùng prompt của **session gốc** (prompt trong session con do agent viết,
+         *     SPEC 9.1). Bỏ prompt dưới 15 hoặc trên 2000 ký tự và prompt rác ("tiếp", "ok", "continue"...). Chuẩn hóa NFC, giữ chữ
+         *     có dấu (tiếng Việt), thay mã, chuỗi, đường dẫn, URL, số bằng chỗ trống rồi tách từ, bỏ từ dừng tiếng Việt và tiếng Anh.
+         *     "Dấu vân tay" là 4 từ đầu tiên sau khi sắp xếp từ khóa theo thứ tự chữ cái; prompt cùng dấu vân tay vào một cụm. Cụm cần ít
+         *     nhất 3 lần lặp. Đây là gần đúng (cụm có thể thiếu hoặc lẫn); S1 (AI) sẽ lọc lại.
+         *
+         *     **Khoảng thời gian:** `from` (>=) và `to` (<) theo thời điểm của prompt, ISO 8601. Mặc định 30 ngày gần nhất; tối đa
+         *     90 ngày. Chỉ có prompt còn được lưu (retention). Tối đa 20000 prompt được xét; vượt thì lấy các prompt mới nhất và
+         *     `stats.truncated` là `true`.
+         *
+         *     **Đoạn trích** (`excerpt`) lấy từ nội dung prompt đã che secret ở máy thành viên, tối đa 160 ký tự.
+         */
+        get: operations["listSkillClusters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2149,6 +2187,63 @@ export interface components {
                 message: string;
                 data?: unknown;
             };
+        };
+        SkillClusterList: {
+            /** @description Khoảng thời gian thực tế đã dùng. */
+            range: {
+                /** Format: date-time */
+                from: string;
+                /** Format: date-time */
+                to: string;
+            };
+            stats: components["schemas"]["SkillClusterStats"];
+            clusters: components["schemas"]["SkillCluster"][];
+        };
+        SkillClusterStats: {
+            /** @description Số prompt đã được xét (sau khi lọc session gốc, độ dài, prompt rác). */
+            promptsAnalyzed: number;
+            /** @description Số prompt nằm trong các cụm đủ 3 lần lặp (kể cả cụm vượt `limit`). */
+            promptsClustered: number;
+            /** @description Số cụm đủ 3 lần lặp (có thể nhiều hơn số cụm trả về khi vượt `limit`). */
+            clusterCount: number;
+            /** @description true khi có hơn 20000 prompt trong khoảng và chỉ các prompt mới nhất được xét. */
+            truncated: boolean;
+        };
+        SkillCluster: {
+            /**
+             * @description Mã ổn định của cụm (UUID sinh từ project và dấu vân tay), dùng làm `subjectId` cho nút AI ở M6.12.
+             *     Không phụ thuộc bộ lọc người hay khoảng thời gian.
+             */
+            id: components["schemas"]["Id"];
+            /** @description Prompt tiêu biểu của cụm (độ dài vừa), tối đa 200 ký tự, đã che secret. */
+            label: string;
+            /** @description Số lần prompt lặp lại trong khoảng và bộ lọc đã chọn. */
+            count: number;
+            /** @description Số thành viên đã gõ prompt thuộc cụm. */
+            userCount: number;
+            /** Format: date-time */
+            firstSeenAt: string;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** @description Tối đa 5 người gõ nhiều nhất, theo số lần giảm dần. */
+            users: components["schemas"]["SkillClusterUser"][];
+            /** @description Tối đa 3 lần xuất hiện gần nhất. */
+            examples: components["schemas"]["SkillClusterExample"][];
+        };
+        SkillClusterUser: {
+            userId: components["schemas"]["Id"];
+            name: string;
+            count: number;
+        };
+        SkillClusterExample: {
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của prompt trong session (để nhảy tới đúng turn). */
+            turnSeq: number;
+            /** Format: date-time */
+            ts: string;
+            userId: components["schemas"]["Id"];
+            /** @description Đoạn trích prompt, tối đa 160 ký tự, đã che secret, khoảng trắng đã gộp. */
+            excerpt: string;
         };
         SourceId: string;
         Session: {
@@ -4747,6 +4842,86 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["McpInvalidToken"];
+        };
+    };
+    listSkillClusters: {
+        parameters: {
+            query?: {
+                /** @description Chỉ prompt của người này (leader; member chỉ được đặt chính mình). */
+                userId?: components["schemas"]["Id"];
+                /** @description Chỉ prompt từ mốc này (ISO 8601). */
+                from?: string;
+                /** @description Chỉ prompt trước mốc này (ISO 8601). */
+                to?: string;
+                /** @description Số cụm tối đa trả về (cụm nhiều lần lặp nhất trước). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Các cụm, nhiều lần lặp nhất trước. `clusters` rỗng khi chưa có prompt nào lặp đủ 3 lần. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "range": {
+                     *         "from": "2026-10-29T00:00:00.000Z",
+                     *         "to": "2026-11-28T00:00:00.000Z"
+                     *       },
+                     *       "stats": {
+                     *         "promptsAnalyzed": 412,
+                     *         "promptsClustered": 31,
+                     *         "clusterCount": 2,
+                     *         "truncated": false
+                     *       },
+                     *       "clusters": [
+                     *         {
+                     *           "id": "4f6c2d7e-1b3a-4c8e-9d5f-0a1b2c3d4e5f",
+                     *           "label": "Chạy pnpm test rồi sửa lỗi lint trong file này",
+                     *           "count": 9,
+                     *           "userCount": 2,
+                     *           "firstSeenAt": "2026-11-03T08:12:00.000Z",
+                     *           "lastSeenAt": "2026-11-27T15:40:00.000Z",
+                     *           "users": [
+                     *             {
+                     *               "userId": "0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f",
+                     *               "name": "Thành viên 1",
+                     *               "count": 6
+                     *             },
+                     *             {
+                     *               "userId": "7a1c3d4e-5f60-4b9d-8f9e-0b9d8f9e7c1a",
+                     *               "name": "Thành viên 2",
+                     *               "count": 3
+                     *             }
+                     *           ],
+                     *           "examples": [
+                     *             {
+                     *               "sessionId": "2356eb16-0734-42a0-9c8a-892a394bcaf2",
+                     *               "turnSeq": 4,
+                     *               "ts": "2026-11-27T15:40:00.000Z",
+                     *               "userId": "0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f",
+                     *               "excerpt": "Chạy pnpm test rồi sửa lỗi lint trong file src/cart.ts"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["SkillClusterList"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }
