@@ -152,7 +152,7 @@
           "queued",
           "in_progress"
         ],
-        "description": "`queued`: đã xếp lần chấm lại (có theo dõi ở dashboard). `in_progress`: project đang được chấm lại từ trước, thay đổi có thể chưa áp hết; chạy lại sau khi lần đó xong."
+        "description": "`queued`: đã xếp lần chấm lại (có theo dõi ở dashboard). `in_progress`: project đang được chấm lại từ trước, lần đó xong thì server tự xếp thêm một lần để áp thay đổi."
       }
     }
   }
