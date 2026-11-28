@@ -13,7 +13,7 @@ Một endpoint duy nhất `/api/v1/mcp` (Streamable HTTP, JSON-RPC 2.0) cho Clau
 | `mcp-tool-registry.ts` | Sổ đăng ký tool; `loadToolDefinition(name)` đọc `packages/schema/mcp/<name>.json` qua `@teamlens/schema/mcp/*.json`. |
 | `mcp-redact.ts` | Cửa ra che secret: `redactDeep` chạy trên mọi kết quả tool (cả `content` lẫn `structuredContent`). |
 | `mcp-prompts.ts` | MCP prompt (M6.16): `coach-me`, `weekly-review`; đọc từ `packages/schema/mcp/prompts/*.json`, `prompts/list` ẩn prompt của leader với member. |
-| `tools/` | Mỗi nhóm tool một file, kế thừa `BaseMcpTool` (`base-tool.ts`: nạp định nghĩa từ contract, tự đăng ký, `parseArgs` bằng zod, `truncateText`). 16 tool: 11 tool đọc (M6.15) và 5 tool ghi cho leader (M6.16, `write-tools.ts`). Tool đọc: `whoami`; `list_projects`, `list_members`, `get_overview`, `get_member_profile` (`project-tools.ts`); `search_sessions`, `get_session`, `get_findings` (`session-tools.ts`); `list_rules`, `get_rule`, `get_my_ai_results` (`rule-and-ai-tools.ts`). Bảng đầy đủ ở `packages/schema/mcp/README.md`. |
+| `tools/` | Mỗi nhóm tool một file, kế thừa `BaseMcpTool` (`base-tool.ts`: nạp định nghĩa từ contract, tự đăng ký, `parseArgs` bằng zod, `truncateText`). 17 tool: 12 tool đọc (M6.15, M6.11) và 5 tool ghi cho leader (M6.16, `write-tools.ts`). Tool đọc: `whoami`; `list_projects`, `list_members`, `get_overview`, `get_member_profile` (`project-tools.ts`); `search_sessions`, `get_session`, `get_findings` (`session-tools.ts`); `list_rules`, `get_rule`, `get_my_ai_results` (`rule-and-ai-tools.ts`). Bảng đầy đủ ở `packages/schema/mcp/README.md`. |
 
 ## Quy tắc
 
@@ -32,7 +32,8 @@ Mỗi tool chỉ **gọi service đã có** của module khác (nên quyền và
 - **Tham số chặt:** zod `strictObject`, trường lạ hoặc sai kiểu trả 400 `validation_error` (chỉ nêu đường dẫn, không in giá trị). Lỗi nghiệp vụ trả `isError: true` với thông báo tiếng Việt.
 - `get_my_ai_results` luôn lọc theo `userId` của người gọi (`LlmService.findResults`), không có đường nào đọc kết quả của người khác.
 - `list_rules`/`get_rule` đọc qua `RulesQueryService` (chỉ đọc): rule riêng của project ghi đè rule mặc định cùng khóa, giống `score-session.ts`. M4.4 mở rộng dịch vụ này khi làm màn quản lý rule.
-- **Chưa có:** `get_leaderboard` (chờ M4.3), `get_skill_clusters` (chờ M6.11), `get_prompt_library` (chờ M6.14).
+- `get_skill_clusters` (M6.11, `tools/skill-tools.ts`) gọi `SkillsService` của module `skills` (Skill Finder S0), cùng quyền và audit như REST.
+- **Chưa có:** `get_leaderboard` (chờ M4.3), `get_prompt_library` (chờ M6.14).
 - Test: `test/mcp-read-tools.e2e-spec.ts` gọi từng tool bằng member và leader và **kiểm mỗi kết quả thật bằng Ajv theo `outputSchema` trong contract**, nên lệch schema là test đỏ.
 
 ## Tool ghi cho leader và prompt (M6.16)

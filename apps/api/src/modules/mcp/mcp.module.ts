@@ -4,6 +4,7 @@ import { LlmModule } from '../llm/llm.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
 import { RulesModule } from '../rules/rules.module.js';
 import { SessionsModule } from '../sessions/sessions.module.js';
+import { SkillsModule } from '../skills/skills.module.js';
 import { StatsModule } from '../stats/stats.module.js';
 import { McpAuthGuard } from './mcp-auth.guard.js';
 import { McpAuthService } from './mcp-auth.service.js';
@@ -26,6 +27,7 @@ import {
   GetSessionTool,
   SearchSessionsTool,
 } from './tools/session-tools.js';
+import { GetSkillClustersTool } from './tools/skill-tools.js';
 import { WhoamiTool } from './tools/whoami.tool.js';
 import {
   AddSessionNoteTool,
@@ -48,6 +50,7 @@ import {
     StatsModule,
     RulesModule,
     LlmModule,
+    SkillsModule,
   ],
   controllers: [McpController],
   providers: [
@@ -71,6 +74,7 @@ import {
     SaveRuleTool,
     SetRuleEnabledTool,
     AddSessionNoteTool,
+    GetSkillClustersTool,
   ],
 })
 export class McpModule {}

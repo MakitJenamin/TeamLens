@@ -26,6 +26,7 @@ const TOOL_NAMES = [
   'get_overview',
   'get_rule',
   'get_session',
+  'get_skill_clusters',
   'list_members',
   'list_projects',
   'list_rules',

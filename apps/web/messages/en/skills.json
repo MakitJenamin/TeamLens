@@ -1,0 +1,27 @@
+{
+  "title": "Skill Finder",
+  "description": "Prompts that were typed again and again in almost the same way. A task that keeps repeating is worth turning into a skill or shared instructions for the agent.",
+  "filters": {
+    "range": "Time range",
+    "user": "Member",
+    "allUsers": "Whole team",
+    "days": "Last {days} days"
+  },
+  "summary": "Looked at {analyzed} prompts: {clustered} prompts fall into {clusters} clusters repeated 3 times or more.",
+  "heuristicNote": "Clusters are grouped by keywords, so they are approximate: a cluster can be missing or mixed.",
+  "truncated": "There are more than 20,000 prompts in this range, so only the newest ones were looked at. Narrow the time range to see them all.",
+  "columns": {
+    "prompt": "Representative prompt",
+    "count": "Times",
+    "users": "Typed by",
+    "lastSeen": "Last seen"
+  },
+  "expand": "Show examples",
+  "collapse": "Hide examples",
+  "examples": "Most recent occurrences",
+  "turn": "Turn #{seq}",
+  "userCount": "{count} people",
+  "emptyTitle": "No prompt has been repeated 3 times yet",
+  "emptyHint": "Try a wider time range.",
+  "errorTitle": "Could not load Skill Finder"
+}

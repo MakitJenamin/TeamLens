@@ -1,0 +1,27 @@
+{
+  "title": "Skill Finder",
+  "description": "Những prompt được gõ lặp lại gần như giống nhau. Việc nào cứ lặp đi lặp lại thì nên biến thành skill hoặc chỉ dẫn dùng chung cho agent.",
+  "filters": {
+    "range": "Khoảng thời gian",
+    "user": "Thành viên",
+    "allUsers": "Cả team",
+    "days": "{days} ngày gần nhất"
+  },
+  "summary": "Đã xét {analyzed} prompt: {clustered} prompt nằm trong {clusters} cụm lặp từ 3 lần trở lên.",
+  "heuristicNote": "Gom cụm theo từ khóa nên chỉ là gần đúng: cụm có thể thiếu hoặc lẫn.",
+  "truncated": "Có hơn 20.000 prompt trong khoảng này nên chỉ các prompt mới nhất được xét. Thu hẹp khoảng thời gian để xem đủ.",
+  "columns": {
+    "prompt": "Prompt tiêu biểu",
+    "count": "Số lần",
+    "users": "Người gõ",
+    "lastSeen": "Lần gần nhất"
+  },
+  "expand": "Xem ví dụ",
+  "collapse": "Ẩn ví dụ",
+  "examples": "Các lần xuất hiện gần nhất",
+  "turn": "Turn #{seq}",
+  "userCount": "{count} người",
+  "emptyTitle": "Chưa có prompt nào lặp lại đủ 3 lần",
+  "emptyHint": "Thử mở rộng khoảng thời gian.",
+  "errorTitle": "Không tải được Skill Finder"
+}

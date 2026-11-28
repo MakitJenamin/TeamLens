@@ -18,6 +18,7 @@ import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RetentionModule } from './modules/retention/retention.module.js';
 import { RulesModule } from './modules/rules/rules.module.js';
 import { SessionsModule } from './modules/sessions/sessions.module.js';
+import { SkillsModule } from './modules/skills/skills.module.js';
 import { StatsModule } from './modules/stats/stats.module.js';
 import { QueueModule } from './queue/queue.module.js';
 
@@ -51,6 +52,7 @@ import { QueueModule } from './queue/queue.module.js';
     LlmModule,
     AiSettingsModule,
     McpModule,
+    SkillsModule,
   ],
   controllers: [HealthController],
 })
