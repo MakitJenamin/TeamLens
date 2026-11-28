@@ -134,7 +134,8 @@ export class ServerSettingsService {
     if (!row || row.version !== expected) throw fail();
     await tx
       .update(settings)
-      .set({ value, updatedAt: new Date() })
+      // `clock_timestamp()` chính xác tới micro giây, khác `new Date()` (mili giây).
+      .set({ value, updatedAt: sql`clock_timestamp()` })
       .where(eq(settings.key, key));
     return { before: row.value };
   }
