@@ -14,7 +14,7 @@ export function PagePlaceholder({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   task: string;
   children?: React.ReactNode;
 }) {
@@ -26,7 +26,7 @@ export function PagePlaceholder({
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <Badge variant="secondary">{t("taskLabel", { code: task })}</Badge>
         </div>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">{description}</p>
+        {description && <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">{description}</p>}
         {children}
       </div>
       <Card className="border-dashed">

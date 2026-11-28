@@ -76,8 +76,8 @@ describe("OverviewDashboard", () => {
     expect(screen.getByText("Không rõ model")).toBeInTheDocument();
     expect(screen.getByText("Chưa có giá")).toBeInTheDocument();
 
-    // Số liệu tham khảo có ghi chú không tính điểm; giá trị thiếu hiện dấu gạch.
-    expect(screen.getByText(/không tính điểm và không vào bảng xếp hạng/)).toBeInTheDocument();
+    // Số liệu tham khảo; giá trị thiếu hiện dấu gạch.
+    expect(screen.getByRole("heading", { name: "Số liệu tham khảo" })).toBeInTheDocument();
     expect(screen.getByText("62%")).toBeInTheDocument();
     expect(screen.getByText("80%")).toBeInTheDocument();
 
@@ -111,13 +111,16 @@ describe("OverviewDashboard", () => {
     expect(screen.queryByTestId("tokens-chart")).not.toBeInTheDocument();
   });
 
-  it("chi phí null thì hiện dấu gạch kèm lý do", async () => {
+  it("chi phí null thì hiện dấu gạch", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse({ ...overview, totals: { ...overview.totals, estimatedCostUsd: null } }),
     );
     renderWithProviders(<OverviewDashboard projectId="p-1" />);
 
-    expect(await screen.findByText("Không còn dữ liệu turn để tính chi phí")).toBeInTheDocument();
+    const [costLabel] = await screen.findAllByText("Chi phí ước tính");
+    const costCard = costLabel.closest<HTMLElement>('[data-slot="card"]');
+    expect(costCard).not.toBeNull();
+    expect(within(costCard!).getByText("—")).toBeInTheDocument();
   });
 
   it("lỗi API thì hiện thông báo lỗi", async () => {

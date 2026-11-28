@@ -65,7 +65,7 @@ describe("SessionAiCard", () => {
     mockFetch((url) => (url.endsWith("/me/llm-key") ? jsonResponse({ key: null }) : undefined));
     renderWithProviders(<SessionAiCard sessionId="s-1" />);
 
-    const link = await screen.findByRole("link", { name: "Thêm API key để dùng AI" });
+    const link = await screen.findByRole("link", { name: "Thêm API key" });
     expect(link).toHaveAttribute("href", "/settings/ai");
     expect(screen.queryByRole("button", { name: /Tóm tắt/ })).not.toBeInTheDocument();
   });

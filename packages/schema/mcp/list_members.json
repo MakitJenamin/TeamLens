@@ -1,0 +1,57 @@
+{
+  "name": "list_members",
+  "description": "Liệt kê thành viên của một project (id, tên, vai trò; không có email). Member chỉ thấy chính mình; leader thấy cả project.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần xem (từ `list_projects`)."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "members"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "members": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "userId",
+            "name",
+            "role"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "userId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "leader",
+                "member"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

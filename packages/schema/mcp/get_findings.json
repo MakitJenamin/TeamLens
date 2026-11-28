@@ -1,0 +1,85 @@
+{
+  "name": "get_findings",
+  "description": "Các nhận xét (finding) mà rule chấm điểm đã ghi cho một session: rule nào, mức độ, thông điệp, turn nào và đoạn trích. Danh sách rỗng khi chưa có nhận xét. Member xem session của mình; leader xem mọi session (có ghi audit).",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Session cần xem."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "items"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "ruleKey",
+            "severity",
+            "message",
+            "turnSeq",
+            "evidenceExcerpt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Định danh (UUID)."
+            },
+            "ruleKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Khóa của rule đã tạo nhận xét."
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nhận xét hiển thị cho người xem session."
+            },
+            "turnSeq": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Số thứ tự turn làm bằng chứng, hoặc null nếu nhận xét áp dụng cho cả session."
+            },
+            "evidenceExcerpt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "description": "Đoạn trích ngắn đã che secret nếu có bằng chứng văn bản còn được lưu."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

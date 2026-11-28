@@ -8,7 +8,9 @@ import { LeaderboardService } from './leaderboard.service.js';
 
 /** Thống kê: tổng quan project (M2.9), hồ sơ thành viên (M2.10). Leaderboard (M4.3) thêm sau. Xem README.md. */
 @Module({
-  controllers: [OverviewController, ProfileController, LeaderboardController],
-  providers: [OverviewService, ProfileService, LeaderboardService],
+  controllers: [OverviewController, ProfileController],
+  providers: [OverviewService, ProfileService],
+  // Tool MCP (M6.15) import hai dịch vụ này, không sửa code module này.
+  exports: [OverviewService, ProfileService],
 })
 export class StatsModule {}
