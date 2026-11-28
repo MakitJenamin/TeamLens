@@ -1067,6 +1067,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cài đặt server: redaction, retention và văn bản đồng ý (leader) */
+        get: operations["getServerSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cập nhật cài đặt server (leader)
+         * @description Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Retention chỉ lưu cấu hình; cleanup thuộc M5.5.
+         */
+        patch: operations["updateServerSettings"];
+        trace?: never;
+    };
+    "/api/v1/admin/settings/redaction-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader) */
+        post: operations["testRedactionPattern"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/member-status": {
         parameters: {
             query?: never;
@@ -2151,6 +2189,23 @@ export interface components {
         AuditPage: {
             items: components["schemas"]["AuditEntry"][];
             nextCursor: string | null;
+        };
+        ServerSettings: {
+            redactionPatterns: components["schemas"]["RedactionPattern"][];
+            retentionDays: number | null;
+            consentText: {
+                version: string;
+                text: string;
+            };
+            /** @description Số thiết bị có consent còn hiệu lực với phiên bản văn bản hiện tại. */
+            affectedDevices: number;
+        };
+        RedactionPattern: {
+            id: string;
+            name: string;
+            description?: string;
+            /** @description Cú pháp crate regex của Rust; tối đa 4096 byte UTF-8. */
+            regex: string;
         };
         /**
          * @description 5 nhóm kỹ năng (SPEC 9.1).
@@ -5509,6 +5564,120 @@ export interface operations {
                 };
             };
             400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getServerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Giá trị hiện hành và số thiết bị sẽ cần đồng ý lại khi sửa văn bản. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateServerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    redactionPatterns?: components["schemas"]["RedactionPattern"][];
+                    /** @description null là lưu vô hạn; job dọn dữ liệu làm ở M5.5. */
+                    retentionDays?: number | null;
+                    consentText?: string;
+                    expectedConsentVersion?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Cấu hình mới sau khi lưu. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerSettings"];
+                };
+            };
+            /** @description Cấu hình hoặc regex không hợp lệ (`pattern_invalid`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Phiên bản văn bản đã đổi (`consent_version_conflict`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    testRedactionPattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    regex: string;
+                    sample: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Kết quả thử, chỉ trả số vùng khớp và văn bản đã che. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        matches: number;
+                        redacted: string;
+                    };
+                };
+            };
+            /** @description Pattern không hợp lệ (`pattern_invalid`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
         };
