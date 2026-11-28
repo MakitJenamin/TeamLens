@@ -1,0 +1,38 @@
+{
+  "title": "Báo cáo tuần (AI)",
+  "description": "AI nhận xét một tuần làm việc với agent: điểm mạnh, điểm yếu, so với tuần trước, vài prompt thật làm ví dụ và một việc nên tập.",
+  "week": "Tuần",
+  "weekOption": "Tuần {date} ({sessions} session)",
+  "write": "Viết báo cáo tuần",
+  "redo": "Viết lại",
+  "running": "Đang chạy AI…",
+  "privateNote": "Dùng API key của bạn. AI chỉ nhận số liệu đã tính và tối đa 3 prompt ví dụ. Kết quả chỉ mình bạn thấy; leader tạo báo cáo cho người khác sẽ được ghi nhận.",
+  "addKey": "Thêm API key AI để viết báo cáo tuần",
+  "openSettings": "Mở Cài đặt AI",
+  "strengths": "Điểm mạnh",
+  "weaknesses": "Điểm cần cải thiện",
+  "vsLastWeek": "So với tuần trước",
+  "focus": "Việc nên tập",
+  "examples": "Prompt ví dụ",
+  "kind": {
+    "good": "Làm tốt",
+    "needs_work": "Cần cải thiện"
+  },
+  "openTurn": "Mở turn #{seq}",
+  "footer": "Chỉ người bấm thấy",
+  "errors": {
+    "no_week_data": "Thành viên này chưa có session nào trong tuần đã chọn.",
+    "llm_key_missing": "Chưa có API key.",
+    "llm_key_invalid": "Nhà cung cấp AI từ chối API key.",
+    "llm_model_not_found": "Model đã chọn không tồn tại.",
+    "llm_quota_exceeded": "Đã hết quota hoặc bị giới hạn tốc độ ở nhà cung cấp AI. Thử lại sau.",
+    "llm_timeout": "AI phản hồi quá lâu (quá 60 giây). Thử lại sau.",
+    "llm_provider_error": "Không gọi được nhà cung cấp AI. Thử lại sau.",
+    "llm_bad_output": "AI trả kết quả sai định dạng. Thử lại hoặc chọn model mạnh hơn.",
+    "validation_error": "Tuần đã chọn không hợp lệ.",
+    "forbidden": "Bạn không có quyền xem báo cáo của người này.",
+    "not_found": "Không tìm thấy dữ liệu.",
+    "network_error": "Không kết nối được tới máy chủ.",
+    "unknown": "Có lỗi khi chạy AI. Thử lại sau."
+  }
+}

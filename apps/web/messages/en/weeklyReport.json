@@ -1,0 +1,38 @@
+{
+  "title": "Weekly report (AI)",
+  "description": "AI reviews one week of working with agents: strengths, weaknesses, comparison with last week, a few real prompts as examples and one habit to practise.",
+  "week": "Week",
+  "weekOption": "Week of {date} ({sessions} sessions)",
+  "write": "Write the weekly report",
+  "redo": "Write again",
+  "running": "Running AI…",
+  "privateNote": "Uses your own API key. The AI only receives computed numbers and up to 3 example prompts. The result is visible only to you; a leader writing a report about someone else is recorded.",
+  "addKey": "Add an AI API key to write the weekly report",
+  "openSettings": "Open AI settings",
+  "strengths": "Strengths",
+  "weaknesses": "Needs improvement",
+  "vsLastWeek": "Compared with last week",
+  "focus": "Habit to practise",
+  "examples": "Example prompts",
+  "kind": {
+    "good": "Done well",
+    "needs_work": "Needs work"
+  },
+  "openTurn": "Open turn #{seq}",
+  "footer": "Visible only to whoever ran it",
+  "errors": {
+    "no_week_data": "This member has no session in the selected week.",
+    "llm_key_missing": "No API key yet.",
+    "llm_key_invalid": "The AI provider rejected the API key.",
+    "llm_model_not_found": "The selected model does not exist.",
+    "llm_quota_exceeded": "Quota exhausted or rate limited at the AI provider. Try again later.",
+    "llm_timeout": "The AI took too long to respond (over 60 seconds). Try again later.",
+    "llm_provider_error": "Could not reach the AI provider. Try again later.",
+    "llm_bad_output": "The AI returned a badly formatted result. Retry or pick a stronger model.",
+    "validation_error": "The selected week is not valid.",
+    "forbidden": "You are not allowed to see this person's report.",
+    "not_found": "Data not found.",
+    "network_error": "Could not reach the server.",
+    "unknown": "Something went wrong running AI. Try again later."
+  }
+}
