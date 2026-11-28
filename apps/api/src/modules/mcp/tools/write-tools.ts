@@ -93,14 +93,14 @@ export class SaveRuleTool extends BaseMcpTool {
     const { key, projectId, override } = splitOverride(
       parseArgs(draftArgs, args),
     );
-    const { rule, changes } = await this.rules.save(
+    const { rule, changes, rescore } = await this.rules.save(
       caller.user,
       projectId,
       key,
       override,
       VIA,
     );
-    return { rule, changes, rescore: 'queued' };
+    return { rule, changes, rescore };
   }
 }
 
@@ -122,7 +122,7 @@ export class SetRuleEnabledTool extends BaseMcpTool {
 
   async run(caller: McpCaller, args: unknown): Promise<Record<string, unknown>> {
     const { key, projectId, enabled } = parseArgs(enabledArgs, args);
-    const { rule, previousEnabled } = await this.rules.setEnabled(
+    const { rule, previousEnabled, rescore } = await this.rules.setEnabled(
       caller.user,
       projectId,
       key,
@@ -131,7 +131,7 @@ export class SetRuleEnabledTool extends BaseMcpTool {
     );
     // Contract của tool này chỉ trả phần tóm tắt, không có định nghĩa.
     const { definition: _definition, updatedAt: _updatedAt, ...summary } = rule;
-    return { rule: summary, previousEnabled, rescore: 'queued' };
+    return { rule: summary, previousEnabled, rescore };
   }
 }
 

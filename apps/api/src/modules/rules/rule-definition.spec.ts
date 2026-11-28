@@ -4,6 +4,7 @@ import {
   applyOverride,
   describeRule,
   runRuleTests,
+  toEditableRule,
   toSessionRule,
 } from './rule-definition.js';
 import { sessionRules } from './session-rules.js';
@@ -129,5 +130,33 @@ describe('describeRule', () => {
     expect(Object.keys(describeRule(base)).sort()).toEqual(
       ['advice', 'category', 'key', 'message', 'severity', 'thresholds'],
     );
+  });
+});
+
+describe('rule tuần (dùng chung dashboard và MCP)', () => {
+  const weekly = weeklyRules.find((r) => r.key === 'lazy-prompting')!;
+  const weeklyRow = { key: weekly.key, category: weekly.category, severity: weekly.severity, definition: weekly as unknown };
+
+  it('toEditableRule dựng được cả rule tuần lẫn rule session', () => {
+    expect(toEditableRule(weeklyRow)?.scope).toBe('user_week');
+    expect(toEditableRule(row)?.scope).toBe('session');
+    expect(toEditableRule({ ...weeklyRow, definition: { ...weekly, tests: undefined } })).toBeNull();
+  });
+
+  it('mọi rule tuần dựng sẵn qua hết tests nội tuyến của chính nó', () => {
+    for (const rule of weeklyRules) {
+      expect(runRuleTests(rule).filter((r) => !r.passed), rule.key).toEqual([]);
+    }
+  });
+
+  it('ngưỡng tỉ lệ phải trong [0, 1], ngưỡng đếm phải nguyên và > 0', () => {
+    const ratioKey = Object.keys(weekly.thresholds).find((k) => /Rate|Ratio/.test(k))!;
+    const countKey = Object.keys(weekly.thresholds).find((k) => !/Rate|Ratio/.test(k))!;
+    expect(() => applyOverride(weekly, { thresholds: { [ratioKey]: 1.5 } })).toThrow(ApiError);
+    expect(() => applyOverride(weekly, { thresholds: { [countKey]: 0 } })).toThrow(ApiError);
+    expect(() => applyOverride(weekly, { thresholds: { [countKey]: 2.5 } })).toThrow(ApiError);
+    // Tỉ lệ đã từng đặt bằng số nguyên (1) vẫn sửa lại được thành số thực: kiểu lấy theo rule dựng sẵn.
+    const { rule } = applyOverride(weekly, { thresholds: { [ratioKey]: 1 } });
+    expect(applyOverride(rule, { thresholds: { [ratioKey]: 0.5 } }).rule.thresholds[ratioKey]).toBe(0.5);
   });
 });
