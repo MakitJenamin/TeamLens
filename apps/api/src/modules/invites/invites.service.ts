@@ -19,7 +19,7 @@ import {
 } from '../../db/schema/index.js';
 import { isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
-import { CONSENT_TEXT, CONSENT_TEXT_VERSION } from '../consent/consent-text.js';
+import { ConsentTextService } from '../consent/consent-text.service.js';
 import { DEVICE_TOKEN_PREFIX } from '../device/device.service.js';
 import {
   type CreatedInviteDto,
@@ -54,6 +54,7 @@ export class InvitesService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    @Inject(ConsentTextService) private readonly consentText: ConsentTextService,
     config: ConfigService<Env, true>,
   ) {
     this.publicUrl = config.get('TEAMLENS_PUBLIC_URL', { infer: true });
@@ -169,7 +170,7 @@ export class InvitesService {
         slug: row.project.slug,
       },
       repoPatterns: await this.repoPatterns(this.db, row.project.id),
-      consent: { version: CONSENT_TEXT_VERSION, text: CONSENT_TEXT },
+      consent: await this.consentText.get(),
       expiresAt: row.invite.expiresAt.toISOString(),
     };
   }
@@ -193,7 +194,8 @@ export class InvitesService {
       if (!invite) throw inviteNotFound();
       const unusable = unusableInviteError(inviteStatus(invite));
       if (unusable) throw unusable;
-      if (input.consent.textVersion !== CONSENT_TEXT_VERSION) {
+      const current = await this.consentText.get(tx);
+      if (input.consent.textVersion !== current.version) {
         throw new ApiError(
           409,
           'consent_outdated',

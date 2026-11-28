@@ -3,7 +3,7 @@ import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { readEnv } from '../config/env.js';
 import { randomToken, sha256 } from '../common/crypto.js';
 import { hashPassword } from '../common/passwords.js';
-import { CONSENT_TEXT_VERSION } from '../modules/consent/consent-text.js';
+import { readConsentText } from '../modules/consent/consent-text.service.js';
 import { DEVICE_TOKEN_PREFIX } from '../modules/device/device.service.js';
 import { createDatabase, type Database } from './client.js';
 import {
@@ -509,6 +509,7 @@ async function upsertDevices(
   userIds: Record<UserKey, string>,
 ): Promise<Record<string, string>> {
   const tokens: Record<string, string> = {};
+  const { version: consentTextVersion } = await readConsentText(db);
   for (const key of ['member1', 'member2'] as const) {
     const userId = userIds[key];
     const token = DEVICE_TOKEN_PREFIX + randomToken();
@@ -546,7 +547,7 @@ async function upsertDevices(
       .where(
         and(
           eq(consents.deviceId, deviceId),
-          eq(consents.textVersion, CONSENT_TEXT_VERSION),
+          eq(consents.textVersion, consentTextVersion),
           isNull(consents.revokedAt),
         ),
       )
@@ -555,7 +556,7 @@ async function upsertDevices(
       await db.insert(consents).values({
         userId,
         deviceId,
-        textVersion: CONSENT_TEXT_VERSION,
+        textVersion: consentTextVersion,
         backfill: true,
       });
     }

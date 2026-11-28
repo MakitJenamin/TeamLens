@@ -2,7 +2,7 @@
  * Văn bản đồng ý hiển thị trên màn hình `tl join` và trang `/i/<mã>` (SPEC 4.3).
  * Chỉ nhắc lệnh CLI đã có thật (`tl pause`, `tl consent`, `tl consent revoke`, `tl uninstall`,
  * `tl logout`); thêm lệnh mới thì thêm vào văn bản và tăng phiên bản khi phát hành.
- * Nguồn duy nhất trong API; sau này có thể chuyển sang bảng `settings`.
+ * Chỉ dùng để khởi tạo migration và test; runtime đọc bảng `settings` qua ConsentTextService.
  *
  * Đổi nội dung thì phải đổi `CONSENT_TEXT_VERSION`: thiết bị đồng ý bản cũ sẽ bị ingest
  * trả 403 `consent_required` cho tới khi đồng ý lại.

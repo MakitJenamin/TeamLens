@@ -7,7 +7,7 @@ import { DB } from '../../db/db.module.js';
 import { consents, devices } from '../../db/schema/index.js';
 import { AuditService } from '../access/audit.service.js';
 import { deriveConsentStatus, type ConsentStatus } from './consent-status.js';
-import { CONSENT_TEXT, CONSENT_TEXT_VERSION } from './consent-text.js';
+import { ConsentTextService } from './consent-text.service.js';
 
 export type ConsentUpdate =
   | { action: 'grant'; textVersion: string; backfill: boolean }
@@ -22,11 +22,12 @@ export class ConsentService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(ConsentTextService) private readonly consentText: ConsentTextService,
   ) {}
 
   /** Văn bản hiện hành và trạng thái đồng ý của thiết bị. */
   async status(device: AuthDevice): Promise<ConsentStatus> {
-    const [rows, [row]] = await Promise.all([
+    const [rows, [row], current] = await Promise.all([
       this.db
         .select({
           textVersion: consents.textVersion,
@@ -40,11 +41,12 @@ export class ConsentService {
         .select({ status: devices.status })
         .from(devices)
         .where(eq(devices.id, device.id)),
+      this.consentText.get(),
     ]);
     return deriveConsentStatus({
       rows,
-      currentVersion: CONSENT_TEXT_VERSION,
-      currentText: CONSENT_TEXT,
+      currentVersion: current.version,
+      currentText: current.text,
       deviceRevoked: row?.status === 'consent_revoked',
     });
   }
@@ -62,14 +64,11 @@ export class ConsentService {
     device: AuthDevice,
     body: Extract<ConsentUpdate, { action: 'grant' }>,
   ): Promise<void> {
-    if (body.textVersion !== CONSENT_TEXT_VERSION) {
-      throw new ApiError(
-        409,
-        'consent_outdated',
-        'Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại.',
-      );
-    }
     await this.db.transaction(async (tx) => {
+      const current = await this.consentText.get(tx);
+      if (body.textVersion !== current.version) {
+        throw new ApiError(409, 'consent_outdated', 'Văn bản đồng ý đã thay đổi, hãy xem lại và đồng ý lại.');
+      }
       // Đã đồng ý đúng phiên bản hiện hành thì chỉ cập nhật lựa chọn backfill, không thêm dòng mới.
       const updated = await tx
         .update(consents)
@@ -77,7 +76,7 @@ export class ConsentService {
         .where(
           and(
             eq(consents.deviceId, device.id),
-            eq(consents.textVersion, CONSENT_TEXT_VERSION),
+            eq(consents.textVersion, current.version),
             isNull(consents.revokedAt),
           ),
         )

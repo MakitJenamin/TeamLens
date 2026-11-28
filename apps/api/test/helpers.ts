@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import postgres from 'postgres';
 import { AppModule } from '../src/app.module.js';
 import { setupApp } from '../src/setup-app.js';
+import { CONSENT_TEXT, CONSENT_TEXT_VERSION } from '../src/modules/consent/consent-text.js';
 
 /** Xóa sạch dữ liệu app trong DB test (giữ schema, migration, partition). */
 export async function resetDatabase(): Promise<void> {
@@ -12,6 +13,7 @@ export async function resetDatabase(): Promise<void> {
   });
   try {
     await sql`TRUNCATE users, projects, settings, audit_log, rules CASCADE`;
+    await sql`INSERT INTO settings (key, value) VALUES ('consent_text', ${sql.json({ version: CONSENT_TEXT_VERSION, text: CONSENT_TEXT })}) ON CONFLICT (key) DO NOTHING`;
   } finally {
     await sql.end();
   }
