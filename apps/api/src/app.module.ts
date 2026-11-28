@@ -13,6 +13,7 @@ import { DeviceModule } from './modules/device/device.module.js';
 import { InvitesModule } from './modules/invites/invites.module.js';
 import { LlmModule } from './modules/llm/llm.module.js';
 import { MembersModule } from './modules/members/members.module.js';
+import { McpModule } from './modules/mcp/mcp.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RetentionModule } from './modules/retention/retention.module.js';
 import { RulesModule } from './modules/rules/rules.module.js';
@@ -49,6 +50,7 @@ import { QueueModule } from './queue/queue.module.js';
     // AI (Mốc 6)
     LlmModule,
     AiSettingsModule,
+    McpModule,
   ],
   controllers: [HealthController],
 })
