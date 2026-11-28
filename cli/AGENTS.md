@@ -24,7 +24,7 @@ Nếu shell không thấy `cargo`, dùng `%USERPROFILE%\.cargo\bin\cargo.exe`. C
 | `crates/tl-core` | Logic thuần: `session` (M1.2), `scope` (M1.4), `redact` (M1.5, M2.1), `truncate` (M1.5) | **Không** phụ thuộc tokio, reqwest, không đọc/ghi file |
 | `crates/tl-adapters` | Trait `Adapter` (spec 5.2), `AgentKind`, `SourceFile`, `Offset`, `RawEvent`, `ParseError`; `claude_code/` (M1.3, M2.3, M2.4), `codex/` (M2.5) | Fixtures ở `tests/fixtures/`, phải che trước khi commit |
 | `crates/tl-platform` | Trait `Platform` (thư mục dữ liệu, credential store, named mutex, Task Scheduler) + impl Windows; OS khác trả "chưa hỗ trợ" | Task Scheduler qua COM (`scheduler.rs`, M3.8); test chạm Task Scheduler thật là `#[ignore]` (chạy tay `cargo test -p tl-platform -- --ignored`) |
-| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `state/` (`state.db`, M2.3), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7), `update/` (tự cập nhật, M5.3) | Test tích hợp ở `tests/` |
+| `crates/teamlens` | Binary `tl` + thư viện: `cli`, `commands/` (mỗi lệnh một file), `api_client`, `config`, `context`, `error`; khung `pipeline/` (M1.7), `state/` (`state.db`, M2.3), `queue/` (M3.1), `daemon/` (M3.2), `sync/` (M1.7), `update/` (tự cập nhật, M5.3), `mcp/` (cầu nối MCP, M6.4) | Test tích hợp ở `tests/` |
 
 Thêm thư viện: mọi dependency đã khai báo sẵn trong `[workspace.dependencies]` của `Cargo.toml` gốc. Crate con chỉ thêm dòng `ten = { workspace = true }` cho thứ nó dùng. Cần thư viện mới ngoài danh sách thì sửa `Cargo.toml` gốc bằng PR riêng (vùng nền).
 
@@ -78,10 +78,22 @@ Chưa ký số (code signing) `tl.exe`; SmartScreen có thể cảnh báo khi ch
 Module `crates/teamlens/src/update/` (M5.3): `tl update` cập nhật tay, daemon tự kiểm mỗi 24 giờ (`update::auto`), kết quả lưu ở bảng `meta` của `state.db` (`update_latest_version`, `update_last_check_at`, `update_last_attempt_at`...).
 
 Dòng nhắc (`update::notice`, gọi trong `main.rs` sau khi lệnh chạy xong, kể cả khi lệnh lỗi): in ra **stderr** `` Có bản tl <mới> (đang dùng <cũ>). Chạy `tl update`. `` khi bản đã lưu mới hơn bản đang chạy.
-- Không nhắc ở `update`, `daemon`, `uninstall`, `status` (có dòng "Phiên bản" riêng); không nhắc khi stderr không phải terminal; tắt bằng `TL_NO_UPDATE_NOTIFIER=1` hoặc khi biến `CI` được đặt.
+- Không nhắc ở `update`, `daemon`, `uninstall`, `mcp` (tiến trình sống lâu, stdio thuộc về agent), `status` (có dòng "Phiên bản" riêng); không nhắc khi stderr không phải terminal; tắt bằng `TL_NO_UPDATE_NOTIFIER=1` hoặc khi biến `CI` được đặt.
 - Bình thường chỉ đọc `state.db`. Kết quả cũ hơn 24 giờ (hoặc chưa có) **và** lần thử gần nhất cách hơn 1 giờ thì kiểm nhẹ trên thread riêng, chạy song song với lệnh; lệnh xong chờ thêm tối đa 2 giây, HTTP timeout 3 giây. Mốc thử ghi trước khi gọi mạng. Kiểm thành công thì dùng kết quả mới; lỗi, timeout hoặc hết giờ chờ thì dùng bản đã lưu (máy đã biết có bản mới thì vẫn nhắc), chỉ im lặng khi chưa lưu gì. Lỗi không ghi `update_last_error` (để `tl status` chỉ báo lỗi của daemon/`tl update`).
 - Mọi lỗi bị nuốt, không đổi kết quả hay mã thoát của lệnh. Tôn trọng `TL_UPDATE_BASE_URL`/`TL_UPDATE_VERSION`/`TL_UPDATE_API_URL`.
 - Test cần stderr là terminal: `NoticeOptions { stderr_is_terminal: true, .. }` (xem `tests/update_notice.rs`). Chạy thật thì chạy trong cửa sổ terminal, không qua pipe.
+
+## `tl mcp` — cầu nối MCP cho Claude Code, Codex (M6.4)
+
+Module `crates/teamlens/src/mcp/` (Người 3), lệnh ở `commands/mcp.rs`. Server MCP của TeamLens là `POST /api/v1/mcp` (HTTP, không giữ phiên); agent nói MCP qua stdio. `tl mcp` đọc từng dòng JSON-RPC 2.0 từ stdin, chuyển nguyên văn lên server bằng device token trong Credential Manager (`ApiClient::mcp_post`), in phản hồi ra stdout mỗi message một dòng. Không có logic tool ở CLI (tool nằm ở `apps/api/src/modules/mcp/`).
+
+- **stdout chỉ chứa message giao thức.** Thông báo cho người đọc đi ra stderr (`tracing`). Lệnh không in dòng nhắc bản mới.
+- Lỗi mạng, token hỏng, server báo lỗi: trả **lỗi JSON-RPC (`-32000`) cho đúng request** (có `id`, tiếng Việt, kèm cách sửa) để agent đọc được lý do. Notification lỗi thì chỉ log. Dòng không phải JSON: `-32700`, `id: null`. Batch lỗi: một lỗi cho mỗi request.
+- Chưa `tl join` hoặc mất token: thoát mã 1 trước khi đọc stdin, in `Máy này chưa tham gia TeamLens` và gợi ý `tl join <link mời>` ra stderr.
+- Xử lý tuần tự từng message. Server luôn trả JSON; nếu gặp `text/event-stream` thì lấy từng sự kiện `data:`.
+- Cài vào agent (dùng device token sẵn có, không cần cấu hình thêm): **Claude Code** `claude mcp add teamlens -- tl mcp`; **Codex** thêm vào `~/.codex/config.toml` mục `[mcp_servers.teamlens]` với `command = "tl"` và `args = ["mcp"]` (cú pháp Codex theo hiểu biết chung, **chưa thử trên máy**; Claude Code đã thử thật). Leader dùng token `tlp_` qua HTTP trực tiếp, xem `apps/api/src/modules/mcp/README.md`.
+- Chỉ có trong bản `tl` phát hành **sau** M6.4 (cần tăng phiên bản và phát hành, xem mục "Phát hành CLI").
+- Test: `tests/mcp_bridge.rs` (wiremock). Thử thật: `TL_DATA_DIR=<thư mục tạm> tl join <link>` rồi cấu hình agent chạy `tl mcp` với cùng `TL_DATA_DIR`.
 
 ## Quy ước
 

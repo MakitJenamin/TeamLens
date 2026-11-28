@@ -217,6 +217,40 @@ impl ApiClient {
         self.send_empty(req).await
     }
 
+    /// `POST /api/v1/mcp` (M6.4): chuyển nguyên văn một message JSON-RPC của `tl mcp` lên server MCP.
+    /// Trả các message phản hồi (rỗng khi server trả `202`, tức notification). Server luôn trả JSON
+    /// (`enableJsonResponse`); nếu một server khác trả `text/event-stream` thì lấy từng sự kiện `data:`.
+    pub async fn mcp_post(&self, body: String) -> Result<Vec<String>, ApiError> {
+        let req = self
+            .request(Method::POST, "/api/v1/mcp")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(
+                reqwest::header::ACCEPT,
+                "application/json, text/event-stream",
+            )
+            .body(body);
+        let resp = self.execute(req).await?;
+        if resp.status() == StatusCode::ACCEPTED {
+            return Ok(Vec::new());
+        }
+        let is_sse = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.starts_with("text/event-stream"));
+        let text = resp.text().await.map_err(|source| ApiError::Network {
+            url: self.base_url.clone(),
+            source,
+        })?;
+        Ok(if is_sse {
+            sse_data_events(&text)
+        } else if text.trim().is_empty() {
+            Vec::new()
+        } else {
+            vec![text]
+        })
+    }
+
     /// `POST /agent/v1/ingest` với body JSON đã nén gzip (`Content-Encoding: gzip`).
     pub async fn ingest_gzip(&self, gzip_body: Vec<u8>) -> Result<IngestResult, IngestError> {
         let req = self
@@ -299,6 +333,25 @@ async fn error_from_response(resp: Response) -> ApiError {
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     parse_error_body(status, &text)
+}
+
+/// Lấy dữ liệu của từng sự kiện `data:` trong một thân `text/event-stream`
+/// (nhiều dòng `data:` của cùng một sự kiện được nối bằng xuống dòng).
+pub fn sse_data_events(text: &str) -> Vec<String> {
+    let mut events = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("data:") {
+            current.push(rest.strip_prefix(' ').unwrap_or(rest));
+        } else if line.is_empty() && !current.is_empty() {
+            events.push(current.join("\n"));
+            current.clear();
+        }
+    }
+    if !current.is_empty() {
+        events.push(current.join("\n"));
+    }
+    events
 }
 
 /// Chuyển thân lỗi HTTP thành [`ApiError`]. Tách riêng để test.

@@ -13,6 +13,7 @@ pub mod error;
 
 pub mod daemon;
 pub mod heartbeat;
+pub mod mcp;
 pub mod pipeline;
 pub mod queue;
 pub mod state;

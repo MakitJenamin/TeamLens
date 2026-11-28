@@ -3,7 +3,8 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    consent, daemon, join, logout, open, pause, preview, resume, status, sync, uninstall, update,
+    consent, daemon, join, logout, mcp, open, pause, preview, resume, status, sync, uninstall,
+    update,
 };
 
 /// TeamLens: gửi session AI agent trong repo của team về server, đã che secret.
@@ -42,6 +43,8 @@ pub enum Command {
     Resume(resume::ResumeArgs),
     /// Xem, đồng ý lại hoặc rút đồng ý
     Consent(consent::ConsentArgs),
+    /// Cầu nối MCP cho Claude Code, Codex (stdio)
+    Mcp(mcp::McpArgs),
     /// Chế độ nền (do Task Scheduler gọi)
     #[command(hide = true)]
     Daemon(daemon::DaemonArgs),
