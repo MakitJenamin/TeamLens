@@ -1,19 +1,47 @@
 import { Module } from '@nestjs/common';
 import { DeviceModule } from '../device/device.module.js';
+import { LlmModule } from '../llm/llm.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
+import { RulesModule } from '../rules/rules.module.js';
+import { SessionsModule } from '../sessions/sessions.module.js';
+import { StatsModule } from '../stats/stats.module.js';
 import { McpAuthGuard } from './mcp-auth.guard.js';
 import { McpAuthService } from './mcp-auth.service.js';
 import { McpToolRegistry } from './mcp-tool-registry.js';
 import { McpController } from './mcp.controller.js';
 import { McpService } from './mcp.service.js';
+import {
+  GetMemberProfileTool,
+  GetOverviewTool,
+  ListMembersTool,
+  ListProjectsTool,
+} from './tools/project-tools.js';
+import {
+  GetMyAiResultsTool,
+  GetRuleTool,
+  ListRulesTool,
+} from './tools/rule-and-ai-tools.js';
+import {
+  GetFindingsTool,
+  GetSessionTool,
+  SearchSessionsTool,
+} from './tools/session-tools.js';
 import { WhoamiTool } from './tools/whoami.tool.js';
 
 /**
- * Endpoint MCP `/api/v1/mcp` (M6.3). Thêm tool mới: tạo file trong `tools/`, khai báo provider ở đây
- * (tool tự đăng ký vào `McpToolRegistry`). Xem README.md.
+ * Endpoint MCP `/api/v1/mcp` (M6.3) và các tool đọc (M6.15). Thêm tool mới: viết lớp kế thừa `BaseMcpTool`
+ * trong `tools/`, khai báo provider ở đây (tool tự đăng ký vào `McpToolRegistry`). Xem README.md.
+ * Chỉ import dịch vụ đã export của `projects`, `sessions`, `stats`, `rules`, `llm`; không sửa code của họ.
  */
 @Module({
-  imports: [DeviceModule, ProjectsModule],
+  imports: [
+    DeviceModule,
+    ProjectsModule,
+    SessionsModule,
+    StatsModule,
+    RulesModule,
+    LlmModule,
+  ],
   controllers: [McpController],
   providers: [
     McpAuthService,
@@ -21,6 +49,16 @@ import { WhoamiTool } from './tools/whoami.tool.js';
     McpToolRegistry,
     McpService,
     WhoamiTool,
+    ListProjectsTool,
+    ListMembersTool,
+    GetOverviewTool,
+    GetMemberProfileTool,
+    SearchSessionsTool,
+    GetSessionTool,
+    GetFindingsTool,
+    ListRulesTool,
+    GetRuleTool,
+    GetMyAiResultsTool,
   ],
 })
 export class McpModule {}

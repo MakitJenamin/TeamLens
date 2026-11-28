@@ -8,6 +8,8 @@ Ví dụ, `lazy-prompting` cần ít nhất 10 prompt có nội dung và chỉ c
 
 API đăng ký worker `session.ingested` sau khi hàng đợi khởi động. Worker và lệnh dev dùng chung giao dịch chấm điểm. Chạy `pnpm --filter @teamlens/api rules:run` để tính lại trên DB đã migrate và seed; thêm `--session <UUID>` để chọn một session. Session con không có điểm. Khi retention đã xóa turn, các điểm đã tính được giữ lại.
 
+Truy vấn findings nằm ở `FindingsService` (M6.15, tách khỏi controller để tool MCP `get_findings` dùng lại cùng quyền và audit); rule đọc qua `RulesQueryService` (chỉ đọc, rule riêng của project ghi đè rule mặc định cùng khóa; M4.4 mở rộng). Hai service được export cho module `mcp`.
+
 `GET /api/v1/sessions/{sessionId}/findings` dùng cookie dashboard và cùng quyền xem với trang session. Đoạn trích lấy từ turn còn được lưu; khi turn hết hạn, trường `evidenceExcerpt` trả về `null`.
 
 ### Dữ liệu mẫu để thử chấm điểm (M2.6)
