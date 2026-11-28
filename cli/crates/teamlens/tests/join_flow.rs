@@ -143,7 +143,7 @@ async fn join_thanh_cong_luu_token_server_va_dong_y() {
     assert!(!consent_gate::may_send(&ctx), "chưa join thì chưa được gửi");
 
     let cc = fake_history(&dir, 3);
-    let (r, printed) = run_join(&ctx, args(&link(&server)), &[&cc], "Nguyễn An\nc\nyes\n").await;
+    let (r, printed) = run_join(&ctx, args(&link(&server)), &[&cc], "Nguyễn An\n\n").await;
     let outcome = r.expect("join phải thành công");
     assert!(outcome.new_token);
     assert!(outcome.backfill);
@@ -176,15 +176,15 @@ async fn join_thanh_cong_luu_token_server_va_dong_y() {
         "Văn bản đồng ý 2026-11-26.",
         "Dòng hai.",
         "3 file session cũ",
-        "Gõ `yes`",
-        "Chạy `tl sync` để gửi ngay.",
+        "Enter: có",
+        "Gửi ngay: `tl sync`.",
     ] {
         assert!(printed.contains(needle), "thiếu {needle:?}:\n{printed}");
     }
 }
 
 #[tokio::test]
-async fn tu_choi_dong_y_thi_khong_goi_join_khong_luu_gi() {
+async fn bo_ngang_khi_hoi_thi_khong_goi_join_khong_luu_gi() {
     let server = MockServer::start().await;
     mount_preview(&server, "2026-11-26").await;
     Mock::given(method("POST"))
@@ -196,10 +196,11 @@ async fn tu_choi_dong_y_thi_khong_goi_join_khong_luu_gi() {
 
     let dir = TempDir::new().unwrap();
     let ctx = test_ctx(&dir);
-    for input in ["An\nkhông\n", "An\n\n", "An\n"] {
-        let (r, _) = run_join(&ctx, args(&link(&server)), &[], input).await;
-        let e = r.unwrap_err();
-        assert!(e.to_string().contains("hủy"), "{e}");
+    // Bỏ ngang (Ctrl+C, stdin đóng) ở câu hỏi tên hoặc backfill: không tham gia.
+    let cc = fake_history(&dir, 1);
+    for input in ["", "An\n"] {
+        let (r, _) = run_join(&ctx, args(&link(&server)), &[&cc], input).await;
+        assert!(r.is_err());
     }
     assert_eq!(ctx.credentials.get_token(&server.uri()).unwrap(), None);
     assert!(!ctx.config_path.exists(), "từ chối thì không ghi config");
@@ -213,7 +214,7 @@ async fn link_het_han_va_khong_ton_tai() {
         (410, "invite_expired", "hết hạn"),
         (410, "invite_used_up", "hết lượt"),
         (410, "invite_revoked", "thu hồi"),
-        (404, "invite_not_found", "không đúng"),
+        (404, "invite_not_found", "Không tìm thấy"),
     ] {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -291,8 +292,8 @@ async fn consent_outdated_thi_xem_lai_va_hoi_lai() {
     let dir = TempDir::new().unwrap();
     let ctx = test_ctx(&dir);
     let cc = fake_history(&dir, 1);
-    // Tên và backfill chỉ hỏi một lần; `yes` phải gõ lại cho văn bản mới.
-    let (r, printed) = run_join(&ctx, args(&link(&server)), &[&cc], "An\nk\nyes\nyes\n").await;
+    // Tên và backfill chỉ hỏi một lần; văn bản mới thì hỏi lại, Enter là đồng ý.
+    let (r, printed) = run_join(&ctx, args(&link(&server)), &[&cc], "An\nno\n\n").await;
     let outcome = r.expect("đồng ý lại văn bản mới phải thành công");
     assert_eq!(outcome.text_version, "v2");
     assert!(printed.contains("vừa thay đổi"), "{printed}");
@@ -314,7 +315,7 @@ async fn consent_outdated_roi_tu_choi_thi_khong_luu() {
         .await;
     let dir = TempDir::new().unwrap();
     let ctx = test_ctx(&dir);
-    let (r, _) = run_join(&ctx, args(&link(&server)), &[], "An\nyes\nno\n").await;
+    let (r, _) = run_join(&ctx, args(&link(&server)), &[], "An\nno\n").await;
     assert!(r.unwrap_err().to_string().contains("hủy"));
     assert!(!ctx.config_path.exists());
     server.verify().await;
@@ -355,8 +356,8 @@ async fn may_da_co_token_giu_token_cu() {
     ctx.credentials.set_token(&server.uri(), OLD_TOKEN).unwrap();
     let mut a = args(&link(&server));
     a.no_backfill = true;
-    // Không hỏi tên (đã có), không hỏi backfill (cờ), chỉ hỏi `yes`.
-    let (r, printed) = run_join(&ctx, a, &[], "yes\n").await;
+    // Không hỏi tên (đã có), không hỏi backfill (cờ): chỉ hỏi "Tham gia?", Enter là có.
+    let (r, printed) = run_join(&ctx, a, &[], "\n").await;
     let outcome = r.expect("thêm project cho máy đã có token phải thành công");
     assert!(!outcome.new_token);
     assert!(!outcome.backfill);
@@ -438,6 +439,24 @@ async fn khong_co_stdin_thi_khong_tham_gia() {
 }
 
 #[tokio::test]
+async fn co_name_va_no_backfill_van_phai_xac_nhan_tham_gia() {
+    let server = MockServer::start().await;
+    mount_preview(&server, "2026-11-26").await;
+    let dir = TempDir::new().unwrap();
+    let ctx = test_ctx(&dir);
+    let mut a = args(&link(&server));
+    a.name = Some("An".to_owned());
+    a.no_backfill = true;
+    // Không có câu hỏi tên/backfill nào: phải hỏi "Tham gia?", hết input thì không tham gia.
+    let (r, printed) = run_join(&ctx, a, &[], "").await;
+    assert!(r.is_err());
+    assert!(printed.contains("Tham gia?"), "{printed}");
+    let reqs = server.received_requests().await.unwrap();
+    assert_eq!(requests_to(&reqs, "/agent/v1/join"), 0);
+    assert!(!ctx.config_path.exists());
+}
+
+#[tokio::test]
 async fn link_sai_hoac_thieu_khong_goi_mang() {
     let dir = TempDir::new().unwrap();
     let ctx = test_ctx(&dir);
@@ -453,7 +472,10 @@ async fn link_sai_hoac_thieu_khong_goi_mang() {
     let (r, _) = run_join(&ctx, a, &[], "").await;
     let e = r.unwrap_err();
     assert!(e.to_string().contains("Thiếu link mời"), "{e}");
-    assert!(e.hint().unwrap().contains("tl login <link mời>"));
+    assert!(e
+        .hint()
+        .unwrap()
+        .contains("tl join https://<server>/i/<mã>"));
 }
 
 #[tokio::test]

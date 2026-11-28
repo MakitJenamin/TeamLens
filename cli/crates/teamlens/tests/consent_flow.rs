@@ -124,10 +124,7 @@ async fn da_dong_y_ban_hien_hanh_thi_khong_goi_post() {
     .unwrap();
     assert_eq!(outcome, ConsentOutcome::UpToDate);
     let printed = text(out);
-    assert!(
-        printed.contains("đã đồng ý bản văn bản hiện hành"),
-        "{printed}"
-    );
+    assert!(printed.contains("đã đồng ý bản hiện hành"), "{printed}");
     assert!(printed.contains("Văn bản đồng ý v2."), "{printed}");
     assert!(printed.contains("không cần làm gì thêm"), "{printed}");
 }
@@ -267,7 +264,8 @@ async fn tu_choi_thi_khong_goi_post_va_khong_doi_gi() {
     .await
     .unwrap_err();
     assert!(err.to_string().contains("Đã hủy"), "{err}");
-    assert!(text(out).contains("vẫn không gửi gì"));
+    assert!(err.to_string().contains("vẫn không gửi gì"), "{err}");
+    assert!(err.hint().is_none(), "tự hủy thì không cần gợi ý");
     assert_eq!(ctx.load_config().unwrap(), before);
 }
 

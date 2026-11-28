@@ -27,7 +27,6 @@ export default async function ProjectOverviewPage({ params }: Props) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">{t("description")}</p>
       </div>
       <OverviewDashboard projectId={projectId} />
     </div>

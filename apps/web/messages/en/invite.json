@@ -1,9 +1,8 @@
 {
   "pageTitle": "TeamLens invite",
   "title": "Join {project}",
-  "description": "You have been invited to join the {project} project on TeamLens.",
   "repos": "Repositories that will be collected",
-  "reposHint": "Only sessions in these repositories are sent; everything else stays on your machine. You will review and consent before joining.",
+  "reposHint": "Sessions outside these repositories never leave your machine.",
   "noRepos": "This project has no repositories yet.",
   "expiresAt": "The link expires {date}.",
   "errorTitle": "This invite link cannot be used",

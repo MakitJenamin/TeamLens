@@ -95,10 +95,10 @@ impl UpdateError {
     pub fn into_app_error(self) -> AppError {
         let hint = match &self {
             UpdateError::Network { .. } | UpdateError::Http { .. } => {
-                "Kiểm tra kết nối mạng (cần truy cập github.com) rồi chạy lại `tl update`."
+                "Kiểm tra mạng tới github.com rồi chạy lại `tl update`."
             }
             UpdateError::ChecksumMismatch { .. } | UpdateError::BadBinary(_) => {
-                "Chưa cài gì, bản tl đang dùng giữ nguyên. Thử lại sau; nếu vẫn lỗi, báo leader."
+                "Chưa cài gì, bản tl đang dùng giữ nguyên. Thử lại sau, vẫn lỗi thì báo leader."
             }
             UpdateError::Install(_) => {
                 "Bản tl đang dùng giữ nguyên. Kiểm tra quyền ghi thư mục chứa tl.exe rồi thử lại."
@@ -106,7 +106,7 @@ impl UpdateError {
             UpdateError::Config(_) => {
                 "Xem `tl update --help` về TL_UPDATE_BASE_URL và TL_UPDATE_VERSION."
             }
-            _ => "Bản tl đang dùng giữ nguyên. Thử lại sau; nếu vẫn lỗi, báo leader.",
+            _ => "Bản tl đang dùng giữ nguyên. Thử lại sau, vẫn lỗi thì báo leader.",
         };
         AppError::user(self.to_string(), hint)
     }
@@ -243,7 +243,7 @@ impl Updater {
                 let last = base.rsplit('/').next().unwrap_or_default();
                 if Version::parse(last).is_none() {
                     return Err(UpdateError::Config(format!(
-                        "Đặt {BASE_URL_ENV} mà không đặt {VERSION_ENV}: cần đoạn cuối của URL là tag phiên bản (ví dụ .../v0.2.0), URL hiện tại: {base}"
+                        "Đặt {BASE_URL_ENV} mà không đặt {VERSION_ENV} thì đoạn cuối URL phải là tag phiên bản, ví dụ .../v0.2.0. URL hiện tại: {base}"
                     )));
                 }
                 Some(last.to_owned())

@@ -1,27 +1,20 @@
 {
   "title": "Project overview",
-  "description": "Weekly sessions, tokens and estimated cost; agent and model breakdown; weekly average of the 5 skill groups; top anti-patterns. Member device status is on the Members page.",
   "range": {
     "label": "Time range",
     "weeks": "Last {count} weeks"
   },
   "totals": {
     "sessions": "Sessions",
-    "sessionsHint": "Top-level sessions only",
     "members": "Active members",
-    "membersHint": "At least one session",
     "tokens": "Tokens",
-    "tokensHint": "Includes subagent child sessions",
-    "cost": "Estimated cost",
-    "costHint": "Based on a fixed per-model price table, not an invoice",
-    "costUnavailable": "No turn data left to estimate the cost"
+    "cost": "Estimated cost"
   },
   "weekly": {
     "title": "By week",
     "tokensChart": "Tokens per week",
-    "scoresChart": "Average score of the 5 skill groups per week",
-    "scoresHint": "Average of each member's score, weighted by their sessions that week. Weeks with no scored session are left blank.",
-    "tableCaption": "Weekly figures (Monday is the first day of the week)",
+    "scoresChart": "Average score per week",
+    "tableCaption": "Weekly figures",
     "columns": {
       "week": "Week",
       "sessions": "Sessions",
@@ -57,21 +50,15 @@
   },
   "usage": {
     "title": "Reference figures",
-    "note": "For reference only: they are not scored and not used in the leaderboard, because they reflect cost or tool settings rather than skill.",
     "cacheHitRate": "Cache hit rate",
-    "cacheHitRateHint": "Share of input served from cache",
     "premiumModelRate": "Premium model share",
-    "premiumModelRateHint": "Of turns that record a model",
     "highReasoningRate": "High reasoning share",
-    "highReasoningRateHint": "Of turns that record a reasoning level",
     "avgOutputTokens": "Average output per turn",
-    "avgOutputTokensHint": "Output tokens per agent turn",
     "noValue": "—"
   },
   "findings": {
     "title": "Common anti-patterns",
-    "description": "Rules broken most often in the selected time range.",
-    "empty": "No anti-pattern recorded yet.",
+    "empty": "No anti-patterns yet.",
     "count": "{count} times",
     "members": "{count} members",
     "severity": {
@@ -81,8 +68,7 @@
     }
   },
   "empty": {
-    "title": "No data in this range",
-    "description": "Figures appear once members send sessions (tl sync). Try a longer time range."
+    "title": "No data in this range"
   },
   "error": {
     "title": "Could not load the project overview"

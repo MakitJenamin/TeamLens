@@ -81,8 +81,8 @@ pub fn build_request(sources: &Sources, db: &StateDb) -> Result<HeartbeatRequest
     let state = |e: rusqlite::Error| {
         tracing::debug!(error = %e, "lỗi state.db khi dựng heartbeat");
         AppError::user(
-            "Không đọc được file trạng thái state.db.",
-            "Kiểm tra quyền ghi thư mục dữ liệu TeamLens.",
+            "Không đọc được state.db.",
+            "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens.",
         )
     };
     let status = if db.is_paused().map_err(state)? {

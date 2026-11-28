@@ -17,11 +17,7 @@ export default async function DashboardHome({ params }: PageProps<"/[locale]">) 
     redirect({ href: `/projects/${encodeURIComponent(first.id)}/overview`, locale });
   }
 
-  const [t, tNav, me] = await Promise.all([
-    getTranslations("common"),
-    getTranslations("nav"),
-    serverApi<MeResponse>("/auth/me"),
-  ]);
+  const [t, me] = await Promise.all([getTranslations("common"), serverApi<MeResponse>("/auth/me")]);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 items-center">
@@ -29,13 +25,12 @@ export default async function DashboardHome({ params }: PageProps<"/[locale]">) 
         <CardHeader className="items-center">
           <FolderOpenIcon className="text-muted-foreground mx-auto mb-2 size-10" />
           <CardTitle className="text-xl">{t("home.noProjectsTitle")}</CardTitle>
-          <CardDescription>
-            {me.user.role === "leader" ? t("home.noProjectsAdmin") : t("home.noProjectsDescription")}
-          </CardDescription>
-          {me.user.role === "leader" && (
+          {me.user.role === "leader" ? (
             <Button render={<Link href="/admin" />} className="mx-auto mt-4">
-              {tNav("admin")}
+              {t("home.noProjectsAdmin")}
             </Button>
+          ) : (
+            <CardDescription>{t("home.noProjectsDescription")}</CardDescription>
           )}
         </CardHeader>
       </Card>
