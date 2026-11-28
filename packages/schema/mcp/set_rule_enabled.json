@@ -92,9 +92,10 @@
       "rescore": {
         "type": "string",
         "enum": [
-          "queued"
+          "queued",
+          "in_progress"
         ],
-        "description": "Đã xếp job chấm lại điểm cho project."
+        "description": "`queued`: đã xếp lần chấm lại (có theo dõi ở dashboard). `in_progress`: project đang được chấm lại từ trước, thay đổi có thể chưa áp hết; chạy lại sau khi lần đó xong."
       }
     }
   }

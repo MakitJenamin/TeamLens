@@ -152,6 +152,12 @@ const changeItem = obj(
   },
   ['field', 'from', 'to'],
 );
+const rescoreState = {
+  type: 'string',
+  enum: ['queued', 'in_progress'],
+  description:
+    '`queued`: đã xếp lần chấm lại (có theo dõi ở dashboard). `in_progress`: project đang được chấm lại từ trước, thay đổi có thể chưa áp hết; chạy lại sau khi lần đó xong.',
+};
 const ruleTestItem = obj(
   {
     name: { type: 'string' },
@@ -436,7 +442,7 @@ const tools = {
           [...ruleSummaryReq, 'definition', 'updatedAt'],
         ),
         changes: { type: 'array', items: changeItem },
-        rescore: { type: 'string', enum: ['queued'], description: 'Đã xếp job chấm lại điểm cho project.' },
+        rescore: rescoreState,
       },
       ['rule', 'changes', 'rescore'],
     ),
@@ -456,7 +462,7 @@ const tools = {
       {
         rule: obj(ruleSummary, ruleSummaryReq),
         previousEnabled: { type: 'boolean', description: 'Trạng thái trước khi đổi.' },
-        rescore: { type: 'string', enum: ['queued'], description: 'Đã xếp job chấm lại điểm cho project.' },
+        rescore: rescoreState,
       },
       ['rule', 'previousEnabled', 'rescore'],
     ),

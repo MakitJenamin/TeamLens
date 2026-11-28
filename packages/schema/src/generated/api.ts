@@ -687,7 +687,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Trạng thái lần chấm lại gần nhất (leader) */
+        /**
+         * Trạng thái lần chấm lại gần nhất (leader)
+         * @description Lần chạy `queued`/`running` quá 5 phút không cập nhật (tiến trình chết giữa chừng) được đánh `failed`
+         *     với `errorCode: rescore_stale` ngay khi đọc trạng thái hoặc xếp lần chạy mới, nên có thể chạy lại.
+         */
         get: operations["getRuleRerunStatus"];
         put?: never;
         post?: never;
@@ -735,6 +739,9 @@ export interface paths {
         /**
          * Sửa trạng thái, mức độ hoặc ngưỡng của rule theo project (leader)
          * @description Chỉ tạo/sửa bản ghi đè theo project; không sửa rule mặc định toàn server. Sau sửa cần chạy lại.
+         *     Dùng chung đường ghi với tool MCP `save_rule`/`set_rule_enabled`: kiểm `tests` nội tuyến trên rule sau khi
+         *     sửa, phiên bản tăng khi định nghĩa hoặc mức độ đổi (bật/tắt không tăng), audit `rule.save` hoặc
+         *     `rule.set_enabled` (cột `details`: giá trị cũ và mới). Không có thay đổi nào thì trả rule hiện hành, không ghi.
          */
         patch: operations["updateProjectRule"];
         trace?: never;
@@ -754,7 +761,8 @@ export interface paths {
         post?: never;
         /**
          * Khôi phục rule mặc định (leader)
-         * @description Xóa bản ghi đè và xếp chấm lại project ngay vì finding cũ có thể bị xóa theo khóa ngoại.
+         * @description Xóa bản ghi đè rồi xếp chấm lại project. Finding cũ của bản ghi đè được chuyển sang rule mặc định cùng khóa
+         *     (không bị xóa), nên điểm của session đã bị retention xóa turn giữ nguyên. Audit `rule.restore` (cột `details`).
          */
         delete: operations["restoreProjectRule"];
         options?: never;
@@ -4888,7 +4896,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["RuleRerunStatus"] | null) & components["schemas"]["RuleRerunStatus"];
+                    "application/json": components["schemas"]["RuleRerunStatus"] | null;
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -4953,7 +4961,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectRule"];
                 };
             };
-            /** @description Body hoặc ngưỡng không hợp lệ (`rule_invalid`). */
+            /** @description Body hoặc ngưỡng không hợp lệ (`validation_error`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4965,6 +4973,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Rule sau khi sửa không còn qua các `tests` nội tuyến (`rule_tests_failed`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     restoreProjectRule: {
