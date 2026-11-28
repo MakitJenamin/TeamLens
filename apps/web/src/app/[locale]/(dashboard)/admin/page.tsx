@@ -4,6 +4,7 @@ import { Link, redirect } from "@/i18n/navigation";
 import { serverApi, serverApiOrNull } from "@/lib/api/server";
 import type { Member, MeResponse, ProjectDetail, ProjectSummary, User } from "@/lib/api/types";
 import { ProjectAdmin, UserAdmin } from "./workspace";
+import { AuditPanel } from "./audit-panel";
 
 export async function generateMetadata({
   params,
@@ -22,9 +23,11 @@ export default async function AdminPage({ params, searchParams }: PageProps<"/[l
   if (!me) return redirect({ href: "/login", locale });
   if (me.user.role !== "leader") return redirect({ href: "/", locale });
   const query = await searchParams;
-  const tab = query.tab === "users" ? "users" : "projects";
+  const tab = query.tab === "users" || query.tab === "audit" ? query.tab : "projects";
   let panel;
-  if (tab === "users") {
+  if (tab === "audit") {
+    panel = <AuditPanel />;
+  } else if (tab === "users") {
     panel = <UserAdmin users={await serverApi<User[]>("/users")} />;
   } else {
     const projects = await serverApi<ProjectSummary[]>("/projects");
@@ -50,10 +53,10 @@ export default async function AdminPage({ params, searchParams }: PageProps<"/[l
     <main className="mx-auto w-full max-w-5xl space-y-6">
       <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
       <nav aria-label={t("title")} className="flex gap-6 border-b">
-        {(["projects", "users"] as const).map((item) => (
+        {(["projects", "users", "audit"] as const).map((item) => (
           <Link
             key={item}
-            href={item === "users" ? "/admin?tab=users" : "/admin"}
+            href={item === "projects" ? "/admin" : `/admin?tab=${item}`}
             aria-current={tab === item ? "page" : undefined}
             className="border-b-2 border-transparent pb-2 text-sm text-muted-foreground aria-[current=page]:border-primary aria-[current=page]:font-semibold aria-[current=page]:text-foreground"
           >

@@ -1,3 +1,7 @@
 {
-  "title": "My account"
+  "title": "My account",
+  "description": "See consent history by device, connected devices, and who viewed your sessions.",
+  "leader": "Leader", "member": "Member", "devices": "Devices", "consents": "Consent history", "views": "Session view history", "loading": "Loading...",
+  "noDevices": "No devices yet.", "noConsents": "No consent history yet.", "noViews": "No one has viewed your sessions.", "removedDevice": "Device no longer exists",
+  "revoked": "Revoked", "granted": "Granted", "backfillYes": "Includes older data", "backfillNo": "New data only", "deletedAccount": "Account no longer exists", "session": "Session", "more": "Load more"
 }

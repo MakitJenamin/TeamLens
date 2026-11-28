@@ -1,6 +1,7 @@
 {
   "projects": "Project",
   "users": "Tài khoản",
+  "audit": "Audit", "auditAction": "Hành động", "auditActor": "Người thực hiện", "auditFrom": "Từ", "auditTo": "Đến", "auditFilter": "Lọc", "auditLoading": "Đang tải audit...", "auditEmpty": "Không có sự kiện phù hợp.", "auditTime": "Thời điểm", "auditTarget": "Đối tượng", "auditDeleted": "Tài khoản không còn tồn tại", "auditMore": "Xem thêm",
   "name": "Họ tên",
   "email": "Email",
   "password": "Mật khẩu",
