@@ -1,6 +1,7 @@
 import {
   ActivityIcon,
   LayoutDashboardIcon,
+  LibraryIcon,
   LightbulbIcon,
   ListChecksIcon,
   ShieldIcon,
@@ -13,7 +14,7 @@ import {
 
 export interface NavItem {
   /** khóa dịch trong namespace "nav" */
-  key: "overview" | "members" | "sessions" | "skills" | "leaderboard" | "rules" | "me" | "aiSettings" | "admin";
+  key: "overview" | "members" | "sessions" | "skills" | "promptLibrary" | "leaderboard" | "rules" | "me" | "aiSettings" | "admin";
   href: string;
   icon: LucideIcon;
 }
@@ -26,6 +27,7 @@ export function projectNavItems(projectId: string): NavItem[] {
     { key: "members", href: `${base}/members`, icon: UsersIcon },
     { key: "sessions", href: `${base}/sessions`, icon: ActivityIcon },
     { key: "skills", href: `${base}/skills`, icon: LightbulbIcon },
+    { key: "promptLibrary", href: `${base}/prompt-library`, icon: LibraryIcon },
     { key: "leaderboard", href: `${base}/leaderboard`, icon: TrophyIcon },
     { key: "rules", href: `${base}/rules`, icon: ListChecksIcon },
   ];

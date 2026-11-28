@@ -24,6 +24,7 @@ const TOOL_NAMES = [
   'get_member_profile',
   'get_my_ai_results',
   'get_overview',
+  'get_prompt_library',
   'get_rule',
   'get_session',
   'get_skill_clusters',

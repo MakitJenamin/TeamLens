@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DeviceModule } from '../device/device.module.js';
 import { LlmModule } from '../llm/llm.module.js';
 import { ProjectsModule } from '../projects/projects.module.js';
+import { PromptLibraryModule } from '../prompt-library/prompt-library.module.js';
 import { RulesModule } from '../rules/rules.module.js';
 import { SessionsModule } from '../sessions/sessions.module.js';
 import { SkillsModule } from '../skills/skills.module.js';
@@ -27,6 +28,7 @@ import {
   GetSessionTool,
   SearchSessionsTool,
 } from './tools/session-tools.js';
+import { GetPromptLibraryTool } from './tools/prompt-library-tools.js';
 import { GetSkillClustersTool } from './tools/skill-tools.js';
 import { WhoamiTool } from './tools/whoami.tool.js';
 import {
@@ -51,6 +53,7 @@ import {
     RulesModule,
     LlmModule,
     SkillsModule,
+    PromptLibraryModule,
   ],
   controllers: [McpController],
   providers: [
@@ -75,6 +78,7 @@ import {
     SetRuleEnabledTool,
     AddSessionNoteTool,
     GetSkillClustersTool,
+    GetPromptLibraryTool,
   ],
 })
 export class McpModule {}
