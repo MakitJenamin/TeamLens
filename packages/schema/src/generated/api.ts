@@ -1013,6 +1013,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lịch sử đồng ý của chính user đang đăng nhập, theo thiết bị */
+        get: operations["listMyConsents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/session-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lịch sử người khác xem session của chính user đang đăng nhập
+         * @description Không nhận userId từ client. Cursor theo cặp (at,id) giảm dần; không trả nội dung prompt.
+         */
+        get: operations["listMySessionViews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Nhật ký audit toàn server (chỉ leader) */
+        get: operations["listAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/member-status": {
         parameters: {
             query?: never;
@@ -2077,6 +2131,27 @@ export interface components {
         };
         /** @description Đồng ý lại hoặc rút đồng ý, phân biệt bằng `action`. */
         ConsentRequest: components["schemas"]["ConsentGrant"] | components["schemas"]["ConsentRevoke"];
+        MyConsent: {
+            id: components["schemas"]["Id"];
+            /** Format: uuid */
+            deviceId: string | null;
+            deviceName: string | null;
+            deviceStatus: string | null;
+            textVersion: string;
+            backfill: boolean;
+            /** Format: date-time */
+            grantedAt: string;
+            /** Format: date-time */
+            revokedAt: string | null;
+        };
+        SessionViewPage: {
+            items: components["schemas"]["SessionView"][];
+            nextCursor: string | null;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            nextCursor: string | null;
+        };
         /**
          * @description 5 nhóm kỹ năng (SPEC 9.1).
          * @enum {string}
@@ -3004,6 +3079,29 @@ export interface components {
         SessionEnvelope: {
             session: components["schemas"]["Session"];
             turns: components["schemas"]["Turn"][];
+        };
+        SessionView: {
+            id: components["schemas"]["Id"];
+            sessionId: components["schemas"]["Id"];
+            /** Format: date-time */
+            sessionStartedAt: string;
+            /** Format: uuid */
+            actorId: string | null;
+            /** @description null khi tài khoản người xem đã bị xóa. */
+            actorName: string | null;
+            /** Format: date-time */
+            at: string;
+        };
+        AuditEntry: {
+            id: components["schemas"]["Id"];
+            /** Format: uuid */
+            actorId: string | null;
+            actorName: string | null;
+            action: string;
+            targetType: string;
+            targetId: string;
+            /** Format: date-time */
+            at: string;
         };
     };
     responses: {
@@ -5335,6 +5433,84 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    listMyConsents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gồm cả bản đã rút và thiết bị đã thu hồi. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyConsent"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    listMySessionViews: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách lượt xem. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionViewPage"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    listAuditLog: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                action?: string;
+                actorId?: string;
+                targetType?: string;
+                targetId?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách audit theo thứ tự thời gian giảm dần, phân trang ổn định. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listProjectMemberStatus: {

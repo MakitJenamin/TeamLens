@@ -7,6 +7,57 @@
 # Đồng ý tính theo từng thiết bị (bảng `consents`). JSON dùng camelCase, cùng shape `{ textVersion, backfill }`
 # với trường `consent` của `POST /agent/v1/join`.
 paths:
+  /api/v1/me/consents:
+    get:
+      operationId: listMyConsents
+      tags: [consent]
+      summary: Lịch sử đồng ý của chính user đang đăng nhập, theo thiết bị
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Gồm cả bản đã rút và thiết bị đã thu hồi.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyConsent'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
+  /api/v1/me/session-views:
+    get:
+      operationId: listMySessionViews
+      tags: [consent]
+      summary: Lịch sử người khác xem session của chính user đang đăng nhập
+      description: Không nhận userId từ client. Cursor theo cặp (at,id) giảm dần; không trả nội dung prompt.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 20
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Danh sách lượt xem.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionViewPage'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+
   /agent/v1/consent:
     get:
       operationId: agentGetConsent
@@ -109,6 +160,65 @@ paths:
 
 components:
   schemas:
+    MyConsent:
+      type: object
+      additionalProperties: false
+      required: [id, deviceId, deviceName, deviceStatus, textVersion, backfill, grantedAt, revokedAt]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        deviceId:
+          type: [string, 'null']
+          format: uuid
+        deviceName:
+          type: [string, 'null']
+        deviceStatus:
+          type: [string, 'null']
+        textVersion:
+          type: string
+        backfill:
+          type: boolean
+        grantedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+
+    SessionView:
+      type: object
+      additionalProperties: false
+      required: [id, sessionId, sessionStartedAt, actorId, actorName, at]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        sessionStartedAt:
+          type: string
+          format: date-time
+        actorId:
+          type: [string, 'null']
+          format: uuid
+        actorName:
+          type: [string, 'null']
+          description: null khi tài khoản người xem đã bị xóa.
+        at:
+          type: string
+          format: date-time
+
+    SessionViewPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionView'
+        nextCursor:
+          type: [string, 'null']
+
     ConsentState:
       type: string
       description: Trạng thái đồng ý của một thiết bị so với văn bản hiện hành.
