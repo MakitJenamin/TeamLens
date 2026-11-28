@@ -237,6 +237,7 @@ paths:
         Mỗi session gốc còn đủ turn được chấm lại: finding, điểm 5 nhóm và `user_weekly_stats` của các tuần liên quan
         được tính lại. Session con không có điểm. Session đã bị retention xóa turn giữ nguyên điểm cũ.
         Mỗi project chỉ có một lần chấm lại đang chờ hoặc chạy; lệnh trùng trả `409 rescore_in_progress`.
+        Rule của project bị sửa sau khi một lần chạy bắt đầu thì lần đó xong, server tự xếp thêm một lần.
         Ghi audit `rules.rerun`.
       security:
         - cookieAuth: []
