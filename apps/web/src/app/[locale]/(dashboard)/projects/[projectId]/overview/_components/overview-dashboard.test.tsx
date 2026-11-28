@@ -5,6 +5,10 @@ import { jsonResponse, renderWithProviders } from "@/test/utils";
 import type { ProjectOverview } from "./overview-types";
 import { OverviewDashboard } from "./overview-dashboard";
 
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({ href, ...props }: { href: string } & React.ComponentProps<"a">) => <a href={href} {...props} />,
+}));
+
 // Recharts cần kích thước thật của DOM; các biểu đồ có bảng số liệu đi kèm nên test kiểm tra bảng.
 vi.mock("./weekly-charts", () => ({
   TokensChart: () => <div data-testid="tokens-chart" />,
@@ -116,8 +120,10 @@ describe("OverviewDashboard", () => {
     await screen.findByText("36");
 
     await userEvent.selectOptions(screen.getByLabelText("Khoảng thời gian"), "26");
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(String(fetchMock.mock.calls[1][0])).not.toBe(String(fetchMock.mock.calls[0][0]));
+    // Chỉ đếm request tổng quan (thẻ báo cáo AI còn gọi `/me/llm-key`).
+    const overviewCalls = () => fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/overview?from="));
+    await vi.waitFor(() => expect(overviewCalls()).toHaveLength(2));
+    expect(overviewCalls()[1]).not.toBe(overviewCalls()[0]);
   });
 
   it("chưa có dữ liệu thì hiện trạng thái trống, không vẽ biểu đồ", async () => {
