@@ -40,8 +40,8 @@ export function MyDataPanel({ name, role }: { name: string; role: "leader" | "me
       {views.isPending && <p className="text-muted-foreground mt-3 text-sm">{t("loading")}</p>}
       {views.error && <p className="text-destructive mt-3 text-sm">{views.error.message}</p>}
       {allViews.length === 0 && !views.isPending && <p className="text-muted-foreground mt-3 text-sm">{t("noViews")}</p>}
-      <ul className="mt-3 divide-y">{allViews.map((view) => <li key={view.id} className="py-3 text-sm"><strong>{view.actorName ?? t("deletedAccount")}</strong>
-        <p className="text-muted-foreground">{date(view.at)} · {t("session")} {view.sessionId} ({date(view.sessionStartedAt)})</p></li>)}</ul>
+      <ul className="mt-3 divide-y">{allViews.map((view) => <li key={view.id} className="py-3 text-sm"><strong>{view.actorName ?? t("deletedAccount")}</strong> · {t(`action.${view.action}`)}
+        <p className="text-muted-foreground">{date(view.at)}{view.sessionId && <> · {t("session")} {view.sessionId} ({view.sessionStartedAt ? date(view.sessionStartedAt) : t("sessionDeleted")})</>}</p></li>)}</ul>
       {views.data?.nextCursor && <button className="mt-3 rounded-md border px-3 py-2 text-sm" onClick={() => { setPages(allViews); setCursor(views.data!.nextCursor); }}>{t("more")}</button>}
     </section>
   </div>;
