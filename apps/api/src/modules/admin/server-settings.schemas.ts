@@ -2,12 +2,22 @@ import { z } from 'zod';
 
 const utf8Bytes = (value: string) => Buffer.byteLength(value, 'utf8');
 
+/**
+ * Id pattern = nhãn CLI hiện trong `[REDACTED:<id>]`. CLI (`kind_from_id` ở
+ * `cli/crates/tl-core/src/redact.rs`) bỏ `_` ở hai đầu và bỏ hẳn pattern có id rỗng, nên id
+ * không được bắt đầu hay kết thúc bằng `_`.
+ */
+export const patternIdSchema = z
+  .string()
+  .max(64)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9_]*[a-z0-9])?$/,
+    'id chỉ gồm a-z, 0-9, _ và không bắt đầu hay kết thúc bằng _',
+  );
+
 export const redactionPatternSchema = z
   .object({
-    id: z
-      .string()
-      .regex(/^[a-z0-9_]+$/, 'id chỉ gồm a-z, 0-9, _')
-      .max(64),
+    id: patternIdSchema,
     name: z.string().min(1).max(100),
     description: z.string().max(500).optional(),
     regex: z
@@ -32,7 +42,9 @@ export const updateSettingsSchema = z
         'id pattern phải duy nhất',
       )
       .optional(),
+    expectedRedactionPatternsVersion: z.string().min(1).max(64).optional(),
     retentionDays: z.number().int().min(7).max(730).nullable().optional(),
+    expectedRetentionVersion: z.string().min(1).max(64).optional(),
     consentText: z.string().min(1).max(50_000).optional(),
     expectedConsentVersion: z.string().min(1).max(64).optional(),
   })
@@ -43,14 +55,23 @@ export const updateSettingsSchema = z
       value.consentText === undefined ||
       value.expectedConsentVersion !== undefined,
     'Sửa văn bản đồng ý cần expectedConsentVersion',
+  )
+  .refine(
+    (value) =>
+      value.redactionPatterns === undefined ||
+      value.expectedRedactionPatternsVersion !== undefined,
+    'Sửa pattern cần expectedRedactionPatternsVersion',
+  )
+  .refine(
+    (value) =>
+      value.retentionDays === undefined ||
+      value.expectedRetentionVersion !== undefined,
+    'Sửa retention cần expectedRetentionVersion',
   );
 
 export const testPatternSchema = z
   .object({
-    id: z
-      .string()
-      .regex(/^[a-z0-9_]+$/)
-      .max(64),
+    id: patternIdSchema,
     regex: z
       .string()
       .min(1)

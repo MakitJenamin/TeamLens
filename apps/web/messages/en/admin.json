@@ -94,5 +94,5 @@
   "settingsConsentConfirmTitle": "Change the consent text?",
   "settingsConsentConfirm": "A new version will be created. {count} devices that currently consent will stop sending data until tl consent is run.",
   "settingsConsentConfirmYes": "Confirm and save",
-  "settingsConflict": "Someone else edited the text. Reload the page and edit again."
+  "settingsConflict": "Someone else just saved. Reload the page."
 }

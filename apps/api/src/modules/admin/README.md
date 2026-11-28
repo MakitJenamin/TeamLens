@@ -4,17 +4,20 @@ Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), xóa dữ liệu 
 
 `server-settings.controller.ts`, `server-settings.service.ts`, `server-settings.schemas.ts`.
 
-- `GET /api/v1/admin/settings` trả pattern redaction, số ngày retention, văn bản đồng ý hiện hành và `affectedDevices` (số thiết bị sẽ phải đồng ý lại).
+- `GET /api/v1/admin/settings` trả pattern redaction, số ngày retention, văn bản đồng ý hiện hành, `affectedDevices` (số thiết bị sẽ phải đồng ý lại) và phiên bản `redactionPatternsVersion`, `retentionVersion` (`updated_at` của dòng `settings` tính bằng micro giây, `'0'` khi chưa có dòng).
 - `PATCH /api/v1/admin/settings` nhận một hoặc nhiều phần:
-  - `redactionPatterns`: tối đa 50 pattern `{ id, regex, ... }`, id `^[a-z0-9_]+$`. Audit `settings.redaction_patterns.update`.
-  - `retentionDays`: 7–730, hoặc `null` là giữ vô hạn. Audit `settings.retention.update`.
+  - `redactionPatterns` kèm `expectedRedactionPatternsVersion`: tối đa 50 pattern `{ id, regex, ... }`. Id `^[a-z0-9](?:[a-z0-9_]*[a-z0-9])?$`, đúng bằng nhãn CLI tạo ra (`kind_from_id` bỏ `_` hai đầu, id `_` thì CLI bỏ pattern). Audit `settings.redaction_patterns.update`.
+  - `retentionDays` kèm `expectedRetentionVersion`: 7–730, hoặc `null` là giữ vô hạn. Audit `settings.retention.update`.
+  - Phiên bản lệch thì 409 (`redaction_patterns_conflict`, `retention_conflict`) và cả request rollback. Dòng đã có thì khóa `FOR UPDATE` rồi so; chưa có (`'0'`) thì `INSERT ... ON CONFLICT DO NOTHING`, không chèn được là 409 (`writeVersioned`).
   - `consentText` kèm `expectedConsentVersion`: lệch phiên bản thì 409. Phiên bản tự tăng theo dạng `YYYY-MM-DD.N` (`nextConsentVersion`, ngày UTC). Audit `settings.consent_text.update`.
-- `POST /api/v1/admin/settings/redaction-test`: thử pattern trên đoạn mẫu, không lưu.
+- `POST /api/v1/admin/settings/redaction-test`: thử pattern trên đoạn mẫu, không lưu. Che đúng như CLI nhưng chỉ với pattern này (không gồm rule có sẵn).
 - **Khóa trong bảng `settings`:**
   - `redaction_patterns`: CLI đọc qua `GET /agent/v1/config`.
   - `retention_days`: không có dòng thì mặc định 90 (`DEFAULT_RETENTION_DAYS`), jsonb `null` là vô hạn. Job M5.5 đọc bằng `readRetentionDays` (module `retention`), phân biệt hai trường hợp này.
   - `consent_text`: đọc qua `consent/consent-text.service.ts`.
 - **Kiểm regex:** `regex-validator.service.ts` gọi helper Rust `apps/api/tools/regex-validator`, cùng crate `regex` và `size_limit` 2 MiB với CLI, timeout 5 giây. Không log regex hay đoạn mẫu.
+  - Helper sao chép quy tắc che của `cli/crates/tl-core/src/redact.rs` (`kind_from_id`, vòng lặp `Redactor::redact`: group `secret` không tham gia thì che cả chuỗi khớp, bỏ khớp rỗng, gộp vùng chồng nhau). Sửa quy tắc ở CLI thì sửa cả helper.
+  - Pattern quá rộng: helper chạy pattern trên bộ văn bản thường (`NORMAL_TEXTS`: prompt, code, log, diff, JSON); che từ 20% số byte, hoặc trung bình cứ 40 byte có một vùng che, thì trả 400 `pattern_too_broad` (cả khi lưu lẫn khi thử).
   - Build: `pnpm --filter @teamlens/api build:regex-validator`. Đổi đường dẫn bằng `REGEX_VALIDATOR_BIN`.
   - Chưa có helper thì lưu hoặc thử pattern trả 503 `regex_validator_unavailable`. **`apps/api/Dockerfile` chưa build helper này.**
 
