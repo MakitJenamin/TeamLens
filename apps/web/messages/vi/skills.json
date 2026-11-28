@@ -23,5 +23,37 @@
   "userCount": "{count} người",
   "emptyTitle": "Chưa có prompt nào lặp lại đủ 3 lần",
   "emptyHint": "Thử mở rộng khoảng thời gian.",
-  "errorTitle": "Không tải được Skill Finder"
+  "errorTitle": "Không tải được Skill Finder",
+  "ai": {
+    "triage": "Đánh giá cụm này",
+    "generate": "Soạn SKILL.md",
+    "running": "Đang chạy AI…",
+    "redo": "Làm lại: {action}",
+    "privateNote": "Dùng API key của bạn. Kết quả AI chỉ mình bạn thấy.",
+    "addKey": "Thêm API key AI để đánh giá cụm và soạn SKILL.md",
+    "openSettings": "Mở Cài đặt AI",
+    "verdict": {
+      "strong": "Nên làm skill",
+      "maybe": "Có thể",
+      "skip": "Bỏ qua"
+    },
+    "copy": "Sao chép",
+    "copied": "Đã chép",
+    "download": "Tải SKILL.md",
+    "skillHint": "Đọc lại và sửa trước khi dùng. Đặt file vào thư mục skills của agent, ví dụ .claude/skills/<tên>/SKILL.md.",
+    "errors": {
+      "llm_key_missing": "Chưa có API key.",
+      "llm_key_invalid": "Nhà cung cấp AI từ chối API key.",
+      "llm_model_not_found": "Model đã chọn không tồn tại.",
+      "llm_quota_exceeded": "Đã hết quota hoặc bị giới hạn tốc độ ở nhà cung cấp AI. Thử lại sau.",
+      "llm_timeout": "AI phản hồi quá lâu (quá 60 giây). Thử lại sau.",
+      "llm_provider_error": "Không gọi được nhà cung cấp AI. Thử lại sau.",
+      "llm_bad_output": "AI trả kết quả sai định dạng. Thử lại hoặc chọn model mạnh hơn.",
+      "cluster_not_found": "Cụm không còn trong khoảng thời gian này. Tải lại trang.",
+      "forbidden": "Bạn không có quyền dùng AI trên cụm này.",
+      "not_found": "Không tìm thấy dữ liệu.",
+      "network_error": "Không kết nối được tới máy chủ.",
+      "unknown": "Có lỗi khi chạy AI. Thử lại sau."
+    }
+  }
 }

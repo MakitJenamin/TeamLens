@@ -5,6 +5,7 @@ import {
   fingerprintOf,
   keywordsOf,
   LABEL_MAX,
+  occurrencesOf,
   type PromptInput,
 } from './prompt-clusterer.js';
 
@@ -178,5 +179,40 @@ describe('clusterPrompts', () => {
 
   it('đầu vào rỗng cho kết quả rỗng', () => {
     expect(clusterPrompts([])).toEqual({ promptsAnalyzed: 0, promptsClustered: 0, clusterCount: 0, clusters: [] });
+  });
+});
+
+describe('occurrencesOf', () => {
+  const LINT = 'chạy file lint lỗi';
+  const texts = [
+    'Chạy pnpm test rồi sửa lỗi lint trong file src/cart.ts giúp mình nhé',
+    'chạy pnpm test và sửa lỗi lint trong file src/checkout/index.tsx nhé',
+    'Hãy chạy PNPM test, sửa lỗi lint trong file "orders.ts" 2',
+  ];
+  const other = 'Viết unit test cho module thanh toán bằng vitest';
+
+  it('lấy đúng các prompt của cụm theo dấu vân tay, gần nhất trước, giữ nguyên văn (NFC)', () => {
+    const inputs = [
+      prompt(texts[0], { ts: at(1), turnSeq: 1 }),
+      prompt(other, { ts: at(9) }),
+      prompt(texts[1].normalize('NFD'), { ts: at(3), turnSeq: 2 }),
+      prompt(texts[2], { ts: at(2), turnSeq: 3 }),
+    ];
+    const found = occurrencesOf(inputs, LINT, 10);
+    expect(found.map((o) => o.turnSeq)).toEqual([2, 3, 1]);
+    expect(found[0].text).toBe(texts[1].normalize('NFC'));
+    expect(found.every((o) => o.text !== other)).toBe(true);
+  });
+
+  it('giới hạn số lượng và cho rỗng khi không khớp dấu vân tay nào', () => {
+    const inputs = texts.map((t, i) => prompt(t, { ts: at(1 + i), turnSeq: i }));
+    expect(occurrencesOf(inputs, LINT, 2).map((o) => o.turnSeq)).toEqual([2, 1]);
+    expect(occurrencesOf(inputs, 'khong co dau van tay', 5)).toEqual([]);
+  });
+
+  it('nhất quán với clusterPrompts: số prompt khớp số lần của cụm', () => {
+    const inputs = [...texts, ...texts].map((t, i) => prompt(t, { ts: at(1 + i), turnSeq: i }));
+    const cluster = clusterPrompts(inputs).clusters[0];
+    expect(occurrencesOf(inputs, cluster.fingerprint, 100)).toHaveLength(cluster.count);
   });
 });

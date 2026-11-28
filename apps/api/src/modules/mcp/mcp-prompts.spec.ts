@@ -4,9 +4,9 @@ import { listPrompts, PromptError, renderPrompt } from './mcp-prompts.js';
 const PROJECT = '0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f';
 
 describe('listPrompts', () => {
-  it('leader thấy cả hai prompt, member chỉ thấy coach-me', () => {
-    expect(listPrompts('leader').map((p) => p.name)).toEqual(['coach-me', 'weekly-review']);
-    expect(listPrompts('member').map((p) => p.name)).toEqual(['coach-me']);
+  it('leader thấy cả ba prompt, member không thấy weekly-review', () => {
+    expect(listPrompts('leader').map((p) => p.name)).toEqual(['coach-me', 'find-skills', 'weekly-review']);
+    expect(listPrompts('member').map((p) => p.name)).toEqual(['coach-me', 'find-skills']);
   });
 });
 
@@ -21,6 +21,15 @@ describe('renderPrompt', () => {
     const rendered = renderPrompt('leader', 'weekly-review', { projectId: PROJECT });
     expect(rendered?.text).toContain(PROJECT);
     expect(rendered?.text).not.toContain('{{');
+  });
+
+  it('find-skills thay projectId và nhắc các tool cần dùng, member cũng dùng được', () => {
+    const rendered = renderPrompt('member', 'find-skills', { projectId: PROJECT });
+    expect(rendered?.text).toContain(PROJECT);
+    expect(rendered?.text).toContain('get_skill_clusters');
+    expect(rendered?.text).toContain('get_my_ai_results');
+    expect(rendered?.text).not.toContain('{{');
+    expect(() => renderPrompt('member', 'find-skills', {})).toThrow(PromptError);
   });
 
   it('thiếu tham số bắt buộc hoặc projectId không phải UUID thì PromptError', () => {

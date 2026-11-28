@@ -5,7 +5,7 @@ Contract: `packages/schema/openapi/skills.yaml`. Thiết kế: [docs/AI_PLAN.md]
 | Mốc | Việc | Trạng thái |
 | --- | --- | --- |
 | M6.11 | S0: gom cụm prompt lặp lại (heuristic, không gọi LLM) + trang Skill Finder + tool MCP `get_skill_clusters` | xong |
-| M6.12 | S1 triage cụm (AI), S2 sinh `SKILL.md` | chưa làm |
+| M6.12 | S1 triage cụm (AI), S2 sinh `SKILL.md` + nút ở web + prompt MCP `find-skills` | xong |
 | M6.13 | S3 catalog nhiều nguồn, chọn skill | chưa làm |
 
 | File | Nội dung |
@@ -13,6 +13,8 @@ Contract: `packages/schema/openapi/skills.yaml`. Thiết kế: [docs/AI_PLAN.md]
 | `prompt-clusterer.ts` | Thuần, không đọc DB, không log: `keywordsOf`, `fingerprintOf`, `clusterPrompts`. Test ở `prompt-clusterer.spec.ts`. |
 | `skills.service.ts` | `SkillsService.list`: quyền, khoảng thời gian, truy vấn prompt, gom cụm, tên người, audit. `clusterIdOf`. |
 | `skills.controller.ts` | `GET /api/v1/projects/:projectId/skill-clusters` (`userId`, `from`, `to`, `limit`). |
+| `skills-ai.service.ts`, `skills-ai.controller.ts` | Nút AI (M6.12): `GET|POST /api/v1/projects/:projectId/skill-clusters/:clusterId/ai[/triage|/skill]`. Dùng `LlmService` với key BYO của người bấm. |
+| `skills-ai-prompts.ts` | Câu lệnh hệ thống, schema zod đầu ra, `clusterBlocks` (khối dữ liệu không đáng tin), chuẩn hóa (`slugify`, `assembleSkillMarkdown`). Test ở `skills-ai-prompts.spec.ts`. |
 
 ## Cách gom cụm (S0)
 
@@ -38,4 +40,12 @@ Chỉ dùng prompt của **session gốc** (prompt trong session con do agent vi
 - Web: `apps/web/src/app/[locale]/(dashboard)/projects/[projectId]/skills/` (link "Skill Finder" ở sidebar).
 - MCP: tool `get_skill_clusters` (`mcp/tools/skill-tools.ts`, cùng quyền và audit).
 
-Test: `skills.e2e-spec.ts` (`test/`): quyền, bộ lọc, khoảng thời gian, session con và lượt trả lời bị bỏ qua, audit, tool MCP khớp `outputSchema`.
+## Nút AI (S1, S2)
+
+- Server **dựng lại cụm** từ prompt người bấm xem được (cùng `SkillsService.collect` với danh sách), nên client chỉ gửi `locale`, `userId`, `from`, `to`; không gửi nội dung prompt. Cụm không còn trong khoảng thời gian thì 404 `cluster_not_found`.
+- Gửi cho LLM tối đa 8 prompt mới nhất của cụm (mỗi prompt cắt 600 ký tự) trong các khối `untrusted_data`. Member không bao giờ gửi prompt của người khác; leader gửi prompt của người khác thì ghi audit `skill_clusters.ai`.
+- Chưa có key thì 409 `llm_key_missing` **trước** khi đụng dữ liệu (không gọi LLM, không audit).
+- Kết quả **chuẩn hóa rồi mới lưu** vào `ai_results` (`skill_triage`, `skill_content`, subject `skill_cluster`): tên kebab-case, S2 có thêm `markdown` do server ghép (front matter `name` và `description` nháy kép một dòng). Nhờ vậy tool MCP `get_my_ai_results` trả đúng nội dung web thấy. Server không ghi file nào; người dùng sao chép hoặc tải `SKILL.md` ở web.
+- Kết quả chỉ người bấm đọc được, bấm lại thì ghi đè.
+
+Test: `skills-ai.e2e-spec.ts` (quyền, dữ liệu gửi đi, audit, ghi đè, lỗi, injection, tool MCP). `skills.e2e-spec.ts` (`test/`): quyền, bộ lọc, khoảng thời gian, session con và lượt trả lời bị bỏ qua, audit, tool MCP khớp `outputSchema`.

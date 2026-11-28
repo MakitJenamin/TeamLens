@@ -12,7 +12,7 @@ Một endpoint duy nhất `/api/v1/mcp` (Streamable HTTP, JSON-RPC 2.0) cho Clau
 | `mcp.service.ts` | Mỗi request dựng một `Server` + `StreamableHTTPServerTransport` của SDK chính thức (`@modelcontextprotocol/sdk`), gắn với người gọi, rồi bỏ đi. Xử lý `tools/list`, `tools/call`. |
 | `mcp-tool-registry.ts` | Sổ đăng ký tool; `loadToolDefinition(name)` đọc `packages/schema/mcp/<name>.json` qua `@teamlens/schema/mcp/*.json`. |
 | `mcp-redact.ts` | Cửa ra che secret: `redactDeep` chạy trên mọi kết quả tool (cả `content` lẫn `structuredContent`). |
-| `mcp-prompts.ts` | MCP prompt (M6.16): `coach-me`, `weekly-review`; đọc từ `packages/schema/mcp/prompts/*.json`, `prompts/list` ẩn prompt của leader với member. |
+| `mcp-prompts.ts` | MCP prompt (M6.16): `coach-me`, `find-skills`, `weekly-review`; đọc từ `packages/schema/mcp/prompts/*.json`, `prompts/list` ẩn prompt của leader với member. |
 | `tools/` | Mỗi nhóm tool một file, kế thừa `BaseMcpTool` (`base-tool.ts`: nạp định nghĩa từ contract, tự đăng ký, `parseArgs` bằng zod, `truncateText`). 17 tool: 12 tool đọc (M6.15, M6.11) và 5 tool ghi cho leader (M6.16, `write-tools.ts`). Tool đọc: `whoami`; `list_projects`, `list_members`, `get_overview`, `get_member_profile` (`project-tools.ts`); `search_sessions`, `get_session`, `get_findings` (`session-tools.ts`); `list_rules`, `get_rule`, `get_my_ai_results` (`rule-and-ai-tools.ts`). Bảng đầy đủ ở `packages/schema/mcp/README.md`. |
 
 ## Quy tắc
@@ -47,7 +47,7 @@ Tool: `draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_n
 - **Audit:** mỗi thao tác ghi `audit_log` (`rule.save`, `rule.set_enabled`, `session.note.create`); hai thao tác rule có `details` (cột `audit_log.details`) gồm `via: 'mcp'`, `projectId`, `key`, `changes` (với `save`), `previous` và `next` (scope, enabled, version, severity, ngưỡng, thông điệp, lời khuyên): đủ để đảo lại. Ghi trong cùng transaction với thay đổi.
 - **Chấm lại điểm:** sau `save_rule` và `set_rule_enabled`, phát job `project.rescore` như nút "Chạy lại" (kết quả `rescore: "queued"`; điểm cập nhật khi worker chạy xong).
 - Bản riêng của project: `rules.project_id = <project>` (ghi đè rule mặc định cùng khóa như `score-session.ts`). Bật/tắt không tăng `version`, lưu thay đổi thì tăng.
-- **Prompt:** `prompts/list`, `prompts/get`. `template` trong contract thay `{{tên}}` bằng argument; argument tên kết thúc `Id` phải là UUID (không nhét được chỉ dẫn lạ). `weekly-review` chỉ leader (member nhận như prompt không tồn tại). `find-skills` và `improve-agents-md` chờ M6.11 và C3.
+- **Prompt:** `prompts/list`, `prompts/get`. `template` trong contract thay `{{tên}}` bằng argument; argument tên kết thúc `Id` phải là UUID (không nhét được chỉ dẫn lạ). `weekly-review` chỉ leader (member nhận như prompt không tồn tại). `find-skills` (M6.12) dẫn agent qua `get_skill_clusters` rồi `get_my_ai_results`; `improve-agents-md` chờ C3.
 - Test: `test/mcp-write-tools.e2e-spec.ts` (quyền, soạn thử, chạy thử, lưu, tắt/bật kèm kiểm finding đổi sau khi chấm lại, audit, ghi chú, prompt, kiểm kết quả theo `outputSchema` bằng Ajv), `rules/rule-definition.spec.ts`, `mcp/mcp-prompts.spec.ts`.
 
 ## Thêm một tool (M6.15, M6.16)

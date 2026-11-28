@@ -18,7 +18,11 @@ import { DB } from '../../db/db.module.js';
 import { projects, sessions, turns, users } from '../../db/schema/index.js';
 import { AccessService, isUuid } from '../access/access.service.js';
 import { AuditService } from '../access/audit.service.js';
-import { clusterPrompts, MAX_CLUSTERS } from './prompt-clusterer.js';
+import {
+  clusterPrompts,
+  MAX_CLUSTERS,
+  type PromptInput,
+} from './prompt-clusterer.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_RANGE_DAYS = 30;
@@ -52,6 +56,15 @@ export function clusterIdOf(projectId: string, fingerprint: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+export interface CollectedPrompts {
+  /** Chủ prompt khi bị giới hạn theo một người (member hoặc `userId`), `undefined` khi leader xem cả team. */
+  owner: string | undefined;
+  from: Date;
+  to: Date;
+  truncated: boolean;
+  inputs: PromptInput[];
+}
+
 const invalidRange = (message: string) =>
   new ApiError(400, 'validation_error', message);
 
@@ -69,12 +82,8 @@ export class SkillsService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
-  async list(
-    viewer: AuthUser,
-    projectId: string,
-    query: ListSkillClustersQuery,
-    now = new Date(),
-  ): Promise<SkillClusterList> {
+  /** Project phải tồn tại (404) và người xem phải vào được project đó (403). */
+  async assertProjectAccess(viewer: AuthUser, projectId: string): Promise<void> {
     if (!isUuid(projectId)) throw notFound('Không tìm thấy project');
     const [project] = await this.db
       .select({ id: projects.id })
@@ -84,6 +93,19 @@ export class SkillsService {
     if (!(await this.access.canAccessProject(viewer, projectId))) {
       throw forbidden();
     }
+  }
+
+  /**
+   * Kiểm tra quyền và khoảng thời gian rồi lấy các prompt người xem được (session gốc, role user, kind prompt).
+   * Dùng chung cho danh sách cụm và các nút AI (S1, S2) để hai nơi luôn dựng ra đúng cùng một tập prompt.
+   */
+  async collect(
+    viewer: AuthUser,
+    projectId: string,
+    query: Pick<ListSkillClustersQuery, 'userId' | 'from' | 'to'>,
+    now = new Date(),
+  ): Promise<CollectedPrompts> {
+    await this.assertProjectAccess(viewer, projectId);
 
     let owner = query.userId;
     if (owner !== undefined) {
@@ -127,18 +149,36 @@ export class SkillsService {
       )
       .orderBy(desc(turns.ts))
       .limit(MAX_PROMPTS + 1);
-    const truncated = rows.length > MAX_PROMPTS;
-
-    const result = clusterPrompts(
-      rows.slice(0, MAX_PROMPTS).map((r) => ({
+    return {
+      owner,
+      from,
+      to,
+      truncated: rows.length > MAX_PROMPTS,
+      inputs: rows.slice(0, MAX_PROMPTS).map((r) => ({
         userId: r.userId,
         sessionId: r.sessionId,
         turnSeq: r.turnSeq,
         ts: r.ts,
         text: r.text ?? '',
       })),
-      { maxClusters: Math.min(query.limit ?? DEFAULT_LIMIT, MAX_CLUSTERS) },
+    };
+  }
+
+  async list(
+    viewer: AuthUser,
+    projectId: string,
+    query: ListSkillClustersQuery,
+    now = new Date(),
+  ): Promise<SkillClusterList> {
+    const { owner, from, to, truncated, inputs } = await this.collect(
+      viewer,
+      projectId,
+      query,
+      now,
     );
+    const result = clusterPrompts(inputs, {
+      maxClusters: Math.min(query.limit ?? DEFAULT_LIMIT, MAX_CLUSTERS),
+    });
 
     const topUsers = result.clusters.map((c) => c.users.slice(0, TOP_USERS));
     const userIds = [
