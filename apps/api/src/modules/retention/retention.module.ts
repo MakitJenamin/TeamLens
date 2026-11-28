@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { RetentionWorker } from './retention.worker.js';
 
-/** Module rỗng, đã đăng ký sẵn trong AppModule. Xem README.md. */
-@Module({})
+/** Job retention hằng đêm (M5.5). Xem README.md. */
+@Module({
+  providers: [RetentionWorker],
+})
 export class RetentionModule {}

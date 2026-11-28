@@ -142,7 +142,7 @@ export class RuleConfigService {
     if (!row) throw notFound('Không tìm thấy rule');
     const definition = { ...(row.definition as Definition), severity: row.severity };
     const roots = await this.db.select({ id: sessions.id, userId: sessions.userId, startedAt: sessions.startedAt,
-      parentSourceId: sessions.parentSourceId, permissionMode: sessions.permissionMode, instructionFiles: sessions.instructionFiles })
+      turnCount: sessions.turnCount, parentSourceId: sessions.parentSourceId, permissionMode: sessions.permissionMode, instructionFiles: sessions.instructionFiles })
       .from(sessions)
       .where(and(eq(sessions.projectId, projectId), isNull(sessions.parentSourceId), isNull(sessions.parentSessionId)))
       .orderBy(desc(sessions.startedAt), desc(sessions.id)).limit(50);
@@ -158,10 +158,12 @@ export class RuleConfigService {
       list.push({ ...turn, ts: turn.ts.toISOString(), diff: turn.diff as RuleTurn['diff'], tool: turn.tool as RuleTurn['tool'] });
       bySession.set(turn.sessionId, list);
     }
+    // Bỏ session đã bị retention xóa turn (M5.5): chấm trên turn thiếu sẽ cho kết quả sai.
+    const complete = roots.filter((root) => (bySession.get(root.id)?.length ?? 0) >= root.turnCount);
     const examples: { sessionId: string; turnSeq: number | null; excerpt: string | null }[] = [];
     let matchedSessions = 0;
     if (definition.scope === 'session') {
-      for (const root of roots) {
+      for (const root of complete) {
         if (Date.now() > deadline) throw new ApiError(408, 'rule_test_timeout', 'Thử rule quá 10 giây');
         const hits = evaluateSession({ parentSourceId: null, permissionMode: root.permissionMode,
           instructionFiles: root.instructionFiles, turns: bySession.get(root.id) ?? [] }, [definition]);
@@ -172,7 +174,7 @@ export class RuleConfigService {
       }
     } else {
       const groups = new Map<string, WeekSession[]>();
-      for (const root of roots) {
+      for (const root of complete) {
         const week = new Date(root.startedAt);
         week.setUTCHours(0, 0, 0, 0);
         week.setUTCDate(week.getUTCDate() - ((week.getUTCDay() + 6) % 7));
@@ -189,7 +191,7 @@ export class RuleConfigService {
         }
       }
     }
-    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, undefined, { key, sampledSessions: roots.length, matchedSessions });
-    return { sampledSessions: roots.length, matchedSessions, approximate: definition.scope === 'user_week', examples };
+    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, undefined, { key, sampledSessions: complete.length, matchedSessions });
+    return { sampledSessions: complete.length, matchedSessions, approximate: definition.scope === 'user_week', examples };
   }
 }
