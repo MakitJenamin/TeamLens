@@ -1,27 +1,20 @@
 {
   "title": "Tổng quan project",
-  "description": "Số session, token và chi phí ước tính theo tuần; phân bố agent và model; điểm trung bình 5 nhóm kỹ năng theo tuần; top anti-pattern. Trạng thái thiết bị của thành viên xem ở trang Thành viên.",
   "range": {
     "label": "Khoảng thời gian",
     "weeks": "{count} tuần gần nhất"
   },
   "totals": {
     "sessions": "Session",
-    "sessionsHint": "Chỉ tính session gốc",
     "members": "Thành viên hoạt động",
-    "membersHint": "Có ít nhất một session",
     "tokens": "Token",
-    "tokensHint": "Gồm cả session con của subagent",
-    "cost": "Chi phí ước tính",
-    "costHint": "Tính theo bảng giá cố định của từng model, không phải hóa đơn",
-    "costUnavailable": "Không còn dữ liệu turn để tính chi phí"
+    "cost": "Chi phí ước tính"
   },
   "weekly": {
     "title": "Theo tuần",
     "tokensChart": "Token theo tuần",
-    "scoresChart": "Điểm trung bình 5 nhóm theo tuần",
-    "scoresHint": "Trung bình điểm từng thành viên, trọng số là số session của họ trong tuần. Tuần chưa có session nào được chấm thì bỏ trống.",
-    "tableCaption": "Số liệu theo tuần (thứ Hai là ngày đầu tuần)",
+    "scoresChart": "Điểm trung bình theo tuần",
+    "tableCaption": "Số liệu theo tuần",
     "columns": {
       "week": "Tuần",
       "sessions": "Session",
@@ -57,21 +50,15 @@
   },
   "usage": {
     "title": "Số liệu tham khảo",
-    "note": "Chỉ để tham khảo: không tính điểm và không vào bảng xếp hạng, vì phản ánh chi phí hoặc cấu hình công cụ chứ không phải kỹ năng.",
     "cacheHitRate": "Tỉ lệ cache hit",
-    "cacheHitRateHint": "Phần input được lấy lại từ cache",
     "premiumModelRate": "Tỉ lệ dùng model cao cấp",
-    "premiumModelRateHint": "Trên các lượt có ghi model",
     "highReasoningRate": "Tỉ lệ suy luận mức cao",
-    "highReasoningRateHint": "Trên các lượt có ghi mức suy luận",
     "avgOutputTokens": "Output trung bình mỗi lượt",
-    "avgOutputTokensHint": "Token output mỗi lượt của agent",
     "noValue": "—"
   },
   "findings": {
     "title": "Anti-pattern hay gặp",
-    "description": "Quy tắc bị vi phạm nhiều nhất trong khoảng thời gian đã chọn.",
-    "empty": "Chưa có anti-pattern nào được ghi nhận.",
+    "empty": "Chưa có anti-pattern.",
     "count": "{count} lần",
     "members": "{count} thành viên",
     "severity": {
@@ -81,8 +68,7 @@
     }
   },
   "empty": {
-    "title": "Chưa có dữ liệu trong khoảng này",
-    "description": "Số liệu xuất hiện sau khi thành viên gửi session lên (tl sync). Thử chọn khoảng thời gian dài hơn."
+    "title": "Chưa có dữ liệu trong khoảng này"
   },
   "error": {
     "title": "Không tải được tổng quan project"

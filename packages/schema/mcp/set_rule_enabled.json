@@ -1,0 +1,101 @@
+{
+  "name": "set_rule_enabled",
+  "description": "Bật hoặc tắt một rule (cả rule session lẫn rule tuần) cho một project, rồi chấm lại điểm (chạy nền). Làm đổi điểm của cả team nên chỉ LEADER; ghi audit giá trị cũ và mới, đảo lại được bằng cách gọi lại hoặc trên dashboard.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "key",
+      "projectId",
+      "enabled"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Khóa rule."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project áp dụng."
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "true để bật, false để tắt."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "rule",
+      "previousEnabled",
+      "rescore"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "rule": {
+        "type": "object",
+        "required": [
+          "key",
+          "category",
+          "severity",
+          "enabled",
+          "version",
+          "scope"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "examples": [
+              "no-test-after-edit"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Nhóm kỹ năng của rule."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "default",
+              "project"
+            ],
+            "description": "`default`: rule mặc định toàn server; `project`: rule riêng của project (ghi đè rule mặc định cùng `key`)."
+          }
+        }
+      },
+      "previousEnabled": {
+        "type": "boolean",
+        "description": "Trạng thái trước khi đổi."
+      },
+      "rescore": {
+        "type": "string",
+        "enum": [
+          "queued"
+        ],
+        "description": "Đã xếp job chấm lại điểm cho project."
+      }
+    }
+  }
+}

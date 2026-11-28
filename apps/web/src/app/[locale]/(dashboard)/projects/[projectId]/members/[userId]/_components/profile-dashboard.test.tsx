@@ -155,7 +155,7 @@ describe("ProfileDashboard", () => {
     mockApi({ ...profile, scores: {}, teamScores: {} });
     renderWithProviders(<ProfileDashboard projectId="p-1" userId="u-1" />);
 
-    expect(await screen.findByText("Chưa có session nào được chấm trong khoảng này.")).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có session được chấm.")).toBeInTheDocument();
     expect(screen.queryByTestId("profile-radar")).not.toBeInTheDocument();
   });
 
@@ -175,7 +175,7 @@ describe("ProfileDashboard", () => {
     mockApi({ ...profile, patterns: [] });
     renderWithProviders(<ProfileDashboard projectId="p-1" userId="u-1" />);
 
-    expect(await screen.findByText("Chưa có anti-pattern nào được ghi nhận.")).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có anti-pattern.")).toBeInTheDocument();
   });
 
   it("lỗi API thì hiện thông báo lỗi", async () => {

@@ -72,6 +72,10 @@ export type PermissionMode = Schemas["PermissionMode"];
 export type InstructionFile = Schemas["InstructionFile"];
 export type SessionSummary = Schemas["SessionSummary"];
 export type SessionPage = ResponseBody<"listProjectSessions", 200>;
+
+// Skill Finder (M6.11, skills.yaml).
+export type SkillClusterList = ResponseBody<"listSkillClusters", 200>;
+export type SkillCluster = Schemas["SkillCluster"];
 export type SessionDetail = ResponseBody<"getSession", 200>;
 export type SessionTurn = Schemas["SessionTurn"];
 export type ListProjectSessionsQuery = NonNullable<operations["listProjectSessions"]["parameters"]["query"]>;

@@ -1,0 +1,217 @@
+{
+  "name": "get_skill_clusters",
+  "description": "Các cụm prompt lặp lại trong project (Skill Finder S0, heuristic, không gọi LLM): prompt tiêu biểu, số lần lặp, ai gõ, ví dụ gần nhất. Gợi ý để biến việc lặp đi lặp lại thành skill hoặc chỉ dẫn dùng chung. Member chỉ thấy prompt của chính mình; leader thấy cả team và lọc được theo người (có audit). Mặc định 30 ngày gần nhất, tối đa 90 ngày.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần xem (từ `list_projects`)."
+      },
+      "userId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Chỉ prompt của người này (member chỉ được đặt chính mình)."
+      },
+      "from": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Chỉ prompt từ mốc này (ISO 8601)."
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Chỉ prompt trước mốc này."
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 20,
+        "description": "Số cụm tối đa (lặp nhiều nhất trước)."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "range",
+      "stats",
+      "clusters"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "range": {
+        "type": "object",
+        "description": "Khoảng thời gian thực tế đã dùng.",
+        "required": [
+          "from",
+          "to"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "stats": {
+        "type": "object",
+        "required": [
+          "promptsAnalyzed",
+          "promptsClustered",
+          "clusterCount",
+          "truncated"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "promptsAnalyzed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số prompt đã được xét (sau khi lọc session gốc, độ dài, prompt rác)."
+          },
+          "promptsClustered": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số prompt nằm trong các cụm đủ 3 lần lặp (kể cả cụm vượt `limit`)."
+          },
+          "clusterCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số cụm đủ 3 lần lặp (có thể nhiều hơn số cụm trả về khi vượt `limit`)."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "true khi có hơn 20000 prompt trong khoảng và chỉ các prompt mới nhất được xét."
+          }
+        }
+      },
+      "clusters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "label",
+            "count",
+            "userCount",
+            "firstSeenAt",
+            "lastSeenAt",
+            "users",
+            "examples"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "description": "Mã ổn định của cụm (UUID sinh từ project và dấu vân tay), dùng làm `subjectId` cho nút AI ở M6.12.\nKhông phụ thuộc bộ lọc người hay khoảng thời gian.\n",
+              "type": "string",
+              "format": "uuid"
+            },
+            "label": {
+              "type": "string",
+              "description": "Prompt tiêu biểu của cụm (độ dài vừa), tối đa 200 ký tự, đã che secret."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 3,
+              "description": "Số lần prompt lặp lại trong khoảng và bộ lọc đã chọn."
+            },
+            "userCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Số thành viên đã gõ prompt thuộc cụm."
+            },
+            "firstSeenAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "lastSeenAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "users": {
+              "type": "array",
+              "description": "Tối đa 5 người gõ nhiều nhất, theo số lần giảm dần.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "name",
+                  "count"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            },
+            "examples": {
+              "type": "array",
+              "maxItems": 3,
+              "description": "Tối đa 3 lần xuất hiện gần nhất.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "sessionId",
+                  "turnSeq",
+                  "ts",
+                  "userId",
+                  "excerpt"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "turnSeq": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "`seq` của prompt trong session (để nhảy tới đúng turn)."
+                  },
+                  "ts": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "excerpt": {
+                    "type": "string",
+                    "description": "Đoạn trích prompt, tối đa 160 ký tự, đã che secret, khoảng trắng đã gộp."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

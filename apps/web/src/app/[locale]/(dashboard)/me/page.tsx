@@ -13,5 +13,5 @@ export default async function MePage({ params }: PageProps<"/[locale]/me">) {
   setRequestLocale(locale);
   const t = await getTranslations("me");
 
-  return <PagePlaceholder title={t("title")} description={t("description")} task="M4.5" />;
+  return <PagePlaceholder title={t("title")} task="M4.5" />;
 }

@@ -31,7 +31,7 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 | `src/modules/access` | `AccessService`, `AuditService`, `@LeaderOnly()`, `@ProjectAccess()`. |
 | `src/modules/projects` | project, thành viên, repo pattern, user. |
 | `src/modules/{agent,sessions,invites,consent,rules,stats,admin,retention}` | Module rỗng, xem `README.md` trong từng thư mục. |
-| `src/modules/{llm,ai-settings,mcp,skills,prompt-library}` | Mốc 6 (chưa tạo): lõi gọi LLM và `ai_results`; API key BYO và token `tlp_`; endpoint MCP `/api/v1/mcp`; Skill Finder; thư viện prompt. Thiết kế ở [docs/AI_PLAN.md](../../docs/AI_PLAN.md). |
+| `src/modules/{llm,ai-settings,mcp,skills,prompt-library}` | Mốc 6: lõi gọi LLM và `ai_results` (`llm`); API key BYO và token `tlp_` (`ai-settings`); endpoint MCP `/api/v1/mcp` (`mcp`, khung, 18 tool đọc và ghi cho leader, prompt, xem README); Skill Finder (`skills`, S0 gom cụm prompt, nút AI S1, S2, S3 chọn skill trong catalog GitHub, xem README) và thư viện prompt mẫu (`prompt-library`, C2: leader tìm ứng viên rồi duyệt, thành viên xem, xem README). Thiết kế ở [docs/AI_PLAN.md](../../docs/AI_PLAN.md). |
 
 ## Quy ước
 
