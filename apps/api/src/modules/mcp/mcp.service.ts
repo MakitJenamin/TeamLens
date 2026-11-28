@@ -4,11 +4,18 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import {
   CallToolRequestSchema,
   ErrorCode,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Request, Response } from 'express';
 import { ApiError, type ApiErrorBody } from '../../common/api-error.js';
+import {
+  listPrompts,
+  PromptError,
+  renderPrompt,
+} from './mcp-prompts.js';
 import { redactDeep, redactSecrets } from './mcp-redact.js';
 import { McpToolRegistry } from './mcp-tool-registry.js';
 import type { McpCaller } from './mcp.types.js';
@@ -53,7 +60,9 @@ export class McpService {
   }
 
   private createServer(caller: McpCaller): Server {
-    const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
+    const server = new Server(SERVER_INFO, {
+      capabilities: { tools: {}, prompts: {} },
+    });
 
     server.setRequestHandler(ListToolsRequestSchema, () => ({
       tools: this.registry.list().map((tool) => ({
@@ -63,6 +72,45 @@ export class McpService {
         outputSchema: tool.outputSchema as { type: 'object' },
       })),
     }));
+
+    // Prompt (M6.16): lời nhắc dựng sẵn lấy từ contract; prompt dành cho leader bị ẩn với member.
+    server.setRequestHandler(ListPromptsRequestSchema, () => ({
+      prompts: listPrompts(caller.user.role).map((p) => ({
+        name: p.name,
+        description: p.description,
+        arguments: p.arguments,
+      })),
+    }));
+
+    server.setRequestHandler(GetPromptRequestSchema, (request) => {
+      try {
+        const rendered = renderPrompt(
+          caller.user.role,
+          request.params.name,
+          request.params.arguments,
+        );
+        if (!rendered) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Không có prompt "${request.params.name}".`,
+          );
+        }
+        return {
+          description: rendered.description,
+          messages: [
+            {
+              role: 'user' as const,
+              content: { type: 'text' as const, text: rendered.text },
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof PromptError) {
+          throw new McpError(ErrorCode.InvalidParams, error.message);
+        }
+        throw error;
+      }
+    });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const tool = this.registry.get(request.params.name);
