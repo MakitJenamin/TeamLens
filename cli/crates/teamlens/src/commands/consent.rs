@@ -36,22 +36,22 @@ pub struct ConsentArgs {
     #[command(subcommand)]
     pub command: Option<ConsentCommand>,
 
-    /// Đồng ý (hoặc rút) luôn, không hỏi gõ `yes` (cho tự động hóa)
+    /// Đồng ý hoặc rút luôn, không hỏi `yes`
     #[arg(long, global = true)]
     pub yes: bool,
 
-    /// Khi đồng ý lại: gửi cả lịch sử session cũ trên máy (bỏ qua câu hỏi backfill)
+    /// Khi đồng ý lại, gửi cả session cũ trên máy
     #[arg(long, conflicts_with = "no_backfill")]
     pub backfill: bool,
 
-    /// Khi đồng ý lại: chỉ gửi session từ bây giờ (bỏ qua câu hỏi backfill)
+    /// Khi đồng ý lại, chỉ gửi session từ bây giờ
     #[arg(long)]
     pub no_backfill: bool,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum ConsentCommand {
-    /// Rút đồng ý: dừng gửi, xóa hàng đợi local, báo server
+    /// Rút đồng ý, dừng gửi và xóa hàng đợi trên máy
     Revoke,
 }
 
@@ -141,32 +141,22 @@ pub async fn run_with(
             None => (false, false),
         };
         if status.status == DeviceConsentState::Granted && local_ok {
-            say(
-                out,
-                "\nBạn đã đồng ý bản văn bản hiện hành, không cần làm gì thêm.",
-            );
+            say(out, "\nĐã đồng ý bản hiện hành, không cần làm gì thêm.");
             return Ok(ConsentOutcome::UpToDate);
         }
         if status.status == DeviceConsentState::Granted && !has_local {
             return Err(AppError::user(
-                "Server ghi nhận máy này đã đồng ý nhưng máy chưa lưu project nào (cấu hình trống).",
+                "Server ghi nhận đã đồng ý nhưng máy chưa lưu project nào.",
                 "Chạy `tl join <link mời>` để tham gia lại.",
             ));
         }
 
         let backfill = choose_backfill(args, &status, adapters, input, out)?;
-        if !args.yes
-            && !ask_confirmation(
-                input,
-                out,
-                "Gõ `yes` để đồng ý bản văn bản này (gõ gì khác hoặc Enter là từ chối): ",
-            )?
-        {
-            say(out, "Bạn chưa đồng ý nên TeamLens vẫn không gửi gì.");
-            return Err(AppError::user(
-                "Đã hủy đồng ý lại.",
-                "Khi sẵn sàng, chạy lại `tl consent` và gõ `yes`.",
-            ));
+        if !args.yes && !ask_confirmation(input, out, "Gõ `yes` để đồng ý: ")? {
+            return Err(AppError::User {
+                message: "Đã hủy đồng ý lại. TeamLens vẫn không gửi gì.".into(),
+                hint: None,
+            });
         }
 
         let update = ConsentUpdate::Grant {
@@ -191,10 +181,7 @@ pub async fn run_with(
                         "Đợi vài phút rồi chạy lại `tl consent`.",
                     ));
                 }
-                say(
-                    out,
-                    "\nVăn bản đồng ý trên server vừa thay đổi. Hãy đọc lại bản mới dưới đây.",
-                );
+                say(out, "\nVăn bản đồng ý vừa thay đổi.");
             }
             Err(e) => return Err(AppError::Api(e)),
         }
@@ -221,9 +208,9 @@ fn choose_backfill(
         say(
             out,
             &format!(
-                "Giữ lựa chọn trước đây của bạn: {}.",
+                "Giữ lựa chọn trước đây, {}.",
                 if keep {
-                    "gửi cả lịch sử session cũ"
+                    "gửi cả session cũ"
                 } else {
                     "chỉ gửi session từ bây giờ"
                 }
@@ -231,13 +218,13 @@ fn choose_backfill(
         );
         return Ok(keep);
     }
-    ask_backfill(input, out, adapters)
+    ask_backfill(input, out, adapters, false)
 }
 
 fn status_label(state: DeviceConsentState) -> &'static str {
     match state {
-        DeviceConsentState::Granted => "đã đồng ý bản văn bản hiện hành",
-        DeviceConsentState::Outdated => "cần đồng ý lại (văn bản đã đổi so với bản bạn đã đồng ý)",
+        DeviceConsentState::Granted => "đã đồng ý bản hiện hành",
+        DeviceConsentState::Outdated => "cần đồng ý lại, văn bản đã đổi",
         DeviceConsentState::Revoked => "đã rút đồng ý",
         DeviceConsentState::None => "chưa đồng ý",
     }
@@ -251,13 +238,12 @@ fn show_status(
 ) {
     let _ = writeln!(out);
     let _ = writeln!(out, "══ Đồng ý thu thập dữ liệu ══");
-    let _ = writeln!(out, "Server:    {server_url}");
-    let _ = writeln!(
-        out,
-        "Trạng thái trên server: {}",
-        status_label(status.status)
-    );
-    let _ = writeln!(out, "Phiên bản văn bản hiện hành: {}", status.text_version);
+    let mut w = |label: &str, value: &str| {
+        let _ = writeln!(out, "{label:<16}{value}");
+    };
+    w("Server:", server_url);
+    w("Trên server:", status_label(status.status));
+    w("Bản hiện hành:", &status.text_version);
     if let Some(local) = local {
         let mut versions: Vec<&str> = local
             .projects
@@ -273,21 +259,22 @@ fn show_status(
             .collect();
         let backfill = local.projects.iter().any(|p| p.backfill);
         let accepted = local.projects.iter().map(|p| p.accepted_at).max();
-        let _ = writeln!(
-            out,
-            "Trên máy này: đã đồng ý bản {}{}; gửi lịch sử cũ: {}; project: {}",
-            versions.join(", "),
-            accepted
-                .map(|t| format!(" (lúc {})", format_time(&t.to_rfc3339())))
-                .unwrap_or_default(),
-            if backfill { "có" } else { "không" },
-            slugs.join(", ")
+        w(
+            "Trên máy:",
+            &format!(
+                "đồng ý bản {}{}",
+                versions.join(", "),
+                accepted
+                    .map(|t| format!(" lúc {}", format_time(&t.to_rfc3339())))
+                    .unwrap_or_default()
+            ),
         );
+        w("Gửi session cũ:", if backfill { "có" } else { "không" });
+        w("Project:", &slugs.join(", "));
         if let Some(at) = local.revoked_at {
-            let _ = writeln!(
-                out,
-                "Máy này đã rút đồng ý lúc {}: không gửi gì cho tới khi đồng ý lại.",
-                format_time(&at.to_rfc3339())
+            w(
+                "Đã rút đồng ý:",
+                &format!("lúc {}, không gửi gì", format_time(&at.to_rfc3339())),
             );
         }
     }
@@ -306,26 +293,21 @@ fn show_status(
 
 fn print_granted(out: &mut dyn Write, version: &str, backfill: bool, updated: usize) {
     let _ = writeln!(out);
-    let _ = writeln!(out, "Đã đồng ý bản văn bản {version}.");
+    let _ = writeln!(out, "Đã đồng ý bản {version}.");
     let _ = writeln!(
         out,
         "{}",
         if backfill {
-            "Sẽ gửi cả lịch sử session cũ thuộc các repo của project."
+            "Sẽ gửi cả session cũ thuộc các repo của project."
         } else {
-            "Chỉ gửi session từ bây giờ (không gửi lịch sử cũ)."
+            "Chỉ gửi session từ bây giờ."
         }
     );
     if updated == 0 {
-        let _ = writeln!(
-            out,
-            "Lưu ý: máy chưa lưu project nào nên chưa gửi được gì. Chạy `tl join <link mời>` để tham gia project."
-        );
+        let _ = writeln!(out, "Máy chưa lưu project nào nên chưa gửi được gì.");
+        let _ = writeln!(out, "Tham gia project: `tl join <link mời>`.");
     } else {
-        let _ = writeln!(
-            out,
-            "TeamLens gửi lại từ bây giờ: daemon tự tiếp tục ở chu kỳ kế tiếp, hoặc chạy `tl sync` để gửi ngay."
-        );
+        let _ = writeln!(out, "Gửi ngay: `tl sync`.");
     }
     let _ = out.flush();
 }
@@ -367,10 +349,7 @@ pub async fn revoke_with(
 ) -> Result<RevokeOutcome, AppError> {
     let mut config = ctx.load_config()?;
     let Some(server_url) = config.server_url.clone() else {
-        say(
-            out,
-            "Máy này chưa tham gia TeamLens nào, không có gì để rút.",
-        );
+        say(out, "Máy này chưa tham gia TeamLens, không có gì để rút.");
         return Ok(RevokeOutcome {
             server_notified: false,
             cleared_batches: 0,
@@ -379,10 +358,7 @@ pub async fn revoke_with(
 
     let pending = pending_batches(ctx).unwrap_or(0);
     say(out, "\nRút đồng ý trên máy này sẽ:");
-    say(
-        out,
-        "  - dừng gửi dữ liệu ngay (daemon và `tl sync` không gửi gì nữa);",
-    );
+    say(out, "  - dừng gửi ngay, kể cả daemon và `tl sync`;");
     say(
         out,
         &format!("  - xóa hàng đợi chưa gửi trên máy ({pending} batch);"),
@@ -390,20 +366,13 @@ pub async fn revoke_with(
     say(out, "  - báo server ghi nhận bạn đã rút đồng ý.");
     say(
         out,
-        "Máy vẫn đăng nhập nên sau này đồng ý lại được bằng `tl consent`. Dữ liệu đã gửi trước đó vẫn nằm trên server; muốn xóa hẳn, nhờ leader xóa dữ liệu của bạn.",
+        "Dữ liệu đã gửi vẫn nằm trên server. Muốn xóa, nhờ leader.",
     );
-    if !args.yes
-        && !ask_confirmation(
-            input,
-            out,
-            "Gõ `yes` để rút đồng ý (gõ gì khác hoặc Enter là hủy): ",
-        )?
-    {
-        say(out, "Đã hủy, không có gì thay đổi.");
-        return Err(AppError::user(
-            "Đã hủy rút đồng ý.",
-            "Khi muốn rút, chạy lại `tl consent revoke` và gõ `yes`.",
-        ));
+    if !args.yes && !ask_confirmation(input, out, "Gõ `yes` để rút đồng ý: ")? {
+        return Err(AppError::User {
+            message: "Đã hủy rút đồng ý, không có gì thay đổi.".into(),
+            hint: None,
+        });
     }
 
     // 1. Ở máy trước: dừng gửi ngay dù server có báo được hay không.
@@ -427,39 +396,30 @@ pub async fn revoke_with(
                 Ok(_) => server_notified = true,
                 Err(e) => {
                     tracing::debug!(error = ?e, "báo rút đồng ý thất bại");
+                    say(out, &format!("Cảnh báo: chưa báo được server ({e})."));
                     say(
                         out,
-                        &format!(
-                            "Cảnh báo: chưa báo được server ({e}). Máy đã ngừng gửi; chạy lại `tl consent revoke` khi có mạng để server ghi nhận."
-                        ),
+                        "Máy đã ngừng gửi. Chạy lại `tl consent revoke` khi có mạng.",
                     );
                 }
             }
         }
         None => say(
             out,
-            "Cảnh báo: máy chưa có token đăng nhập nên chưa báo được server. Máy đã ngừng gửi.",
+            "Cảnh báo: chưa có token nên chưa báo được server. Máy đã ngừng gửi.",
         ),
     }
 
     let _ = writeln!(out);
-    say(
-        out,
-        "Đã rút đồng ý trên máy này: TeamLens không gửi gì nữa.",
-    );
+    say(out, "Đã rút đồng ý. TeamLens không gửi gì nữa.");
     if cleared > 0 {
-        say(
-            out,
-            &format!("Đã xóa {cleared} batch chưa gửi khỏi hàng đợi."),
-        );
+        say(out, &format!("Đã xóa {cleared} batch chưa gửi."));
     }
     if server_notified {
-        say(out, "Server đã ghi nhận trạng thái \"đã rút đồng ý\".");
+        say(out, "Server đã ghi nhận.");
     }
-    say(
-        out,
-        "Muốn gửi lại: chạy `tl consent` để đồng ý lại. Muốn gỡ hẳn TeamLens khỏi máy: `tl uninstall`.",
-    );
+    say(out, "Đồng ý lại: `tl consent`.");
+    say(out, "Gỡ TeamLens: `tl uninstall`.");
     Ok(RevokeOutcome {
         server_notified,
         cleared_batches: cleared,

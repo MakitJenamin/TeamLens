@@ -1,4 +1,3 @@
 {
-  "title": "Rule management",
-  "description": "Rule list, enable/disable, tune thresholds and severity, view JSON, try on recent data and re-run."
+  "title": "Rules"
 }

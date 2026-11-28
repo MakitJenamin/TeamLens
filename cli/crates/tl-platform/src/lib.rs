@@ -50,7 +50,7 @@ pub fn autostart_command(exe: &Path) -> Result<(String, String), PlatformError> 
 /// Lỗi từ tầng hệ điều hành. Thông điệp viết tiếng Việt vì có thể hiện cho người dùng.
 #[derive(Debug, thiserror::Error)]
 pub enum PlatformError {
-    #[error("{feature} chưa hỗ trợ trên hệ điều hành này (MVP chỉ hỗ trợ Windows 10/11)")]
+    #[error("{feature} chỉ hỗ trợ Windows 10/11")]
     Unsupported { feature: &'static str },
     #[error("{feature} chưa làm (thuộc task {task})")]
     NotImplemented {

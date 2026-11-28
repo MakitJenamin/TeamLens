@@ -1,10 +1,9 @@
 {
   "title": "Cài đặt AI",
-  "description": "API key AI của bạn (Anthropic hoặc OpenAI-compatible) và token cho agent gọi MCP.",
   "cancel": "Hủy",
   "llmKey": {
     "title": "API key của tôi",
-    "hint": "Các nút AI trên dashboard gọi model bằng key của chính bạn. Key được mã hóa trên server và không bao giờ hiện lại; người khác (kể cả leader) không thấy key của bạn.",
+    "hint": "Key được mã hóa và không hiện lại. Leader cũng không thấy key.",
     "loadError": "Không tải được cấu hình key.",
     "provider": "Provider",
     "providers": {
@@ -12,20 +11,17 @@
       "openai_compatible": "OpenAI-compatible"
     },
     "providerHint": {
-      "anthropic": "Gọi trực tiếp API của Anthropic (Claude).",
-      "openai_compatible": "Mọi server theo chuẩn OpenAI: OpenAI, OpenRouter, Ollama, LM Studio, vLLM..."
+      "openai_compatible": "OpenAI, OpenRouter, Ollama, LM Studio, vLLM..."
     },
     "baseUrl": "Base URL",
-    "baseUrlHint": "Ví dụ: http://localhost:11434/v1 (Ollama), https://api.openai.com/v1 (OpenAI), https://openrouter.ai/api/v1 (OpenRouter).",
     "model": "Model",
     "modelPlaceholder": {
       "anthropic": "vd. claude-sonnet-4-5",
       "openai_compatible": "vd. qwen2.5:3b hoặc gpt-4o-mini"
     },
     "apiKey": "API key",
-    "apiKeySaved": "Đã lưu key {hint}. Để trống để giữ key cũ.",
-    "apiKeySavedNoHint": "Đã lưu key. Để trống để giữ key cũ.",
-    "apiKeyOptional": "Có thể để trống nếu server không cần key (vd. Ollama).",
+    "apiKeySaved": "Để trống để giữ key cũ.",
+    "apiKeyOptional": "Để trống nếu server không cần key (vd. Ollama).",
     "apiKeyRequired": "Cần nhập API key.",
     "test": "Kiểm tra",
     "testing": "Đang kiểm tra...",
@@ -33,31 +29,28 @@
     "save": "Lưu",
     "saving": "Đang lưu...",
     "saved": "Đã lưu cấu hình key.",
-    "notSaved": "Chưa có key. Nhập key rồi bấm Lưu để dùng các tính năng AI.",
     "savedAt": "Cập nhật lần cuối {date}.",
     "delete": "Xóa key",
     "deleted": "Đã xóa key.",
     "confirmDeleteTitle": "Xóa API key?",
-    "confirmDeleteBody": "Các nút AI sẽ không chạy được tới khi bạn nhập key mới. Kết quả AI đã tạo vẫn được giữ.",
+    "confirmDeleteBody": "Các nút AI ngừng chạy tới khi bạn nhập key mới.",
     "confirmDelete": "Xóa key"
   },
   "tokens": {
     "title": "Token cho agent",
-    "hint": "Token cá nhân (tlp_...) để agent như Claude Code, Codex gọi MCP của TeamLens với đúng quyền của bạn.",
+    "hint": "Token có đủ quyền của tài khoản bạn.",
     "name": "Tên token",
     "namePlaceholder": "vd. Claude Code trên laptop",
     "create": "Tạo token",
     "creating": "Đang tạo...",
     "createdTitle": "Token \"{name}\" đã tạo",
-    "onlyOnce": "Token chỉ hiện đúng một lần. Hãy sao chép ngay; mất thì thu hồi và tạo token mới.",
+    "onlyOnce": "Token chỉ hiện một lần.",
     "secret": "Token",
     "command": "Thêm vào Claude Code",
     "dismiss": "Tôi đã sao chép",
     "loadError": "Không tải được danh sách token.",
-    "empty": "Chưa có token nào.",
-    "createdAt": "Tạo lúc {date}",
-    "lastUsedAt": "dùng lần cuối {date}",
-    "neverUsed": "chưa dùng",
+    "lastUsedAt": "Dùng lần cuối {date}",
+    "neverUsed": "Chưa dùng",
     "revoke": "Thu hồi",
     "revoked": "Đã thu hồi token.",
     "confirmRevokeTitle": "Thu hồi token \"{name}\"?",
@@ -66,14 +59,14 @@
   },
   "errors": {
     "llm_key_missing": "Chưa có API key. Hãy nhập key.",
-    "llm_key_invalid": "Provider từ chối API key (sai key hoặc không có quyền).",
+    "llm_key_invalid": "Provider từ chối API key. Kiểm tra key và quyền.",
     "llm_quota_exceeded": "Provider báo hết quota hoặc bị giới hạn tốc độ. Thử lại sau.",
     "llm_model_not_found": "Provider không có model này. Kiểm tra lại tên model.",
     "llm_timeout": "Provider không trả lời kịp (quá 60 giây).",
     "llm_provider_error": "Không gọi được provider. Kiểm tra base URL và kết nối mạng.",
     "llm_bad_output": "Model trả lời không đúng định dạng JSON yêu cầu. Thử model khác.",
     "validation_error": "Dữ liệu chưa hợp lệ: {message}",
-    "not_found": "Không tìm thấy (có thể đã bị thu hồi).",
+    "not_found": "Không tìm thấy. Có thể đã bị thu hồi.",
     "unknown": "Có lỗi xảy ra: {message}"
   }
 }

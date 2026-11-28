@@ -8,5 +8,7 @@ import { ProfileService } from './profile.service.js';
 @Module({
   controllers: [OverviewController, ProfileController],
   providers: [OverviewService, ProfileService],
+  // Tool MCP (M6.15) import hai dịch vụ này, không sửa code module này.
+  exports: [OverviewService, ProfileService],
 })
 export class StatsModule {}
