@@ -11,7 +11,14 @@ export interface RegexInput {
 
 export type RegexCheck =
   | { ok: true; matches: number; redacted: string | null }
-  | { ok: false; index: number; id: string; error: string };
+  | {
+      ok: false;
+      index: number;
+      id: string;
+      /** `invalid`: sai cú pháp/quá nặng; `too_broad`: che phần lớn văn bản thường. */
+      reason?: 'invalid' | 'too_broad';
+      error: string;
+    };
 
 const TIMEOUT_MS = 5_000;
 

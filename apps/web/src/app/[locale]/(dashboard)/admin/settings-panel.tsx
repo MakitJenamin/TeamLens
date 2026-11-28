@@ -9,10 +9,11 @@ import type { RedactionPattern, ServerSettings } from "@/lib/api/types";
 const inputClass = "h-9 rounded-md border bg-background px-2";
 const buttonClass = "bg-primary text-primary-foreground h-9 rounded-md px-4 disabled:opacity-50";
 const MAX_PATTERNS = 50;
+const CONFLICTS = new Set(["consent_version_conflict", "redaction_patterns_conflict", "retention_conflict"]);
 
 function errorText(cause: unknown, fallback: string, t: (key: string) => string) {
   if (cause instanceof ApiError) {
-    if (cause.code === "consent_version_conflict") return t("settingsConflict");
+    if (CONFLICTS.has(cause.code)) return t("settingsConflict");
     if (cause.code === "pattern_invalid") return `${t("settingsPatternInvalid")} ${cause.message}`;
     return cause.message;
   }
@@ -25,11 +26,11 @@ export function SettingsPanel() {
   const query = useQuery({ queryKey: ["server-settings"], queryFn: () => api.get<ServerSettings>("/admin/settings") });
   if (query.isPending) return <p className="text-muted-foreground text-sm">{t("settingsLoading")}</p>;
   if (query.error || !query.data) return <p className="text-destructive text-sm" role="alert">{query.error?.message}</p>;
-  // `key` buộc form nạp lại giá trị sau mỗi lần lưu thành công (phiên bản đồng ý mới).
+  // `key` theo phiên bản: form nạp lại giá trị sau mỗi lần lưu thành công.
   return (
     <div className="space-y-8">
-      <RedactionSection key={`r-${JSON.stringify(query.data.redactionPatterns)}`} settings={query.data} onSaved={() => client.invalidateQueries({ queryKey: ["server-settings"] })} />
-      <RetentionSection key={`t-${query.data.retentionDays}`} settings={query.data} onSaved={() => client.invalidateQueries({ queryKey: ["server-settings"] })} />
+      <RedactionSection key={`r-${query.data.redactionPatternsVersion}`} settings={query.data} onSaved={() => client.invalidateQueries({ queryKey: ["server-settings"] })} />
+      <RetentionSection key={`t-${query.data.retentionVersion}`} settings={query.data} onSaved={() => client.invalidateQueries({ queryKey: ["server-settings"] })} />
       <ConsentSection key={`c-${query.data.consentText.version}`} settings={query.data} onSaved={() => client.invalidateQueries({ queryKey: ["server-settings"] })} />
     </div>
   );
@@ -63,7 +64,7 @@ function RedactionSection({ settings, onSaved }: SectionProps) {
     setBusy(true); setError(""); setMessage("");
     try {
       const redactionPatterns = items.map(({ id, name, description, regex }) => ({ id, name, regex, ...(description ? { description } : {}) }));
-      await api.patch("/admin/settings", { redactionPatterns });
+      await api.patch("/admin/settings", { redactionPatterns, expectedRedactionPatternsVersion: settings.redactionPatternsVersion });
       setMessage(t("saved"));
       await onSaved();
     } catch (cause) {
@@ -81,7 +82,7 @@ function RedactionSection({ settings, onSaved }: SectionProps) {
       {items.map((item, index) => (
         <div key={index} className="grid gap-2 rounded-md border p-3 text-sm">
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="grid gap-1">{t("settingsPatternId")}<input className={inputClass} value={item.id} pattern="[a-z0-9_]+" onChange={(event) => update(index, { id: event.target.value })} /></label>
+            <label className="grid gap-1">{t("settingsPatternId")}<input className={inputClass} value={item.id} pattern="[a-z0-9]([a-z0-9_]*[a-z0-9])?" onChange={(event) => update(index, { id: event.target.value })} /></label>
             <label className="grid gap-1">{t("name")}<input className={inputClass} maxLength={100} value={item.name} onChange={(event) => update(index, { name: event.target.value })} /></label>
           </div>
           <label className="grid gap-1">{t("settingsPatternDescription")}<input className={inputClass} value={item.description ?? ""} onChange={(event) => update(index, { description: event.target.value })} /></label>
@@ -118,7 +119,7 @@ function RetentionSection({ settings, onSaved }: SectionProps) {
   async function save() {
     setBusy(true); setError(""); setMessage("");
     try {
-      await api.patch("/admin/settings", { retentionDays: forever ? null : value });
+      await api.patch("/admin/settings", { retentionDays: forever ? null : value, expectedRetentionVersion: settings.retentionVersion });
       setMessage(t("saved"));
       await onSaved();
     } catch (cause) {

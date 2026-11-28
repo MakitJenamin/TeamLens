@@ -63,7 +63,7 @@ describe('Cài đặt server M4.6', () => {
     await member.get('/api/v1/admin/settings').expect(403);
     await member
       .patch('/api/v1/admin/settings')
-      .send({ retentionDays: 30 })
+      .send({ retentionDays: 30, expectedRetentionVersion: '0' })
       .expect(403);
     await member
       .post('/api/v1/admin/settings/redaction-test')
@@ -75,15 +75,51 @@ describe('Cài đặt server M4.6', () => {
       .body;
     expect(initial).toMatchObject({
       redactionPatterns: [],
+      redactionPatternsVersion: '0',
       retentionDays: 90,
+      retentionVersion: '0',
       affectedDevices: 1,
     });
     const version: string = initial.consentText.version;
+    const rv = { expectedRedactionPatternsVersion: '0' };
+
+    // Thiếu phiên bản đã đọc thì 400.
+    await leader
+      .patch('/api/v1/admin/settings')
+      .send({ redactionPatterns: [] })
+      .expect(400);
+    // Id CLI bỏ qua (`_`) hoặc đổi nhãn (`_acme`) bị từ chối.
+    for (const id of ['_', '_acme', 'acme_', 'Acme']) {
+      await leader
+        .patch('/api/v1/admin/settings')
+        .send({
+          ...rv,
+          redactionPatterns: [{ id, name: 'X', regex: 'ACME-\\d+' }],
+        })
+        .expect(400);
+    }
+    // Pattern khớp mọi thứ bị từ chối, cả khi lưu lẫn khi thử.
+    for (const regex of ['.+', '.*', '[\\s\\S]+', '\\w+']) {
+      const broad = await leader
+        .patch('/api/v1/admin/settings')
+        .send({ ...rv, redactionPatterns: [{ id: 'all', name: 'X', regex }] })
+        .expect(400);
+      expect(broad.body.error).toBe('pattern_too_broad');
+    }
+    expect(
+      (
+        await leader
+          .post('/api/v1/admin/settings/redaction-test')
+          .send({ id: 'all', regex: '.+', sample: 'abc' })
+          .expect(400)
+      ).body.error,
+    ).toBe('pattern_too_broad');
 
     // Pattern: cú pháp Rust, lookaround của Node bị từ chối.
     const bad = await leader
       .patch('/api/v1/admin/settings')
       .send({
+        ...rv,
         redactionPatterns: [{ id: 'bad', name: 'Xấu', regex: '(?<=a)b' }],
       })
       .expect(400);
@@ -91,6 +127,7 @@ describe('Cài đặt server M4.6', () => {
     await leader
       .patch('/api/v1/admin/settings')
       .send({
+        ...rv,
         redactionPatterns: [
           { id: 'dup', name: 'A', regex: 'a' },
           { id: 'dup', name: 'B', regex: 'b' },
@@ -105,9 +142,23 @@ describe('Cài đặt server M4.6', () => {
       matches: 1,
       redacted: 'khoa [REDACTED:acme] het',
     });
+    // Như CLI: group `secret` không tham gia thì che cả chuỗi khớp; khớp rỗng bỏ qua.
+    expect(
+      (
+        await leader
+          .post('/api/v1/admin/settings/redaction-test')
+          .send({
+            id: 'k',
+            regex: 'KEY-(?P<secret>\\d+)|TOK-[A-Z]+|\\d*',
+            sample: 'KEY-12 TOK-AB x',
+          })
+          .expect(200)
+      ).body,
+    ).toEqual({ matches: 2, redacted: 'KEY-[REDACTED:k] [REDACTED:k] x' });
     const saved = await leader
       .patch('/api/v1/admin/settings')
       .send({
+        ...rv,
         redactionPatterns: [
           {
             id: 'acme',
@@ -119,6 +170,13 @@ describe('Cài đặt server M4.6', () => {
       })
       .expect(200);
     expect(saved.body.consentText.version).toBe(version);
+    expect(saved.body.redactionPatternsVersion).not.toBe('0');
+    // Tab thứ hai còn giữ phiên bản cũ: 409, không ghi đè.
+    const stale = await leader
+      .patch('/api/v1/admin/settings')
+      .send({ ...rv, redactionPatterns: [] })
+      .expect(409);
+    expect(stale.body.error).toBe('redaction_patterns_conflict');
     const config = (
       await request(server).get('/agent/v1/config').set(bearer).expect(200)
     ).body;
@@ -130,24 +188,59 @@ describe('Cài đặt server M4.6', () => {
     // Retention: 7–730 hoặc vô hạn; không đổi phiên bản đồng ý.
     await leader
       .patch('/api/v1/admin/settings')
-      .send({ retentionDays: 5 })
+      .send({ retentionDays: 5, expectedRetentionVersion: '0' })
       .expect(400);
+    await leader
+      .patch('/api/v1/admin/settings')
+      .send({ retentionDays: 30 })
+      .expect(400);
+    const forever = (
+      await leader
+        .patch('/api/v1/admin/settings')
+        .send({ retentionDays: null, expectedRetentionVersion: '0' })
+        .expect(200)
+    ).body;
+    expect(forever.retentionDays).toBeNull();
+    // Hai tab cùng lưu lần đầu (phiên bản '0'): tab sau nhận 409.
     expect(
       (
         await leader
           .patch('/api/v1/admin/settings')
-          .send({ retentionDays: null })
-          .expect(200)
-      ).body.retentionDays,
-    ).toBeNull();
+          .send({ retentionDays: 30, expectedRetentionVersion: '0' })
+          .expect(409)
+      ).body.error,
+    ).toBe('retention_conflict');
+    const year = (
+      await leader
+        .patch('/api/v1/admin/settings')
+        .send({
+          retentionDays: 365,
+          expectedRetentionVersion: forever.retentionVersion,
+        })
+        .expect(200)
+    ).body;
+    expect(year.retentionDays).toBe(365);
+    await leader
+      .patch('/api/v1/admin/settings')
+      .send({
+        retentionDays: 30,
+        expectedRetentionVersion: forever.retentionVersion,
+      })
+      .expect(409);
+    // 409 rollback cả request: pattern gửi kèm cũng không được lưu.
+    await leader
+      .patch('/api/v1/admin/settings')
+      .send({
+        redactionPatterns: [],
+        expectedRedactionPatternsVersion: year.redactionPatternsVersion,
+        retentionDays: 30,
+        expectedRetentionVersion: forever.retentionVersion,
+      })
+      .expect(409);
     expect(
-      (
-        await leader
-          .patch('/api/v1/admin/settings')
-          .send({ retentionDays: 365 })
-          .expect(200)
-      ).body.retentionDays,
-    ).toBe(365);
+      (await leader.get('/api/v1/admin/settings').expect(200)).body
+        .redactionPatterns,
+    ).toHaveLength(1);
 
     // Văn bản đồng ý: cần phiên bản form đã tải; nội dung không đổi thì không tăng phiên bản.
     await leader

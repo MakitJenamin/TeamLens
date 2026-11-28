@@ -94,5 +94,5 @@
   "settingsConsentConfirmTitle": "Đổi văn bản đồng ý?",
   "settingsConsentConfirm": "Phiên bản mới sẽ được tạo. {count} thiết bị đang đồng ý sẽ ngừng gửi dữ liệu cho tới khi chạy tl consent.",
   "settingsConsentConfirmYes": "Xác nhận và lưu",
-  "settingsConflict": "Văn bản đã được người khác sửa. Hãy tải lại trang rồi sửa lại."
+  "settingsConflict": "Người khác vừa lưu. Tải lại trang."
 }

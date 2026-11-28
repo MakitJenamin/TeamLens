@@ -26,7 +26,9 @@ export { DEFAULT_RETENTION_DAYS, RETENTION_KEY };
 
 export interface ServerSettingsUpdate {
   redactionPatterns?: RedactionPatternInput[];
+  expectedRedactionPatternsVersion?: string;
   retentionDays?: number | null;
+  expectedRetentionVersion?: string;
   consentText?: string;
   expectedConsentVersion?: string;
 }
@@ -40,6 +42,14 @@ export function nextConsentVersion(current: string, now = new Date()): string {
     : `${day}.1`;
 }
 
+/** Phiên bản của một khóa khi chưa có dòng trong `settings`. */
+export const MISSING_VERSION = '0';
+
+/** Phiên bản mờ của một dòng `settings`: `updated_at` tính bằng micro giây (đủ chính xác hơn Date của JS). */
+const versionSql = sql<string>`(extract(epoch from ${settings.updatedAt}) * 1000000)::bigint::text`;
+
+type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
 /** Cài đặt toàn server (M4.6): redaction, retention, văn bản đồng ý. Không lưu key LLM ở đây. */
 @Injectable()
 export class ServerSettingsService {
@@ -51,7 +61,13 @@ export class ServerSettingsService {
   ) {}
 
   async get() {
-    const rows = await this.db.select().from(settings);
+    const rows = await this.db
+      .select({
+        key: settings.key,
+        value: settings.value,
+        version: versionSql,
+      })
+      .from(settings);
     const value = (key: string) => rows.find((row) => row.key === key);
     const patterns = value(REDACTION_KEY)?.value;
     const retention = value(RETENTION_KEY);
@@ -70,9 +86,12 @@ export class ServerSettingsService {
       redactionPatterns: Array.isArray(patterns)
         ? (patterns as RedactionPatternInput[])
         : [],
+      redactionPatternsVersion:
+        value(REDACTION_KEY)?.version ?? MISSING_VERSION,
       retentionDays: retention
         ? (retention.value as number | null)
         : DEFAULT_RETENTION_DAYS,
+      retentionVersion: retention?.version ?? MISSING_VERSION,
       consentText,
       affectedDevices: active?.n ?? 0,
       retentionLastRun: await readLastRetentionRun(this.db),
@@ -82,13 +101,42 @@ export class ServerSettingsService {
   private async assertPatterns(patterns: RegexInput[]): Promise<void> {
     if (patterns.length === 0) return;
     const result = await this.regex.check(patterns);
-    if (!result.ok) {
-      throw new ApiError(
-        400,
-        'pattern_invalid',
-        `Pattern "${result.id}" không hợp lệ theo cú pháp regex của Rust.`,
-      );
+    if (!result.ok) throw patternError(result.reason, result.id, result.error);
+  }
+
+  /**
+   * Ghi một khóa `settings` nếu phiên bản client đã đọc còn đúng (optimistic concurrency).
+   * Dòng đã có: khóa `FOR UPDATE` rồi so phiên bản. Chưa có: chỉ chèn khi vẫn chưa ai chèn.
+   * Lệch thì 409 và cả transaction rollback. Trả giá trị cũ (`undefined` nếu chưa có dòng).
+   */
+  private async writeVersioned(
+    tx: Tx,
+    key: string,
+    value: unknown,
+    expected: string | undefined,
+    conflict: { code: string; message: string },
+  ): Promise<{ before: unknown } | undefined> {
+    const fail = () => new ApiError(409, conflict.code, conflict.message);
+    if (expected === MISSING_VERSION) {
+      const inserted = await tx
+        .insert(settings)
+        .values({ key, value })
+        .onConflictDoNothing()
+        .returning({ key: settings.key });
+      if (inserted.length === 0) throw fail();
+      return undefined;
     }
+    const [row] = await tx
+      .select({ value: settings.value, version: versionSql })
+      .from(settings)
+      .where(eq(settings.key, key))
+      .for('update');
+    if (!row || row.version !== expected) throw fail();
+    await tx
+      .update(settings)
+      .set({ value, updatedAt: new Date() })
+      .where(eq(settings.key, key));
+    return { before: row.value };
   }
 
   async update(user: AuthUser, input: ServerSettingsUpdate) {
@@ -145,13 +193,16 @@ export class ServerSettingsService {
       }
       if (input.redactionPatterns) {
         const value = input.redactionPatterns;
-        await tx
-          .insert(settings)
-          .values({ key: REDACTION_KEY, value })
-          .onConflictDoUpdate({
-            target: settings.key,
-            set: { value, updatedAt: new Date() },
-          });
+        await this.writeVersioned(
+          tx,
+          REDACTION_KEY,
+          value,
+          input.expectedRedactionPatternsVersion,
+          {
+            code: 'redaction_patterns_conflict',
+            message: 'Pattern đã được người khác sửa. Hãy tải lại trang.',
+          },
+        );
         // Chỉ ghi số lượng và ID, không ghi regex.
         await this.audit.record(
           user.id,
@@ -167,25 +218,24 @@ export class ServerSettingsService {
         );
       }
       if (input.retentionDays !== undefined) {
-        const [before] = await tx
-          .select()
-          .from(settings)
-          .where(eq(settings.key, RETENTION_KEY));
-        const from = before
-          ? (before.value as number | null)
-          : DEFAULT_RETENTION_DAYS;
         // `null` lưu thành jsonb 'null' (vô hạn), khác với chưa cấu hình (mặc định 90 ngày).
         const value =
           input.retentionDays === null
             ? sql`'null'::jsonb`
             : input.retentionDays;
-        await tx
-          .insert(settings)
-          .values({ key: RETENTION_KEY, value })
-          .onConflictDoUpdate({
-            target: settings.key,
-            set: { value, updatedAt: new Date() },
-          });
+        const before = await this.writeVersioned(
+          tx,
+          RETENTION_KEY,
+          value,
+          input.expectedRetentionVersion,
+          {
+            code: 'retention_conflict',
+            message: 'Retention đã được người khác sửa. Hãy tải lại trang.',
+          },
+        );
+        const from = before
+          ? (before.before as number | null)
+          : DEFAULT_RETENTION_DAYS;
         await this.audit.record(
           user.id,
           'settings.retention.update',
@@ -208,12 +258,26 @@ export class ServerSettingsService {
       [{ id: input.id, regex: input.regex }],
       input.sample,
     );
-    if (!result.ok)
-      throw new ApiError(
-        400,
-        'pattern_invalid',
-        'Pattern không hợp lệ theo cú pháp regex của Rust.',
-      );
+    if (!result.ok) throw patternError(result.reason, result.id, result.error);
     return { matches: result.matches, redacted: result.redacted ?? '' };
   }
+}
+
+/** Lỗi 400 cho pattern bị helper từ chối. Không đưa regex vào thông báo. */
+function patternError(
+  reason: 'invalid' | 'too_broad' | undefined,
+  id: string,
+  detail: string,
+): ApiError {
+  return reason === 'too_broad'
+    ? new ApiError(
+        400,
+        'pattern_too_broad',
+        `Pattern "${id}" khớp quá rộng (${detail}).`,
+      )
+    : new ApiError(
+        400,
+        'pattern_invalid',
+        `Pattern "${id}" không hợp lệ theo cú pháp regex của Rust.`,
+      );
 }
