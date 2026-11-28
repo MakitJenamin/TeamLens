@@ -223,6 +223,28 @@
               }
             ]
           },
+          "workType": {
+            "description": "Nhãn loại việc B4: heuristic ở rule worker (từ khóa tiếng Việt và tiếng Anh trong prompt, cộng tín hiệu từ\ntool và diff), không gọi LLM. Ai xem được session thì thấy nhãn. `null` khi chưa phân loại: session mới\nnhận chưa được chấm, session con, hoặc turn đã bị xóa theo retention từ trước khi có nhãn.\n",
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "bugfix",
+                  "feature",
+                  "refactor",
+                  "question",
+                  "ops",
+                  "docs",
+                  "test",
+                  "other"
+                ],
+                "description": "Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,\nkhông gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).\n"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "match": {
             "description": "Chỉ có khi danh sách được gọi với `q`. Turn khớp đầu tiên (theo `seq`) trong chính session này;\nnull khi session chỉ khớp qua session con. Không có trong chi tiết session.\n",
             "oneOf": [
@@ -416,6 +438,7 @@
           "parentSessionId",
           "childCount",
           "permissionMode",
+          "workType",
           "sourceId",
           "device",
           "instructionFiles",

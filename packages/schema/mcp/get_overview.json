@@ -36,6 +36,7 @@
       "byAgent",
       "byModel",
       "usageStats",
+      "workTypes",
       "topFindings"
     ],
     "properties": {
@@ -272,6 +273,47 @@
           }
         },
         "additionalProperties": false
+      },
+      "workTypes": {
+        "type": "array",
+        "description": "Thống kê loại việc B4 của các session gốc trong khoảng, nhiều session nhất trước (hòa thì theo tên loại,\n`null` cuối cùng). Chỉ có loại có ít nhất một session. Chưa phân loại là phần tử `workType: null`.\n",
+        "items": {
+          "type": "object",
+          "description": "Số session gốc theo nhãn loại việc B4.",
+          "required": [
+            "workType",
+            "sessions"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "workType": {
+              "description": "Loại việc; `null` là chưa phân loại.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "bugfix",
+                    "feature",
+                    "refactor",
+                    "question",
+                    "ops",
+                    "docs",
+                    "test",
+                    "other"
+                  ],
+                  "description": "Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,\nkhông gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).\n"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
       },
       "topFindings": {
         "type": "array",

@@ -571,7 +571,9 @@ components:
     SessionWorkType:
       type: string
       enum: [bugfix, feature, refactor, question, ops, docs, test, other]
-      description: Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4.
+      description: |
+        Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,
+        không gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).
 
     SessionSummaryResult:
       type: object

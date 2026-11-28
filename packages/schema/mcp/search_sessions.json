@@ -29,6 +29,20 @@
         ],
         "description": "Chỉ session của agent này."
       },
+      "workType": {
+        "type": "string",
+        "enum": [
+          "bugfix",
+          "feature",
+          "refactor",
+          "question",
+          "ops",
+          "docs",
+          "test",
+          "other"
+        ],
+        "description": "Chỉ session có nhãn loại việc này (B4, heuristic)."
+      },
       "from": {
         "type": "string",
         "format": "date-time",
@@ -96,7 +110,8 @@
             "title",
             "parentSessionId",
             "childCount",
-            "permissionMode"
+            "permissionMode",
+            "workType"
           ],
           "additionalProperties": false,
           "properties": {
@@ -275,6 +290,28 @@
                     "unknown"
                   ],
                   "description": "Chế độ quyền của agent trong session: `default` (hỏi trước khi sửa file/chạy lệnh), `accept_edits` (tự chấp nhận sửa file), `plan` (chỉ lập kế hoạch), `bypass` (bỏ qua mọi xác nhận), `unknown` (không xác định được). Claude Code: `permissionMode`; Codex: `approval_policy` + `sandbox_policy`. Dùng cho rule `yolo-mode`."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "workType": {
+              "description": "Nhãn loại việc B4: heuristic ở rule worker (từ khóa tiếng Việt và tiếng Anh trong prompt, cộng tín hiệu từ\ntool và diff), không gọi LLM. Ai xem được session thì thấy nhãn. `null` khi chưa phân loại: session mới\nnhận chưa được chấm, session con, hoặc turn đã bị xóa theo retention từ trước khi có nhãn.\n",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "bugfix",
+                    "feature",
+                    "refactor",
+                    "question",
+                    "ops",
+                    "docs",
+                    "test",
+                    "other"
+                  ],
+                  "description": "Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,\nkhông gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).\n"
                 },
                 {
                   "type": "null"

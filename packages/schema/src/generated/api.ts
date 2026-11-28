@@ -2327,6 +2327,11 @@ export interface components {
             /** @description Sắp xếp theo `tokens` giảm dần. */
             byModel: components["schemas"]["OverviewModel"][];
             usageStats: components["schemas"]["OverviewUsageStats"];
+            /**
+             * @description Thống kê loại việc B4 của các session gốc trong khoảng, nhiều session nhất trước (hòa thì theo tên loại,
+             *     `null` cuối cùng). Chỉ có loại có ít nhất một session. Chưa phân loại là phần tử `workType: null`.
+             */
+            workTypes: components["schemas"]["OverviewWorkType"][];
             topFindings: components["schemas"]["OverviewFinding"][];
         };
         OverviewRange: {
@@ -2377,6 +2382,12 @@ export interface components {
             tokens: number;
             /** @description Là `null` khi model chưa có trong bảng giá. */
             estimatedCostUsd: number | null;
+        };
+        /** @description Số session gốc theo nhãn loại việc B4. */
+        OverviewWorkType: {
+            /** @description Loại việc; `null` là chưa phân loại. */
+            workType: components["schemas"]["SessionWorkType"] | null;
+            sessions: number;
         };
         /** @description Số liệu tham khảo, không tính điểm. Mỗi trường `null` khi không có dữ liệu để tính. */
         OverviewUsageStats: {
@@ -2528,6 +2539,12 @@ export interface components {
             childCount: number;
             /** @description Chế độ quyền của agent; null khi CLI không gửi. */
             permissionMode: components["schemas"]["PermissionMode"] | null;
+            /**
+             * @description Nhãn loại việc B4: heuristic ở rule worker (từ khóa tiếng Việt và tiếng Anh trong prompt, cộng tín hiệu từ
+             *     tool và diff), không gọi LLM. Ai xem được session thì thấy nhãn. `null` khi chưa phân loại: session mới
+             *     nhận chưa được chấm, session con, hoặc turn đã bị xóa theo retention từ trước khi có nhãn.
+             */
+            workType: components["schemas"]["SessionWorkType"] | null;
             /**
              * @description Chỉ có khi danh sách được gọi với `q`. Turn khớp đầu tiên (theo `seq`) trong chính session này;
              *     null khi session chỉ khớp qua session con. Không có trong chi tiết session.
@@ -2803,7 +2820,8 @@ export interface components {
             note: string;
         };
         /**
-         * @description Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4.
+         * @description Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,
+         *     không gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).
          * @enum {string}
          */
         SessionWorkType: "bugfix" | "feature" | "refactor" | "question" | "ops" | "docs" | "test" | "other";
@@ -4700,6 +4718,11 @@ export interface operations {
                 from?: string;
                 /** @description Chỉ lấy session có `startedAt` < mốc này (ISO 8601). */
                 to?: string;
+                /**
+                 * @description Chỉ lấy session có nhãn loại việc này (B4). Session chưa có nhãn (mới nhận, đã mất turn do retention,
+                 *     hoặc là session con) không khớp với bất kỳ giá trị nào.
+                 */
+                workType?: components["schemas"]["SessionWorkType"];
                 /** @description true để trả cả session con (subagent); mặc định chỉ session gốc. */
                 includeSubagents?: boolean;
                 /**

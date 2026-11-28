@@ -417,6 +417,8 @@ components:
       $ref: './stats.yaml#/components/schemas/OverviewAgent'
     OverviewModel:
       $ref: './stats.yaml#/components/schemas/OverviewModel'
+    OverviewWorkType:
+      $ref: './stats.yaml#/components/schemas/OverviewWorkType'
     OverviewUsageStats:
       $ref: './stats.yaml#/components/schemas/OverviewUsageStats'
     OverviewFinding:
