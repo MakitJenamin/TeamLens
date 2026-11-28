@@ -21,7 +21,6 @@ export default async function AiSettingsPage({ params }: PageProps<"/[locale]/se
     <main className="mx-auto w-full max-w-3xl space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">{t("description")}</p>
       </div>
       <LlmKeyCard />
       <AgentTokensCard />

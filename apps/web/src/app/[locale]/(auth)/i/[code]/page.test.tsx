@@ -48,12 +48,12 @@ describe("trang /i/[code]", () => {
     expect(fetchInvitePreview).toHaveBeenCalledWith(CODE);
     expect(screen.getByText("Tham gia Đội Web")).toBeInTheDocument();
     expect(screen.getByText("github.com/acme/*")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Bước 1: Cài tl" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "1. Cài tl" })).toBeInTheDocument();
     expect(screen.getByText(installCommand)).toBeInTheDocument();
     expect(screen.getByText(installCommandCmd)).toBeInTheDocument();
     // Lệnh cài chung, không kèm mã mời hay địa chỉ server.
     expect(installCommand).not.toContain(CODE);
-    expect(screen.getByRole("heading", { name: "Bước 2: Tham gia project" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "2. Tham gia" })).toBeInTheDocument();
     expect(screen.getByText(`tl join https://lens.acme.dev/i/${CODE}`)).toBeInTheDocument();
     // Không có form đăng nhập/đăng ký.
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

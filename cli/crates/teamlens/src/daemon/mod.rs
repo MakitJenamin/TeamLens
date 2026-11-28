@@ -119,7 +119,7 @@ fn state_err(e: rusqlite::Error) -> AppError {
     tracing::warn!(error = %e, "lỗi state.db");
     AppError::user(
         "Không đọc/ghi được state.db.",
-        "Kiểm tra quyền ghi thư mục dữ liệu TeamLens.",
+        "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens.",
     )
 }
 
@@ -572,7 +572,7 @@ pub fn init_log(
     let file = log::RotatingLog::open(&path, log::MAX_LOG_BYTES).map_err(|e| {
         AppError::user(
             format!("Không mở được file log {}: {e}", path.display()),
-            "Kiểm tra quyền ghi thư mục dữ liệu TeamLens.",
+            "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens.",
         )
     })?;
     let filter = std::env::var("TL_LOG").unwrap_or_default();

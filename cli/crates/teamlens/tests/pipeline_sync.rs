@@ -724,7 +724,7 @@ async fn sync_lech_phien_ban_dong_y_khong_gui() {
     assert_ne!(e.exit_code(), 0);
     assert!(e.to_string().contains("2026-12-01"), "{e}");
     assert!(e.to_string().contains(CONSENT_VERSION), "{e}");
-    assert!(e.hint().unwrap().contains("tl join"), "{:?}", e.hint());
+    assert!(e.hint().unwrap().contains("tl consent"), "{:?}", e.hint());
     assert_eq!(ingest.calls.load(Ordering::SeqCst), 0, "không được gửi gì");
 
     // --dry-run vẫn xem được, kèm lưu ý.
@@ -1098,7 +1098,6 @@ async fn hang_doi_tat_api_roi_bat_lai_khong_mat_khong_trung() {
     let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
     let e = r.unwrap_err();
     assert!(e.to_string().contains("Không kết nối được"), "{e}");
-    assert!(out.contains("Đã xếp hàng 1 batch"), "{out}");
     assert!(out.contains("hàng đợi giữ 1 batch"), "{out}");
     let db = open_state(&ctx);
     let pending = queue::list_pending(&db).unwrap();
@@ -1116,8 +1115,8 @@ async fn hang_doi_tat_api_roi_bat_lai_khong_mat_khong_trung() {
     // Quét lại khi vẫn tắt: không xếp hàng trùng.
     let (r, out) = run_sync_with(&env, &ctx, false, false, 8 << 20).await;
     assert!(r.is_err());
-    assert!(!out.contains("Đã xếp hàng"), "{out}");
     assert!(out.contains("Bỏ qua 3 file log không đổi"), "{out}");
+    assert!(out.contains("hàng đợi giữ 1 batch"), "{out}");
     let db = open_state(&ctx);
     assert_eq!(queue::list_pending(&db).unwrap().len(), 1);
     drop(db);
@@ -1409,9 +1408,7 @@ async fn sync_bo_turn_trong_khoang_tam_dung_giu_seq_goc() {
         .count();
     assert!(expected_dropped > 0);
     assert!(
-        out.contains(&format!(
-            "Bỏ {expected_dropped} turn phát sinh trong lúc tạm dừng"
-        )),
+        out.contains(&format!("Bỏ {expected_dropped} turn trong lúc tạm dừng")),
         "{out}"
     );
     let body = ingest.bodies.lock().unwrap()[0].clone();

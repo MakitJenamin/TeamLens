@@ -1,7 +1,6 @@
 {
   "list": {
     "title": "Sessions",
-    "description": "AI agent sessions in this project, newest first. Leaders see the whole team, members only their own.",
     "filters": {
       "agent": "Agent",
       "user": "Member",
@@ -25,12 +24,10 @@
     "loadMore": "Load more",
     "loadingMore": "Loading...",
     "emptyTitle": "No sessions yet",
-    "emptyDescription": "Sessions appear here once the CLI uploads them (tl sync). If filters are on, try clearing them.",
     "errorTitle": "Could not load sessions",
     "tokensDetail": "Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}",
     "children": "{count, plural, one {# subagent session} other {# subagent sessions}}",
     "noResultsTitle": "No matching sessions",
-    "noResultsDescription": "No session contains “{q}”. Try other keywords or clear the filters.",
     "matchTurn": "Turn #{seq}:"
   },
   "agents": {
@@ -53,7 +50,6 @@
   },
   "detail": {
     "title": "Session review",
-    "description": "Conversation timeline of the session: prompts, responses, tool calls and diffs.",
     "back": "Session list",
     "untitled": "Session without a prompt",
     "meta": {
@@ -79,7 +75,7 @@
     "openParent": "Open parent session",
     "openChild": "Child session {index}",
     "timeline": "Timeline",
-    "noTurns": "This session has no turns yet.",
+    "noTurns": "No turns yet.",
     "roles": {
       "user": "User",
       "assistant": "Agent",
@@ -98,8 +94,8 @@
     "hideDetails": "Collapse",
     "input": "Input",
     "output": "Output",
-    "truncated": "Output was truncated (head and tail kept)",
-    "truncatedBytes": "Output was truncated, original {bytes} bytes (head and tail kept)",
+    "truncated": "Output was cut in the middle",
+    "truncatedBytes": "Output was cut in the middle. Original {bytes} bytes",
     "diffStats": "+{added} −{removed}",
     "redactions": "{count} secrets redacted",
     "attachments": "{count} attachments",
@@ -110,18 +106,17 @@
     "sessionId": "Session ID: {id}",
     "showDiff": "Show diff",
     "hideDiff": "Hide diff",
-    "diffLines": "{count, plural, one {# line} other {# lines}}, click to view",
+    "diffLines": "{count, plural, one {# line} other {# lines}}",
     "childLabel": "Subagent",
     "childTurns": "{count, plural, one {# turn} other {# turns}}",
     "openChildPage": "Open own page",
     "childLoading": "Loading subagent session...",
     "childError": "Could not load the subagent session.",
-    "childrenSection": "Subagent sessions",
-    "childrenUnplaced": "Subagent sessions that could not be matched to a tool call in this session."
+    "childrenSection": "Subagent sessions"
   },
   "findings": {
     "title": "Findings",
-    "empty": "No findings for this session.",
+    "empty": "No findings.",
     "turn": "Turn {seq}",
     "severity": {
       "info": "Info",
@@ -140,7 +135,7 @@
     "addSession": "Add a general note for this session",
     "turnLabel": "Note for turn {seq}",
     "sessionLabel": "General note for this session",
-    "placeholder": "Feedback or tips for the member (leaders write, the session owner can read)",
+    "placeholder": "The session owner can read this note.",
     "save": "Save note",
     "saving": "Saving...",
     "cancel": "Cancel",
@@ -151,7 +146,7 @@
   },
   "ai": {
     "title": "AI",
-    "addKey": "Add an API key to use AI",
+    "addKey": "Add an API key",
     "openSettings": "Open AI settings",
     "summarize": "Summarize",
     "evaluate": "Evaluate outcome",
@@ -181,13 +176,13 @@
       "unclear": "Unclear"
     },
     "errors": {
-      "llm_key_missing": "You have not added an API key yet. Add one in AI settings to use this feature.",
-      "llm_key_invalid": "The AI provider rejected your API key. Check it in AI settings.",
-      "llm_model_not_found": "The selected model does not exist. Change the model in AI settings.",
+      "llm_key_missing": "No API key yet.",
+      "llm_key_invalid": "The AI provider rejected your API key.",
+      "llm_model_not_found": "The selected model does not exist.",
       "llm_quota_exceeded": "Quota exceeded or rate limited by the AI provider. Try again later.",
       "llm_timeout": "The AI took too long to respond (over 60 seconds). Try again later.",
       "llm_provider_error": "Could not reach the AI provider. Try again later.",
-      "llm_bad_output": "The AI returned output in the wrong format. Try again, or pick a stronger model.",
+      "llm_bad_output": "The AI returned the wrong format. Try again or pick a stronger model.",
       "forbidden": "You are not allowed to use AI on this session.",
       "not_found": "Data not found.",
       "network_error": "Could not connect to the server.",

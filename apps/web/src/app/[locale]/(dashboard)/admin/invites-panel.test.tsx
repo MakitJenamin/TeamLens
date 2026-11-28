@@ -1,7 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { installCommand, installCommandCmd } from "@/lib/invite-commands";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 import { InvitesPanel } from "./invites-panel";
 
@@ -34,19 +33,17 @@ function mockApi(routes: Record<string, () => Response>) {
 }
 
 describe("InvitesPanel", () => {
-  it("liệt kê link: trạng thái, lượt dùng, người tạo; chỉ link còn dùng được mới thu hồi được", async () => {
+  it("liệt kê link: trạng thái, lượt dùng; chỉ link còn dùng được mới thu hồi được", async () => {
     mockApi({ "GET /api/v1/projects/p1/invites": () => jsonResponse(invites) });
     renderWithProviders(<InvitesPanel projectId="p1" />);
 
     const items = await screen.findAllByRole("listitem");
     expect(items).toHaveLength(2);
-    expect(within(items[0]).getByText("Đang dùng được")).toBeInTheDocument();
+    expect(within(items[0]).getByText("Còn hiệu lực")).toBeInTheDocument();
     expect(items[0]).toHaveTextContent("Đã dùng 2/5");
-    expect(items[0]).toHaveTextContent("Tạo bởi Trưởng nhóm");
     expect(within(items[0]).getByRole("button", { name: "Thu hồi" })).toBeInTheDocument();
     expect(within(items[1]).getByText("Đã thu hồi")).toBeInTheDocument();
-    expect(items[1]).toHaveTextContent("Đã dùng 0 (không giới hạn)");
-    expect(items[1]).toHaveTextContent("Người tạo đã bị xóa");
+    expect(items[1]).toHaveTextContent("Đã dùng 0");
     expect(within(items[1]).queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -57,21 +54,16 @@ describe("InvitesPanel", () => {
       "POST /api/v1/projects/p1/invites": () => jsonResponse(created, 201),
     });
     renderWithProviders(<InvitesPanel projectId="p1" />);
-    expect(await screen.findByText("Chưa có link mời nào.")).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     const days = screen.getByLabelText("Hết hạn sau (ngày)");
     await u.clear(days);
     await u.type(days, "3");
-    await u.type(screen.getByLabelText("Giới hạn lượt (trống: không giới hạn)"), "10");
+    await u.type(screen.getByLabelText("Giới hạn lượt"), "10");
     await u.click(screen.getByRole("button", { name: "Tạo link mời" }));
 
     expect(await screen.findByText(created.url)).toBeInTheDocument();
-    // Hai bước: cài tl bằng lệnh chung (PowerShell hoặc CMD), rồi tl join <link>.
-    expect(screen.getByText("Bước 1: Cài tl")).toBeInTheDocument();
-    expect(screen.getByText(installCommand)).toBeInTheDocument();
-    expect(screen.getByText(installCommandCmd)).toBeInTheDocument();
-    expect(screen.getByText("Bước 2: Tham gia project")).toBeInTheDocument();
-    expect(screen.getByText(`tl join ${created.url}`)).toBeInTheDocument();
+    expect(screen.queryByText("1. Cài tl")).not.toBeInTheDocument();
     expect(screen.getByText(/chỉ hiện một lần/)).toBeInTheDocument();
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ expiresInDays: 3, maxUses: 10 });

@@ -1,0 +1,177 @@
+{
+  "name": "get_my_ai_results",
+  "description": "Kết quả AI (tóm tắt, đánh giá, giải thích finding...) mà CHÍNH người gọi đã tạo bằng các nút AI trên dashboard cho một đối tượng. Không bao giờ trả kết quả của người khác. Rỗng khi chưa bấm nút AI nào.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "subjectType",
+      "subjectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "subjectType": {
+        "type": "string",
+        "enum": [
+          "session",
+          "finding",
+          "user_week",
+          "project_week",
+          "project",
+          "skill_cluster"
+        ],
+        "description": "Loại đối tượng."
+      },
+      "subjectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Id của đối tượng (vd. id session)."
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "session_summary",
+          "session_outcome",
+          "finding_explain",
+          "weekly_user",
+          "weekly_team",
+          "context_suggestions",
+          "skill_triage",
+          "skill_content",
+          "catalog_picks",
+          "prompt_candidates"
+        ],
+        "description": "Chỉ loại kết quả này."
+      },
+      "locale": {
+        "type": "string",
+        "enum": [
+          "vi",
+          "en"
+        ],
+        "description": "Chỉ ngôn ngữ này."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "results"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "Một kết quả AI đã lưu ở `ai_results`. Chỉ người tạo đọc được.",
+          "required": [
+            "id",
+            "kind",
+            "subjectType",
+            "subjectId",
+            "locale",
+            "provider",
+            "model",
+            "promptVersion",
+            "inputTokens",
+            "outputTokens",
+            "result",
+            "createdAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Định danh (UUID)."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "session_summary",
+                "session_outcome",
+                "finding_explain",
+                "weekly_user",
+                "weekly_team",
+                "context_suggestions",
+                "skill_triage",
+                "skill_content",
+                "catalog_picks",
+                "prompt_candidates"
+              ],
+              "description": "Loại kết quả AI (AI_PLAN mục 5)."
+            },
+            "subjectType": {
+              "type": "string",
+              "enum": [
+                "session",
+                "finding",
+                "user_week",
+                "project_week",
+                "project",
+                "skill_cluster"
+              ],
+              "description": "Loại đối tượng mà kết quả AI nói về."
+            },
+            "subjectId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Định danh (UUID)."
+            },
+            "locale": {
+              "type": "string",
+              "enum": [
+                "vi",
+                "en"
+              ],
+              "description": "Ngôn ngữ của kết quả AI."
+            },
+            "provider": {
+              "type": "string",
+              "enum": [
+                "anthropic",
+                "openai_compatible"
+              ],
+              "description": "`anthropic`: Messages API của Anthropic. `openai_compatible`: mọi server theo Chat Completions của OpenAI\n(OpenAI, OpenRouter, Ollama, LM Studio...), cần `baseUrl`.\n"
+            },
+            "model": {
+              "type": "string"
+            },
+            "promptVersion": {
+              "type": "string",
+              "description": "Phiên bản prompt, vd. `session_summary@1`.",
+              "examples": [
+                "session_summary@1"
+              ]
+            },
+            "inputTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "outputTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "result": {
+              "type": "object",
+              "description": "Nội dung kết quả, dạng theo `kind`: `session_summary` → `SessionSummaryResult`,\n`session_outcome` → `SessionOutcomeResult`, `finding_explain` → `FindingExplainResult`.\nCác kind khác do task phụ trách định nghĩa sau.\n",
+              "additionalProperties": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

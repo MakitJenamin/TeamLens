@@ -25,7 +25,7 @@ use crate::sync::agent_config::CACHE_FILE_NAME;
 
 #[derive(Debug, Args)]
 pub struct UninstallArgs {
-    /// Gỡ luôn, không hỏi gõ `yes` (cho tự động hóa)
+    /// Gỡ luôn, không hỏi `yes`
     #[arg(long)]
     pub yes: bool,
 }
@@ -57,11 +57,7 @@ pub async fn run(
     let mut input = stdin.lock();
     let report = run_with(ctx, &args, platform.as_ref(), &mut input, out).await?;
     if let Ok(exe) = std::env::current_exe() {
-        let _ = writeln!(
-            out,
-            "Có thể xóa file chương trình {} (và bỏ khỏi PATH nếu bạn đã thêm).",
-            exe.display()
-        );
+        let _ = writeln!(out, "Còn lại: tự xóa {} và bỏ khỏi PATH.", exe.display());
     }
     drop(report);
     Ok(())
@@ -105,32 +101,22 @@ pub async fn run_with(
     say(out, "\nGỡ TeamLens khỏi máy này sẽ:");
     say(
         out,
-        "  - báo server rút đồng ý và thu hồi thiết bị này (cần mạng; không có mạng thì chỉ cảnh báo);",
+        "  - báo server rút đồng ý và thu hồi thiết bị (cần mạng);",
+    );
+    say(out, "  - gỡ tác vụ tự chạy và dừng daemon;");
+    say(
+        out,
+        "  - xóa token, cấu hình, hàng đợi chưa gửi và log trên máy.",
     );
     say(
         out,
-        "  - gỡ tác vụ tự chạy khi đăng nhập Windows và dừng daemon;",
+        "Dữ liệu đã gửi vẫn nằm trên server. Muốn xóa, nhờ leader.",
     );
-    say(
-        out,
-        "  - xóa token đăng nhập, cấu hình, hàng đợi chưa gửi và log trên máy.",
-    );
-    say(
-        out,
-        "Dữ liệu đã gửi trước đó vẫn nằm trên server; muốn xóa hẳn, nhờ leader xóa dữ liệu của bạn.",
-    );
-    if !args.yes
-        && !ask_confirmation(
-            input,
-            out,
-            "Gõ `yes` để gỡ TeamLens (gõ gì khác hoặc Enter là hủy): ",
-        )?
-    {
-        say(out, "Đã hủy, không có gì thay đổi.");
-        return Err(AppError::user(
-            "Đã hủy gỡ cài đặt.",
-            "Khi muốn gỡ, chạy lại `tl uninstall` và gõ `yes`.",
-        ));
+    if !args.yes && !ask_confirmation(input, out, "Gõ `yes` để gỡ TeamLens: ")? {
+        return Err(AppError::User {
+            message: "Đã hủy gỡ cài đặt, không có gì thay đổi.".into(),
+            hint: None,
+        });
     }
 
     let mut report = UninstallReport::default();
@@ -139,10 +125,7 @@ pub async fn run_with(
     if let Some(server_url) = &config.server_url {
         match ctx.credentials.get_token(server_url)? {
             Some(token) => notify_server(server_url, token, &mut report, out).await?,
-            None => say(
-                out,
-                "Cảnh báo: máy chưa có token đăng nhập nên chưa báo được server.",
-            ),
+            None => say(out, "Cảnh báo: chưa có token nên chưa báo được server."),
         }
     }
 
@@ -214,10 +197,9 @@ async fn notify_server(
             tracing::debug!(error = ?e, "thu hồi thiết bị thất bại");
             say(
                 out,
-                &format!(
-                    "Cảnh báo: chưa thu hồi được thiết bị trên server ({e}); leader có thể thu hồi trên dashboard."
-                ),
+                &format!("Cảnh báo: chưa thu hồi được thiết bị trên server ({e})."),
             );
+            say(out, "Nhờ leader thu hồi thiết bị này trên dashboard.");
         }
     }
     Ok(())
@@ -261,7 +243,7 @@ fn print_summary(out: &mut dyn Write, report: &UninstallReport, config: &Config)
         ),
     );
     if report.removed_files.is_empty() {
-        say(out, "  - không có file nào trên máy cần xóa.");
+        say(out, "  - không có file nào cần xóa.");
     } else {
         say(
             out,
@@ -271,10 +253,11 @@ fn print_summary(out: &mut dyn Write, report: &UninstallReport, config: &Config)
     if !report.failed_files.is_empty() {
         say(
             out,
-            &format!(
-                "Chưa xóa được: {}. Có thể daemon chạy tay (`tl daemon`) đang giữ file: đóng nó rồi chạy lại `tl uninstall`, hoặc tự xóa file.",
-                report.failed_files.join(", ")
-            ),
+            &format!("Chưa xóa được: {}.", report.failed_files.join(", ")),
+        );
+        say(
+            out,
+            "Đóng `tl daemon` đang chạy tay rồi chạy lại `tl uninstall`.",
         );
     }
 }

@@ -1,0 +1,94 @@
+{
+  "name": "get_rule",
+  "description": "Chi tiết một rule: thông tin tóm tắt và định nghĩa JSON khai báo (điều kiện, ngưỡng, thông điệp, lời khuyên). Có `projectId` thì lấy bản hiệu lực của project.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "key"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Khóa rule (từ `list_rules`)."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Lấy bản hiệu lực của project này."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "rule"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "rule": {
+        "type": "object",
+        "required": [
+          "key",
+          "category",
+          "severity",
+          "enabled",
+          "version",
+          "scope",
+          "definition",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "examples": [
+              "no-test-after-edit"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Nhóm kỹ năng của rule."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "default",
+              "project"
+            ],
+            "description": "`default`: rule mặc định toàn server; `project`: rule riêng của project (ghi đè rule mặc định cùng `key`)."
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Định nghĩa rule (JSON khai báo)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Lần sửa gần nhất."
+          }
+        }
+      }
+    }
+  }
+}
