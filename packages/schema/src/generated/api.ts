@@ -668,10 +668,117 @@ export interface paths {
          * @description Chỉ leader. Server nhận lệnh rồi chấm lại ở nền (pg-boss), nên trả `202` ngay mà không đợi chấm xong.
          *     Mỗi session gốc còn đủ turn được chấm lại: finding, điểm 5 nhóm và `user_weekly_stats` của các tuần liên quan
          *     được tính lại. Session con không có điểm. Session đã bị retention xóa turn giữ nguyên điểm cũ.
-         *     Gọi nhiều lần liên tiếp chỉ làm việc chấm lại lặp lại, không tạo bản ghi trùng.
+         *     Mỗi project chỉ có một lần chấm lại đang chờ hoặc chạy; lệnh trùng trả `409 rescore_in_progress`.
          *     Ghi audit `rules.rerun`.
          */
         post: operations["rerunProjectRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/rules/rerun/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Trạng thái lần chấm lại gần nhất (leader) */
+        get: operations["getRuleRerunStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Danh sách rule hiệu lực của project (leader) */
+        get: operations["listProjectRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/rules/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Sửa trạng thái, mức độ hoặc ngưỡng của rule theo project (leader)
+         * @description Chỉ tạo/sửa bản ghi đè theo project; không sửa rule mặc định toàn server. Sau sửa cần chạy lại.
+         */
+        patch: operations["updateProjectRule"];
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/rules/{key}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Khôi phục rule mặc định (leader)
+         * @description Xóa bản ghi đè và xếp chấm lại project ngay vì finding cũ có thể bị xóa theo khóa ngoại.
+         */
+        delete: operations["restoreProjectRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/rules/{key}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Thử rule trên tối đa 50 session gốc gần nhất, không ghi điểm (leader)
+         * @description Ví dụ tối đa 10 dòng, mỗi đoạn trích tối đa 160 ký tự đã che secret. Rule user_week chỉ cho kết quả mẫu.
+         */
+        post: operations["testProjectRule"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1876,6 +1983,53 @@ export interface components {
              * @enum {string}
              */
             status: "queued";
+            runId: components["schemas"]["Id"];
+        };
+        ProjectRule: {
+            key: string;
+            category: string;
+            /** @enum {string} */
+            scope: "session" | "user_week";
+            /** @enum {string} */
+            severity: "low" | "medium" | "high";
+            enabled: boolean;
+            thresholds: {
+                [key: string]: number;
+            };
+            definition: {
+                [key: string]: unknown;
+            };
+            version: number;
+            /** @enum {string} */
+            source: "default" | "project";
+            needsRerun: boolean;
+        };
+        RuleTestResult: {
+            sampledSessions: number;
+            matchedSessions: number;
+            approximate: boolean;
+            examples: {
+                sessionId: components["schemas"]["Id"];
+                turnSeq: number | null;
+                excerpt: string | null;
+            }[];
+        };
+        RuleRerunStatus: {
+            id: components["schemas"]["Id"];
+            projectId: components["schemas"]["Id"];
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed";
+            processedSessions: number;
+            totalSessions: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            finishedAt: string | null;
+            errorCode: string | null;
         };
         /**
          * @description Trạng thái đồng ý của một thiết bị so với văn bản hiện hành.
@@ -4493,7 +4647,8 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "queued"
+                     *       "status": "queued",
+                     *       "runId": "2356eb16-0734-42a0-9c8a-892a394bcaf2"
                      *     }
                      */
                     "application/json": components["schemas"]["RuleRerunAccepted"];
@@ -4502,6 +4657,181 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Có lần chấm lại đang chạy (`rescore_in_progress`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getRuleRerunStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description null nếu chưa từng chạy. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": (components["schemas"]["RuleRerunStatus"] | null) & components["schemas"]["RuleRerunStatus"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listProjectRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule mặc định được thay bằng bản project cùng key, kể cả khi bản project tắt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRule"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateProjectRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled?: boolean;
+                    /** @enum {string} */
+                    severity?: "low" | "medium" | "high";
+                    thresholds?: {
+                        [key: string]: number;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Rule sau khi cập nhật. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRule"];
+                };
+            };
+            /** @description Body hoặc ngưỡng không hợp lệ (`rule_invalid`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    restoreProjectRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã khôi phục và xếp chấm lại. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleRerunAccepted"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Có lần chấm lại đang chạy (`rescore_in_progress`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    testProjectRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả thử trong bộ nhớ. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleTestResult"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Hết 10 giây (`rule_test_timeout`). */
+            408: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listProjectInvites: {

@@ -154,6 +154,16 @@ paths:
     $ref: './rules.yaml#/paths/~1api~1v1~1sessions~1{sessionId}~1findings'
   /api/v1/projects/{projectId}/rules/rerun:
     $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules~1rerun'
+  /api/v1/projects/{projectId}/rules/rerun/status:
+    $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules~1rerun~1status'
+  /api/v1/projects/{projectId}/rules:
+    $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules'
+  /api/v1/projects/{projectId}/rules/{key}:
+    $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules~1{key}'
+  /api/v1/projects/{projectId}/rules/{key}/override:
+    $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules~1{key}~1override'
+  /api/v1/projects/{projectId}/rules/{key}/test:
+    $ref: './rules.yaml#/paths/~1api~1v1~1projects~1{projectId}~1rules~1{key}~1test'
 
   # invites.yaml
   /api/v1/projects/{projectId}/invites:
@@ -341,6 +351,12 @@ components:
       $ref: './rules.yaml#/components/schemas/SessionFindings'
     RuleRerunAccepted:
       $ref: './rules.yaml#/components/schemas/RuleRerunAccepted'
+    ProjectRule:
+      $ref: './rules.yaml#/components/schemas/ProjectRule'
+    RuleTestResult:
+      $ref: './rules.yaml#/components/schemas/RuleTestResult'
+    RuleRerunStatus:
+      $ref: './rules.yaml#/components/schemas/RuleRerunStatus'
 
     # consent.yaml
     ConsentState:

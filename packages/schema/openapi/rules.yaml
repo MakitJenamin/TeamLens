@@ -1,5 +1,177 @@
 # M1.9: đọc findings của session. M2.8: chạy lại rule cho project. Quản lý rule theo project thuộc M4.4.
 paths:
+  /api/v1/projects/{projectId}/rules:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectRules
+      tags: [rules]
+      summary: Danh sách rule hiệu lực của project (leader)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Rule mặc định được thay bằng bản project cùng key, kể cả khi bản project tắt.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectRule'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/rules/{key}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      operationId: updateProjectRule
+      tags: [rules]
+      summary: Sửa trạng thái, mức độ hoặc ngưỡng của rule theo project (leader)
+      description: Chỉ tạo/sửa bản ghi đè theo project; không sửa rule mặc định toàn server. Sau sửa cần chạy lại.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                enabled:
+                  type: boolean
+                severity:
+                  type: string
+                  enum: [low, medium, high]
+                thresholds:
+                  type: object
+                  additionalProperties:
+                    type: number
+      responses:
+        '200':
+          description: Rule sau khi cập nhật.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectRule'
+        '400':
+          description: Body hoặc ngưỡng không hợp lệ (`rule_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/rules/{key}/override:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: restoreProjectRule
+      tags: [rules]
+      summary: Khôi phục rule mặc định (leader)
+      description: Xóa bản ghi đè và xếp chấm lại project ngay vì finding cũ có thể bị xóa theo khóa ngoại.
+      security:
+        - cookieAuth: []
+      responses:
+        '202':
+          description: Đã khôi phục và xếp chấm lại.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleRerunAccepted'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: Có lần chấm lại đang chạy (`rescore_in_progress`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+
+  /api/v1/projects/{projectId}/rules/{key}/test:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: testProjectRule
+      tags: [rules]
+      summary: Thử rule trên tối đa 50 session gốc gần nhất, không ghi điểm (leader)
+      description: Ví dụ tối đa 10 dòng, mỗi đoạn trích tối đa 160 ký tự đã che secret. Rule user_week chỉ cho kết quả mẫu.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Kết quả thử trong bộ nhớ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleTestResult'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '408':
+          description: Hết 10 giây (`rule_test_timeout`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+
+  /api/v1/projects/{projectId}/rules/rerun/status:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getRuleRerunStatus
+      tags: [rules]
+      summary: Trạng thái lần chấm lại gần nhất (leader)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: null nếu chưa từng chạy.
+          content:
+            application/json:
+              schema:
+                type: [object, 'null']
+                allOf:
+                  - $ref: '#/components/schemas/RuleRerunStatus'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
   /api/v1/sessions/{sessionId}/findings:
     parameters:
       - $ref: './sessions.yaml#/components/parameters/SessionId'
@@ -49,7 +221,7 @@ paths:
         Chỉ leader. Server nhận lệnh rồi chấm lại ở nền (pg-boss), nên trả `202` ngay mà không đợi chấm xong.
         Mỗi session gốc còn đủ turn được chấm lại: finding, điểm 5 nhóm và `user_weekly_stats` của các tuần liên quan
         được tính lại. Session con không có điểm. Session đã bị retention xóa turn giữ nguyên điểm cũ.
-        Gọi nhiều lần liên tiếp chỉ làm việc chấm lại lặp lại, không tạo bản ghi trùng.
+        Mỗi project chỉ có một lần chấm lại đang chờ hoặc chạy; lệnh trùng trả `409 rescore_in_progress`.
         Ghi audit `rules.rerun`.
       security:
         - cookieAuth: []
@@ -62,6 +234,13 @@ paths:
                 $ref: '#/components/schemas/RuleRerunAccepted'
               example:
                 status: queued
+                runId: 2356eb16-0734-42a0-9c8a-892a394bcaf2
+        '409':
+          description: Có lần chấm lại đang chạy (`rescore_in_progress`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
         '401':
           $ref: './common.yaml#/components/responses/Unauthenticated'
         '403':
@@ -71,6 +250,96 @@ paths:
 
 components:
   schemas:
+    ProjectRule:
+      type: object
+      additionalProperties: false
+      required: [key, category, scope, severity, enabled, thresholds, definition, version, source, needsRerun]
+      properties:
+        key:
+          type: string
+        category:
+          type: string
+        scope:
+          type: string
+          enum: [session, user_week]
+        severity:
+          type: string
+          enum: [low, medium, high]
+        enabled:
+          type: boolean
+        thresholds:
+          type: object
+          additionalProperties:
+            type: number
+        definition:
+          type: object
+          additionalProperties: true
+        version:
+          type: integer
+        source:
+          type: string
+          enum: [default, project]
+        needsRerun:
+          type: boolean
+
+    RuleTestResult:
+      type: object
+      additionalProperties: false
+      required: [sampledSessions, matchedSessions, approximate, examples]
+      properties:
+        sampledSessions:
+          type: integer
+        matchedSessions:
+          type: integer
+        approximate:
+          type: boolean
+        examples:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [sessionId, turnSeq, excerpt]
+            properties:
+              sessionId:
+                $ref: './common.yaml#/components/schemas/Id'
+              turnSeq:
+                type: [integer, 'null']
+              excerpt:
+                type: [string, 'null']
+                maxLength: 160
+
+    RuleRerunStatus:
+      type: object
+      additionalProperties: false
+      required: [id, projectId, status, processedSessions, totalSessions, createdAt, updatedAt, startedAt, finishedAt, errorCode]
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        projectId:
+          $ref: './common.yaml#/components/schemas/Id'
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        processedSessions:
+          type: integer
+        totalSessions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        finishedAt:
+          type: [string, 'null']
+          format: date-time
+        errorCode:
+          type: [string, 'null']
+
     SessionFindings:
       type: object
       required: [items]
@@ -106,9 +375,11 @@ components:
           description: Đoạn trích ngắn đã che secret nếu có bằng chứng văn bản còn được lưu.
     RuleRerunAccepted:
       type: object
-      required: [status]
+      required: [status, runId]
       properties:
         status:
           type: string
           enum: [queued]
           description: Lệnh chấm lại đã được xếp hàng.
+        runId:
+          $ref: './common.yaml#/components/schemas/Id'
