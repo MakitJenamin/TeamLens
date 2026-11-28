@@ -7,7 +7,7 @@
 # members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
 #   admin.yaml, prompt-library.yaml (M6.14)
-# skills.yaml có skill-clusters (M6.11, Skill Finder S0) và nút AI S1, S2 (M6.12); S3 (M6.13) thêm sau.
+# skills.yaml có skill-clusters (M6.11, Skill Finder S0) và nút AI S1, S2 (M6.12); S3 (M6.13): nguồn catalog và chọn skill.
 # Mốc 6 (M6.0): ai.yaml (key AI của tôi, kết quả AI A1/A4/A5), agent-tokens.yaml (token `tlp_`),
 # mcp.yaml (endpoint `/api/v1/mcp`, chi tiết tool ở packages/schema/mcp/).
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
@@ -209,6 +209,12 @@ paths:
     $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters~1{clusterId}~1ai~1triage'
   /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/skill:
     $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters~1{clusterId}~1ai~1skill'
+  /api/v1/skill-catalog-sources:
+    $ref: './skills.yaml#/paths/~1api~1v1~1skill-catalog-sources'
+  /api/v1/skill-catalog-sources/{sourceId}:
+    $ref: './skills.yaml#/paths/~1api~1v1~1skill-catalog-sources~1{sourceId}'
+  /api/v1/projects/{projectId}/ai/catalog-picks:
+    $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1ai~1catalog-picks'
 
   # admin.yaml, prompt-library.yaml:
   # thêm `$ref` ở đây khi file đó có path.
@@ -477,3 +483,17 @@ components:
       $ref: './skills.yaml#/components/schemas/SkillTriageResult'
     SkillContentResult:
       $ref: './skills.yaml#/components/schemas/SkillContentResult'
+    SkillCatalogSource:
+      $ref: './skills.yaml#/components/schemas/SkillCatalogSource'
+    SkillCatalogSourceList:
+      $ref: './skills.yaml#/components/schemas/SkillCatalogSourceList'
+    CreateSkillCatalogSourceRequest:
+      $ref: './skills.yaml#/components/schemas/CreateSkillCatalogSourceRequest'
+    UpdateSkillCatalogSourceRequest:
+      $ref: './skills.yaml#/components/schemas/UpdateSkillCatalogSourceRequest'
+    CatalogPicksSaved:
+      $ref: './skills.yaml#/components/schemas/CatalogPicksSaved'
+    SkillCatalogPick:
+      $ref: './skills.yaml#/components/schemas/SkillCatalogPick'
+    SkillCatalogPicksResult:
+      $ref: './skills.yaml#/components/schemas/SkillCatalogPicksResult'
