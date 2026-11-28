@@ -19,6 +19,7 @@
     "dev": "pnpm run build",
     "bundle": "redocly lint openapi/openapi.yaml && redocly bundle openapi/openapi.yaml --output dist/openapi.yaml",
     "generate": "openapi-typescript dist/openapi.yaml --output src/generated/api.ts",
+    "generate:mcp": "redocly bundle openapi/openapi.yaml --dereferenced --ext json --output dist/openapi.deref.json && node scripts/gen-mcp-tools.mjs dist/openapi.deref.json mcp",
     "build": "pnpm run bundle && pnpm run generate",
     "lint": "redocly lint openapi/openapi.yaml",
     "typecheck": "tsc --noEmit",
