@@ -6,6 +6,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
+    "build:regex-validator": "cargo build --release --manifest-path tools/regex-validator/Cargo.toml",
     "rules:seed": "tsx src/modules/rules/seed-scoring.ts",
     "rules:run": "tsx src/modules/rules/rules-run.ts",
     "build": "nest build",

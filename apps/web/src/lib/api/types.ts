@@ -92,3 +92,7 @@ export type CreateInviteRequest = NonNullable<RequestBody<"createProjectInvite">
 export type InvitePreview = Schemas["InvitePreview"];
 export type ExchangeTicketRequest = RequestBody<"exchangeLoginTicket">;
 export type ExchangeTicketResponse = ResponseBody<"exchangeLoginTicket", 200>;
+
+// --- Cài đặt server (M4.6) ---
+export type ServerSettings = Schemas["ServerSettings"];
+export type RedactionPattern = Schemas["RedactionPattern"];
