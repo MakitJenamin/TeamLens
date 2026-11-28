@@ -130,6 +130,7 @@ export class ServerSettingsService {
             'settings',
             CONSENT_TEXT_KEY,
             tx,
+            undefined,
             {
               from: current.version,
               to: version,
@@ -153,6 +154,7 @@ export class ServerSettingsService {
           'settings',
           REDACTION_KEY,
           tx,
+          undefined,
           {
             count: value.length,
             ids: value.map((p) => p.id),
@@ -185,6 +187,7 @@ export class ServerSettingsService {
           'settings',
           RETENTION_KEY,
           tx,
+          undefined,
           {
             from,
             to: input.retentionDays,
