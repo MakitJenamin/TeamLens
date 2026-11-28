@@ -92,7 +92,7 @@ Module `crates/teamlens/src/mcp/` (Người 3), lệnh ở `commands/mcp.rs`. Se
 - Chưa `tl join` hoặc mất token: thoát mã 1 trước khi đọc stdin, in `Máy này chưa tham gia TeamLens` và gợi ý `tl join <link mời>` ra stderr.
 - Xử lý tuần tự từng message. Server luôn trả JSON; nếu gặp `text/event-stream` thì lấy từng sự kiện `data:`.
 - Cài vào agent (dùng device token sẵn có, không cần cấu hình thêm): **Claude Code** `claude mcp add teamlens -- tl mcp`; **Codex** thêm vào `~/.codex/config.toml` mục `[mcp_servers.teamlens]` với `command = "tl"` và `args = ["mcp"]` (cú pháp Codex theo hiểu biết chung, **chưa thử trên máy**; Claude Code đã thử thật). Leader dùng token `tlp_` qua HTTP trực tiếp, xem `apps/api/src/modules/mcp/README.md`.
-- Chỉ có trong bản `tl` phát hành **sau** M6.4 (cần tăng phiên bản và phát hành, xem mục "Phát hành CLI").
+- Có từ bản `tl` 0.4.0.
 - Test: `tests/mcp_bridge.rs` (wiremock). Thử thật: `TL_DATA_DIR=<thư mục tạm> tl join <link>` rồi cấu hình agent chạy `tl mcp` với cùng `TL_DATA_DIR`.
 
 ## Quy ước
