@@ -12,7 +12,7 @@ Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), xóa dữ liệu 
 - `POST /api/v1/admin/settings/redaction-test`: thử pattern trên đoạn mẫu, không lưu.
 - **Khóa trong bảng `settings`:**
   - `redaction_patterns`: CLI đọc qua `GET /agent/v1/config`.
-  - `retention_days`: không có dòng thì mặc định 90 (`DEFAULT_RETENTION_DAYS`), jsonb `null` là vô hạn. Job M5.5 phải phân biệt hai trường hợp này.
+  - `retention_days`: không có dòng thì mặc định 90 (`DEFAULT_RETENTION_DAYS`), jsonb `null` là vô hạn. Job M5.5 đọc bằng `readRetentionDays` (module `retention`), phân biệt hai trường hợp này.
   - `consent_text`: đọc qua `consent/consent-text.service.ts`.
 - **Kiểm regex:** `regex-validator.service.ts` gọi helper Rust `apps/api/tools/regex-validator`, cùng crate `regex` và `size_limit` 2 MiB với CLI, timeout 5 giây. Không log regex hay đoạn mẫu.
   - Build: `pnpm --filter @teamlens/api build:regex-validator`. Đổi đường dẫn bằng `REGEX_VALIDATOR_BIN`.
