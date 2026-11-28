@@ -1,0 +1,45 @@
+{
+  "name": "list_projects",
+  "description": "Liệt kê project người gọi xem được (member: project mình tham gia; leader: mọi project). Dùng `id` ở đây cho các tool khác cần `projectId`.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [],
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "projects"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "slug",
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

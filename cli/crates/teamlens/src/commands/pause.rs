@@ -36,23 +36,19 @@ pub async fn set_paused(
     db.set_paused(paused, chrono::Utc::now()).map_err(|e| {
         tracing::debug!(error = %e, "không ghi được cờ tạm dừng");
         AppError::user(
-            "Không ghi được trạng thái tạm dừng vào state.db.",
-            "Kiểm tra quyền ghi thư mục dữ liệu TeamLens rồi chạy lại.",
+            "Không lưu được trạng thái tạm dừng.",
+            "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens rồi chạy lại.",
         )
     })?;
     drop(db);
 
     let _ = match (paused, was_paused) {
-        (true, true) => writeln!(out, "TeamLens đã tạm dừng từ trước: không quét, không gửi gì."),
-        (true, false) => writeln!(
-            out,
-            "Đã tạm dừng thu thập: TeamLens không quét, không gửi gì cho tới khi chạy `tl resume`. Những gì bạn làm với agent trong lúc tạm dừng sẽ không bao giờ được gửi."
-        ),
-        (false, false) => writeln!(out, "TeamLens đang chạy bình thường (không tạm dừng)."),
-        (false, true) => writeln!(
-            out,
-            "Đã tiếp tục thu thập. Phần session phát sinh trong lúc tạm dừng được bỏ qua, không bao giờ gửi."
-        ),
+        (true, true) => writeln!(out, "TeamLens đã tạm dừng từ trước."),
+        (true, false) => writeln!(out, "Đã tạm dừng thu thập.")
+            .and_then(|_| writeln!(out, "Session trong lúc tạm dừng không bao giờ được gửi."))
+            .and_then(|_| writeln!(out, "Tiếp tục: `tl resume`.")),
+        (false, false) => writeln!(out, "TeamLens không tạm dừng."),
+        (false, true) => writeln!(out, "Đã tiếp tục thu thập."),
     };
 
     let wanted = if paused {
@@ -61,31 +57,26 @@ pub async fn set_paused(
         DeviceRunStatus::Online
     };
     let Some(client) = heartbeat::client_for(ctx)? else {
-        let _ = writeln!(
-            out,
-            "Máy này chưa tham gia server nào nên chỉ đổi trạng thái ở máy."
-        );
+        let _ = writeln!(out, "Máy này chưa tham gia server nào, chỉ đổi ở máy.");
         return Ok(());
     };
     match heartbeat::send_once(ctx, &client, sources).await {
         Ok(res) if res.status == "consent_revoked" => {
-            let _ = writeln!(
-                out,
-                "Server: thiết bị này đã rút đồng ý chia sẻ dữ liệu nên vẫn không gửi gì."
-            );
+            let _ = writeln!(out, "Máy này đã rút đồng ý nên vẫn không gửi gì.");
         }
         Ok(res) => {
-            let _ = writeln!(out, "Đã báo server: trạng thái thiết bị là {}.", res.status);
+            let _ = writeln!(
+                out,
+                "Server ghi nhận trạng thái thiết bị là {}.",
+                res.status
+            );
             if res.status != wanted.as_str() {
                 tracing::debug!(server = %res.status, "server ghi nhận trạng thái khác");
             }
         }
         Err(e) => {
             tracing::debug!(error = %e, "heartbeat thất bại");
-            let _ = writeln!(
-                out,
-                "Chưa báo được server ({e}). Trạng thái ở máy đã đổi; server sẽ biết ở lần heartbeat tới."
-            );
+            let _ = writeln!(out, "Chưa báo được server ({e}). Đã đổi trên máy.");
         }
     }
     Ok(())

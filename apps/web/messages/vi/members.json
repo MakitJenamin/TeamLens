@@ -1,14 +1,11 @@
 {
   "title": "Thành viên",
-  "description": "Thành viên của project kèm thiết bị và trạng thái thu thập. Thu hồi thiết bị bị lộ, xóa người lạ khỏi project, gộp tài khoản trùng (máy thứ hai, cài lại Windows) vào tài khoản cũ.",
   "recent": {
     "title": "Mới tham gia ({days} ngày)",
-    "description": "Người vừa tham gia bằng link mời. Không nhận ra ai thì xóa khỏi project và thu hồi link mời.",
-    "empty": "Không có ai tham gia trong thời gian này."
+    "empty": "Không có ai mới."
   },
   "list": {
-    "title": "Tất cả thành viên ({count})",
-    "empty": "Project chưa có thành viên nào."
+    "title": "Tất cả thành viên ({count})"
   },
   "role": {
     "leader": "Leader",
@@ -18,16 +15,14 @@
   "joinedOn": "Tham gia {date}",
   "lastSession": "Session gần nhất {date}",
   "noSession": "Chưa có session",
-  "deviceCount": "{active}/{total} thiết bị chưa thu hồi",
   "devices": "Thiết bị",
   "noDevices": "Chưa có thiết bị nào.",
-  "lastSeen": "kết nối lần cuối {date}",
   "profile": "Hồ sơ",
   "remove": "Xóa khỏi project",
-  "confirmRemove": "Xóa {name} khỏi project? Dữ liệu đã gửi vẫn giữ lại; thiết bị của họ ngừng gửi session cho project này.",
+  "confirmRemove": "Xóa {name} khỏi project? Thiết bị của họ ngừng gửi session cho project này. Dữ liệu đã gửi vẫn giữ.",
   "removeDone": "Đã xóa {name} khỏi project.",
   "revoke": "Thu hồi",
-  "confirmRevoke": "Thu hồi thiết bị {name}? Token của máy này không dùng được nữa; muốn dùng lại phải chạy lại `tl join`.",
+  "confirmRevoke": "Thu hồi thiết bị {name}? Máy này phải chạy lại `tl join` mới dùng tiếp được.",
   "revokeDone": "Đã thu hồi thiết bị {name}.",
   "status": {
     "online": "Đang chạy",

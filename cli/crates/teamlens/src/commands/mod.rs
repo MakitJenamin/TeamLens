@@ -4,6 +4,7 @@ pub mod consent;
 pub mod daemon;
 pub mod join;
 pub mod logout;
+pub mod mcp;
 pub mod open;
 pub mod pause;
 pub mod preview;
@@ -32,6 +33,7 @@ pub async fn dispatch(
         Command::Join(args) => join::run(&make_ctx()?, args, out).await,
         Command::Open(args) => open::run(&make_ctx()?, args, out).await.map(|_| ()),
         Command::Logout(args) => logout::run(&make_ctx()?, args, out).await,
+        Command::Mcp(args) => mcp::run(&make_ctx()?, args, out).await,
         Command::Pause(args) => pause::run(&make_ctx()?, args, out).await,
         Command::Resume(args) => resume::run(&make_ctx()?, args, out).await,
         Command::Status(args) => status::run(&make_ctx()?, args, out).await,

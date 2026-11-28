@@ -20,7 +20,7 @@ use crate::pipeline::batch::MAX_BATCH_JSON_BYTES;
 use crate::pipeline::collect::{CollectStats, Pipeline};
 use crate::pipeline::prepare::build_redactor;
 use crate::pipeline::scope::ScopeFilter;
-use crate::queue::{self, format_bytes, FlushOptions, FlushReport, FlushStop};
+use crate::queue::{self, format_bytes, FlushOptions, FlushReport};
 use crate::state::{state_path, StateDb};
 use crate::sync::agent_config::{self, ConfigSource};
 use crate::sync::incremental::{scope_fingerprint, FilePlan, PlannedSession};
@@ -32,13 +32,13 @@ const MAX_LINKS: usize = 5;
 
 #[derive(Debug, Args)]
 pub struct SyncArgs {
-    /// Quét và gửi một lần rồi thoát (lệnh này luôn chạy một lần; chạy nền là `tl daemon`, task M3.2)
+    /// Quét và gửi một lần rồi thoát (lệnh này luôn chạy một lần)
     #[arg(long)]
     pub once: bool,
     /// Chỉ in thống kê sẽ gửi, không gửi gì
     #[arg(long)]
     pub dry_run: bool,
-    /// Gửi cả session còn đang được ghi (file sửa chưa tới 2 phút), dùng khi thử tay
+    /// Gửi cả file log sửa chưa tới 2 phút
     #[arg(long)]
     pub include_active: bool,
 }
@@ -55,7 +55,7 @@ fn state_err(ctx: &AppContext) -> impl Fn(rusqlite::Error) -> AppError + '_ {
                 "Không đọc/ghi được file trạng thái {}.",
                 state_path(&ctx.config_path).display()
             ),
-            "Kiểm tra quyền ghi thư mục dữ liệu TeamLens; nếu file hỏng có thể xóa state.db (lần sau gửi lại từ đầu, server không ghi trùng).",
+            "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens. File hỏng thì xóa state.db, server không ghi trùng.",
         )
     }
 }
@@ -75,16 +75,14 @@ pub async fn run_with(
             .is_paused()
             .map_err(state_err(ctx))?
     {
-        let _ = writeln!(
-            out,
-            "TeamLens đang tạm dừng (`tl pause`): không quét, không gửi gì. Chạy `tl resume` để tiếp tục."
-        );
+        let _ = writeln!(out, "TeamLens đang tạm dừng.");
+        let _ = writeln!(out, "Tiếp tục: `tl resume`.");
         return Ok(());
     }
     if !args.dry_run && !consent_gate::may_send(ctx) {
         return Err(AppError::user(
-            "Máy này chưa đồng ý chia sẻ dữ liệu với server hiện tại nên không gửi gì.",
-            "Chạy `tl join <link mời>` (link do leader gửi) để xem và đồng ý.",
+            "Máy này chưa đồng ý chia sẻ dữ liệu nên không gửi gì.",
+            "Chạy `tl join <link mời>` để xem và đồng ý.",
         ));
     }
     let result = sync_once(ctx, &args, sources, max_batch_bytes, out).await;
@@ -124,7 +122,7 @@ async fn sync_once(
             return Err(block.to_error());
         }
         let e = block.to_error();
-        let _ = writeln!(out, "Lưu ý: {e} Gửi thật sẽ bị dừng.");
+        let _ = writeln!(out, "Lưu ý: {e}");
     }
 
     let prepare = agent_config::apply_to_prepare(&sources.prepare, server_config);
@@ -181,38 +179,24 @@ async fn sync_once(
     if skipped_by_consent > 0 {
         let _ = writeln!(
             out,
-            "Bỏ {skipped_by_consent} session theo lựa chọn khi đồng ý (session cũ khi không gửi lịch sử, hoặc project chưa đồng ý)."
+            "Bỏ {skipped_by_consent} session ngoài phần đã đồng ý gửi."
         );
     }
     if dropped_paused > 0 {
-        let _ = writeln!(
-            out,
-            "Bỏ {dropped_paused} turn phát sinh trong lúc tạm dừng (`tl pause`): không bao giờ gửi."
-        );
+        let _ = writeln!(out, "Bỏ {dropped_paused} turn trong lúc tạm dừng.");
     }
     if consent.is_none() {
-        let _ = writeln!(
-            out,
-            "Máy này chưa đồng ý với server hiện tại: chạy `tl join <link mời>` trước khi gửi thật."
-        );
+        let _ = writeln!(out, "Máy này chưa đồng ý nên chưa gửi được.");
+        let _ = writeln!(out, "Đồng ý: `tl join <link mời>`.");
     }
 
     if args.dry_run {
-        let _ = writeln!(out, "Chạy thử (--dry-run): không gửi gì.");
+        let _ = writeln!(out, "Chạy thử --dry-run, không gửi gì.");
         return Ok(());
     }
 
     // Xếp hàng (cùng transaction với đặt chỗ tiến độ) rồi gửi cả hàng đợi, cũ trước.
     let enq = queue::enqueue(&mut db, &plans, max_batch_bytes).map_err(state_err(ctx))?;
-    if enq.batches > 0 {
-        let _ = writeln!(
-            out,
-            "Đã xếp hàng {} batch ({} turn, {}).",
-            enq.batches,
-            enq.turns,
-            format_bytes(enq.bytes)
-        );
-    }
     if enq.dropped > 0 {
         let _ = writeln!(
             out,
@@ -232,21 +216,15 @@ async fn sync_once(
     if report.sent_batches > 0 || !report.failed.is_empty() {
         print_report(out, &conn.server_url, &report);
     } else if enq.batches == 0 && report.stop.is_none() {
-        let _ = writeln!(out, "Không có session nào mới trong phạm vi để gửi.");
+        let _ = writeln!(out, "Không có session nào mới để gửi.");
     }
     match report.stop {
         None => Ok(()),
         Some(stop) => {
             let stats = queue::queue_stats(&db).map_err(state_err(ctx))?;
-            let when = match &stop {
-                FlushStop::Retry {
-                    next_attempt_at, ..
-                } => format!(", tự thử lại lúc {}", queue::local_time(*next_attempt_at)),
-                _ => String::new(),
-            };
             let _ = writeln!(
                 out,
-                "Chưa gửi được: hàng đợi giữ {} batch ({}){when}; chạy lại `tl sync` để gửi tiếp.",
+                "Chưa gửi được, hàng đợi giữ {} batch ({}).",
                 stats.pending_batches,
                 format_bytes(stats.pending_bytes)
             );
@@ -260,7 +238,7 @@ pub(crate) fn print_config_source(out: &mut dyn Write, source: &ConfigSource) {
     if let ConfigSource::Cache { fetched_at } = source {
         let _ = writeln!(
             out,
-            "Không tải được cấu hình từ server, dùng bản đã lưu lúc {} (UTC).",
+            "Không tải được cấu hình, dùng bản đã lưu lúc {} (UTC).",
             fetched_at.format("%Y-%m-%d %H:%M")
         );
     }
@@ -269,8 +247,8 @@ pub(crate) fn print_config_source(out: &mut dyn Write, source: &ConfigSource) {
 fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
     let _ = writeln!(
         out,
-        "Đã quét {} file log: {} session trong phạm vi ({} turn), {} session ngoài phạm vi bị bỏ (không gửi gì).",
-        s.files, s.in_scope, turns, s.out_of_scope
+        "{} session trong phạm vi ({} turn), {} session ngoài phạm vi bị bỏ.",
+        s.in_scope, turns, s.out_of_scope
     );
     if s.read_errors > 0 || s.parse_warnings > 0 {
         let _ = writeln!(
@@ -283,18 +261,11 @@ fn print_stats(out: &mut dyn Write, s: &CollectStats, turns: usize) {
 
 fn print_skips(out: &mut dyn Write, s: &ScanStats) {
     if s.unchanged > 0 {
-        let _ = writeln!(
-            out,
-            "Bỏ qua {} file log không đổi từ lần gửi trước.",
-            s.unchanged
-        );
+        let _ = writeln!(out, "Bỏ qua {} file log không đổi.", s.unchanged);
     }
     if s.waiting > 0 {
-        let _ = writeln!(
-            out,
-            "{} file log đang được ghi (sửa chưa tới 2 phút): chờ lần sau, hoặc thêm `--include-active` để gửi luôn.",
-            s.waiting
-        );
+        let _ = writeln!(out, "{} file log đang được ghi, sẽ gửi lần sau.", s.waiting);
+        let _ = writeln!(out, "Gửi luôn: `tl sync --include-active`.");
     }
 }
 
@@ -302,29 +273,22 @@ fn print_report(out: &mut dyn Write, server_url: &str, r: &FlushReport) {
     let turns: u64 = r.accepted.iter().map(|a| a.turns_upserted).sum();
     let _ = writeln!(
         out,
-        "Đã gửi {} batch: server nhận {} session ({} turn được thêm/cập nhật), từ chối {}.",
+        "Đã gửi {} batch, server nhận {} session ({} turn), từ chối {}.",
         r.sent_batches,
         r.accepted.len(),
         turns,
         r.rejected.len()
     );
-    if r.duplicate_batches > 0 {
-        let _ = writeln!(
-            out,
-            "({} batch server đã nhận từ trước, không ghi lại.)",
-            r.duplicate_batches
-        );
-    }
     for reason in &r.failed {
         let _ = writeln!(
             out,
-            "  ✗ 1 batch bị server từ chối, không gửi lại: {reason}"
+            "  - 1 batch bị server từ chối, không gửi lại: {reason}"
         );
     }
     for rej in &r.rejected {
         let _ = writeln!(
             out,
-            "  ✗ {}: {} ({})",
+            "  - {}: {} ({})",
             rej.source_id, rej.message, rej.error
         );
     }

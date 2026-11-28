@@ -1,0 +1,145 @@
+{
+  "name": "get_prompt_library",
+  "description": "Thư viện prompt mẫu của project (C2): các prompt leader đã duyệt vì làm tốt, kèm ghi chú vì sao tốt, loại việc, tác giả (ẩn nếu leader chọn ẩn tên). Mọi thành viên của project dùng được. Mới nhất trước.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần xem (từ `list_projects`)."
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 50,
+        "description": "Số mục tối đa."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "items"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "prompt",
+            "note",
+            "workType",
+            "author",
+            "hideAuthor",
+            "sessionId",
+            "turnSeq",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Định danh (UUID)."
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Nội dung prompt (đã che secret ở máy thành viên), tối đa 4000 ký tự."
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workType": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "bugfix",
+                    "feature",
+                    "refactor",
+                    "question",
+                    "ops",
+                    "docs",
+                    "test",
+                    "other"
+                  ],
+                  "description": "Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "author": {
+              "description": "Tác giả. `null` khi `hideAuthor` và người gọi không phải leader.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "userId",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Định danh (UUID)."
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "hideAuthor": {
+              "type": "boolean"
+            },
+            "sessionId": {
+              "description": "Chỉ trả cho leader (để mở session gốc); thành viên nhận `null`.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Định danh (UUID)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "turnSeq": {
+              "description": "Chỉ trả cho leader; thành viên nhận `null`.",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    }
+  }
+}

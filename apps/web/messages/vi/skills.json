@@ -1,0 +1,89 @@
+{
+  "title": "Skill Finder",
+  "description": "Những prompt được gõ lặp lại gần như giống nhau. Việc nào cứ lặp đi lặp lại thì nên biến thành skill hoặc chỉ dẫn dùng chung cho agent.",
+  "filters": {
+    "range": "Khoảng thời gian",
+    "user": "Thành viên",
+    "allUsers": "Cả team",
+    "days": "{days} ngày gần nhất"
+  },
+  "summary": "Đã xét {analyzed} prompt: {clustered} prompt nằm trong {clusters} cụm lặp từ 3 lần trở lên.",
+  "heuristicNote": "Gom cụm theo từ khóa nên chỉ là gần đúng: cụm có thể thiếu hoặc lẫn.",
+  "truncated": "Có hơn 20.000 prompt trong khoảng này nên chỉ các prompt mới nhất được xét. Thu hẹp khoảng thời gian để xem đủ.",
+  "columns": {
+    "prompt": "Prompt tiêu biểu",
+    "count": "Số lần",
+    "users": "Người gõ",
+    "lastSeen": "Lần gần nhất"
+  },
+  "expand": "Xem ví dụ",
+  "collapse": "Ẩn ví dụ",
+  "examples": "Các lần xuất hiện gần nhất",
+  "turn": "Turn #{seq}",
+  "userCount": "{count} người",
+  "emptyTitle": "Chưa có prompt nào lặp lại đủ 3 lần",
+  "emptyHint": "Thử mở rộng khoảng thời gian.",
+  "errorTitle": "Không tải được Skill Finder",
+  "ai": {
+    "triage": "Đánh giá cụm này",
+    "generate": "Soạn SKILL.md",
+    "running": "Đang chạy AI…",
+    "redo": "Làm lại: {action}",
+    "privateNote": "Dùng API key của bạn. Kết quả AI chỉ mình bạn thấy.",
+    "addKey": "Thêm API key AI để đánh giá cụm và soạn SKILL.md",
+    "openSettings": "Mở Cài đặt AI",
+    "verdict": {
+      "strong": "Nên làm skill",
+      "maybe": "Có thể",
+      "skip": "Bỏ qua"
+    },
+    "copy": "Sao chép",
+    "copied": "Đã chép",
+    "download": "Tải SKILL.md",
+    "skillHint": "Đọc lại và sửa trước khi dùng. Đặt file vào thư mục skills của agent, ví dụ .claude/skills/<tên>/SKILL.md.",
+    "errors": {
+      "llm_key_missing": "Chưa có API key.",
+      "llm_key_invalid": "Nhà cung cấp AI từ chối API key.",
+      "llm_model_not_found": "Model đã chọn không tồn tại.",
+      "llm_quota_exceeded": "Đã hết quota hoặc bị giới hạn tốc độ ở nhà cung cấp AI. Thử lại sau.",
+      "llm_timeout": "AI phản hồi quá lâu (quá 60 giây). Thử lại sau.",
+      "llm_provider_error": "Không gọi được nhà cung cấp AI. Thử lại sau.",
+      "llm_bad_output": "AI trả kết quả sai định dạng. Thử lại hoặc chọn model mạnh hơn.",
+      "cluster_not_found": "Cụm không còn trong khoảng thời gian này. Tải lại trang.",
+      "forbidden": "Bạn không có quyền dùng AI trên cụm này.",
+      "not_found": "Không tìm thấy dữ liệu.",
+      "network_error": "Không kết nối được tới máy chủ.",
+      "unknown": "Có lỗi khi chạy AI. Thử lại sau.",
+      "no_clusters": "Chưa có việc nào lặp lại đủ 3 lần trong khoảng này nên chưa có gì để đối chiếu. Thử mở rộng khoảng thời gian.",
+      "catalog_unavailable": "Không đọc được catalog skill (không có nguồn nào bật, hoặc không kết nối được GitHub). Thử lại sau hoặc nhờ leader kiểm tra nguồn."
+    }
+  },
+  "catalog": {
+    "title": "Gợi ý skill có sẵn",
+    "description": "Đối chiếu các việc lặp lại của bạn với skill cộng đồng đã có (ví dụ anthropics/skills), để dùng luôn thay vì tự soạn.",
+    "run": "Gợi ý skill có sẵn",
+    "privateNote": "Dùng API key của bạn. Gửi lên nhà cung cấp AI nhãn các cụm và tên, mô tả skill trong catalog. Kết quả chỉ mình bạn thấy.",
+    "addKey": "Thêm API key AI để nhận gợi ý skill có sẵn",
+    "nothingFits": "Trong {count} skill đã xét, chưa có skill nào hợp rõ ràng với các việc lặp lại của bạn.",
+    "picksNote": "Đã xét {count} skill trong catalog. Đọc kỹ SKILL.md trước khi cài, vì đây là mã từ bên thứ ba.",
+    "showSources": "Nguồn catalog",
+    "hideSources": "Ẩn nguồn catalog",
+    "sourcesHint": "Các repo GitHub mà gợi ý skill đọc từ đó. Chỉ leader thêm hoặc bớt được.",
+    "sourcesHintLeader": "Các repo GitHub công khai mà gợi ý skill đọc từ đó (cả team dùng chung). Server đọc nhánh mặc định, lưu bộ nhớ đệm khoảng 6 giờ.",
+    "loading": "Đang tải…",
+    "sourcesLoadError": "Không tải được danh sách nguồn.",
+    "noSources": "Chưa có nguồn nào. Leader hãy thêm một repo GitHub.",
+    "enabled": "Đang bật",
+    "disabled": "Đang tắt",
+    "remove": "Xóa nguồn {name}",
+    "removeShort": "Xóa",
+    "sourceError": "Không cập nhật được nguồn này. Thử lại.",
+    "addLabel": "Thêm nguồn (URL repo GitHub)",
+    "add": "Thêm",
+    "errors": {
+      "invalid_url": "Chỉ nhận URL repo GitHub công khai dạng https://github.com/chủ-sở-hữu/repo.",
+      "source_exists": "Nguồn này đã có.",
+      "unknown": "Không thêm được nguồn. Thử lại sau."
+    }
+  }
+}
