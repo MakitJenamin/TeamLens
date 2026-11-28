@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api/client";
 import type { Leaderboard, Project } from "@/lib/api/types";
+import { leaderboardRange } from "./leaderboard-range";
 
 const categories = ["overall", "prompt_quality", "context", "correction_loop", "session_management", "verification"] as const;
 
@@ -60,7 +61,7 @@ export function LeaderboardPanel({ projectId, isLeader }: { projectId: string; i
     {query.isPending && <p className="text-muted-foreground">{t("loading")}</p>}
     {query.error && <p className="text-destructive" role="alert">{query.error instanceof ApiError && query.error.code === "leaderboard_disabled" ? t("private") : query.error.message}</p>}
     {data && <>
-      <p className="text-muted-foreground text-sm">{t("range", { from: data.from.slice(0, 10), to: data.to.slice(0, 10) })}</p>
+      <p className="text-muted-foreground text-sm">{t("range", leaderboardRange(data.from, data.to))}</p>
       {!data.leaderboardEnabled ? <p>{t("disabled")}</p> : <>
         {data.sessionsNeeded > 0 && <p className="rounded-lg border p-4">{t("progress", { count: data.mySessions, needed: data.sessionsNeeded })}</p>}
         {data.entries.length === 0 ? <p className="rounded-lg border p-6 text-center">{t("empty")}</p> :

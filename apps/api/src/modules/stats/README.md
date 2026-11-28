@@ -40,10 +40,9 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 ## Leaderboard (M4.3)
 
 `GET /api/v1/projects/{id}/leaderboard?period=week|month&category=&at=` (`leaderboard.controller.ts`, `leaderboard.service.ts`, phần tính thuần ở `leaderboard-math.ts`).
-- **Kỳ:** tuần đọc `user_weekly_stats`; tháng là tháng dương lịch UTC, tính lại từ điểm session gốc bằng `computeWeeklyScores`.
+- **Kỳ:** tuần đọc `user_weekly_stats`; tháng là tháng dương lịch UTC, tính lại từ session gốc trong tháng (`monthScores`): chia theo tuần UTC, mỗi tuần dùng đúng công thức điểm tuần (`computeWeeklyScores`, phạt `user_week` chỉ trừ vào tuần của nó), rồi gộp các tuần theo trọng số số session gốc như tổng quan và hồ sơ. Tuần giáp ranh chỉ tính session thuộc tháng.
+- **`from`/`to`:** `to` là mốc kết thúc không gồm (thứ Hai kế tiếp, ngày 1 tháng sau). Web hiển thị ngày cuối là `to` lùi một ngày.
+- **Ai được xếp:** chỉ người còn trong `project_members` của project và chưa bị xóa (`users.deleted_at`). Người đã rời project không còn trong bảng, kể cả tuần cũ.
 - **Ngưỡng:** chỉ xếp người có ít nhất 5 session gốc trong kỳ.
 - **Cài đặt theo project** (`projects.settings`): `leaderboardEnabled`, `leaderboardPublic`. Leader luôn xem được. Member chỉ xem được khi cả hai cùng bật, không thì 403 `leaderboard_disabled`.
 - **Member thấy gì:** hạng và điểm của mọi người, nhưng `userId`/`name` của người khác là `null`. Kèm `mySessions` và `sessionsNeeded` của chính mình.
-- **Lỗi đã biết:**
-  - `monthScores` trừ phạt `user_week` của mọi tuần trong tháng vào một lần.
-  - Vẫn xếp người đã rời project (không join `project_members`).
