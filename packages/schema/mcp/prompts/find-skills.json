@@ -1,0 +1,12 @@
+{
+  "name": "find-skills",
+  "description": "Tìm những việc lặp đi lặp lại của project và soạn skill (SKILL.md) dùng chung từ đó.",
+  "arguments": [
+    {
+      "name": "projectId",
+      "description": "Project cần tìm (từ `list_projects`).",
+      "required": true
+    }
+  ],
+  "template": "Hãy giúp tôi biến những việc lặp đi lặp lại thành skill dùng chung, dựa trên dữ liệu TeamLens của project `{{projectId}}`.\n\n1. Gọi `get_skill_clusters` cho project này (mặc định 30 ngày gần nhất) để lấy các cụm prompt lặp lại.\n2. Chọn tối đa 3 cụm đáng làm nhất: lặp nhiều lần, nhiều người gõ, và là một quy trình có các bước rõ ràng. Bỏ cụm quá vặt, và bỏ cụm chỉ là thông tin riêng của project (loại đó nên ghi vào AGENTS.md thay vì làm skill). Nói ngắn gọn vì sao chọn hoặc bỏ từng cụm.\n3. Với mỗi cụm đã chọn: nếu tôi đã bấm nút AI ở trang Skill Finder thì gọi `get_my_ai_results` (subjectType `skill_cluster`, subjectId là `id` của cụm) để lấy SKILL.md đã tạo; chưa có thì tự soạn từ các ví dụ của cụm.\n4. Đưa cho tôi nội dung `SKILL.md` đầy đủ (frontmatter `name` và `description`, rồi hướng dẫn từng bước) và nói rõ nên đặt ở `.claude/skills/<tên>/SKILL.md` (Claude Code) hoặc thư mục skill của Codex. CHỈ ghi file vào repo sau khi tôi đồng ý.\n\nChỉ dựa vào dữ liệu có thật từ các tool, không bịa lệnh hay đường dẫn không có trong các ví dụ."
+}

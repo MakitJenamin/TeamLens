@@ -32,7 +32,7 @@ Mỗi tool một file `<tên-tool>.json`:
 | Tri thức team | `get_skill_clusters` (S0), `get_prompt_library` (C2, mục đã duyệt, chờ M6.14) | Theo quyền | [`get_skill_clusters`](get_skill_clusters.json) |
 | Kết quả AI | `get_my_ai_results` (kết quả AI chính người gọi đã tạo trên dashboard) | Mọi người | [`get_my_ai_results`](get_my_ai_results.json) |
 | Ghi (leader) | `draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_note` | Leader | [`draft_rule`](draft_rule.json), [`test_rule`](test_rule.json), [`save_rule`](save_rule.json), [`set_rule_enabled`](set_rule_enabled.json), [`add_session_note`](add_session_note.json) |
-| MCP prompts | `coach-me`, `weekly-review` (leader); `find-skills`, `improve-agents-md` chờ M6.11 và C3 | Theo quyền | [`prompts/coach-me`](prompts/coach-me.json), [`prompts/weekly-review`](prompts/weekly-review.json) |
+| MCP prompts | `coach-me`, `find-skills` (mọi người), `weekly-review` (leader); `improve-agents-md` chờ C3 | Theo quyền | [`prompts/coach-me`](prompts/coach-me.json), [`prompts/find-skills`](prompts/find-skills.json), [`prompts/weekly-review`](prompts/weekly-review.json) |
 
 Thêm tool: tạo file `<tên-tool>.json`, điền cột "File" của bảng trên, chạy `test`.
 

@@ -7,7 +7,7 @@
 # members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
 #   admin.yaml, prompt-library.yaml (M6.14)
-# skills.yaml có skill-clusters (M6.11, Skill Finder S0); S1 đến S3 (M6.12, M6.13) thêm sau.
+# skills.yaml có skill-clusters (M6.11, Skill Finder S0) và nút AI S1, S2 (M6.12); S3 (M6.13) thêm sau.
 # Mốc 6 (M6.0): ai.yaml (key AI của tôi, kết quả AI A1/A4/A5), agent-tokens.yaml (token `tlp_`),
 # mcp.yaml (endpoint `/api/v1/mcp`, chi tiết tool ở packages/schema/mcp/).
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
@@ -203,6 +203,12 @@ paths:
   # skills.yaml
   /api/v1/projects/{projectId}/skill-clusters:
     $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters'
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai:
+    $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters~1{clusterId}~1ai'
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/triage:
+    $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters~1{clusterId}~1ai~1triage'
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/skill:
+    $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters~1{clusterId}~1ai~1skill'
 
   # admin.yaml, prompt-library.yaml:
   # thêm `$ref` ở đây khi file đó có path.
@@ -463,3 +469,11 @@ components:
       $ref: './skills.yaml#/components/schemas/SkillClusterUser'
     SkillClusterExample:
       $ref: './skills.yaml#/components/schemas/SkillClusterExample'
+    RunSkillAiRequest:
+      $ref: './skills.yaml#/components/schemas/RunSkillAiRequest'
+    SkillClusterAiResults:
+      $ref: './skills.yaml#/components/schemas/SkillClusterAiResults'
+    SkillTriageResult:
+      $ref: './skills.yaml#/components/schemas/SkillTriageResult'
+    SkillContentResult:
+      $ref: './skills.yaml#/components/schemas/SkillContentResult'
