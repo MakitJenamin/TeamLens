@@ -976,6 +976,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{userId}/ai/weekly-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * B1 · báo cáo tuần đã lưu của người gọi về một thành viên
+         * @description Chỉ trả kết quả của chính người gọi (kind `weekly_user`, subjectType `user_week`, theo `project`, `week` và
+         *     `locale`), hoặc `null`. Quyền như hồ sơ thành viên: member chỉ hỏi về chính mình (hỏi người khác trả `403`),
+         *     leader hỏi về mọi thành viên của project. Không dựng lại dữ liệu nên không ghi audit.
+         */
+        get: operations["getWeeklyReport"];
+        put?: never;
+        /**
+         * B1 · AI viết báo cáo tuần của một thành viên
+         * @description Trả `AiResult` kind `weekly_user`, subjectType `user_week`, `result` theo `WeeklyReportResult`. Ghi đè bản cũ của
+         *     người gọi (cùng thành viên, project, tuần và locale). Kết quả chỉ người bấm đọc được; chủ dữ liệu (`subject_user_id`)
+         *     là thành viên được báo cáo nên xóa dữ liệu của họ cũng xóa báo cáo này.
+         *
+         *     **Quyền:** như hồ sơ thành viên. Member chỉ tạo báo cáo về chính mình; leader về mọi thành viên của project và
+         *     khi đó ghi audit `weekly_report.ai` (prompt của người khác được gửi cho nhà cung cấp LLM).
+         *
+         *     **Dữ liệu gửi cho LLM** (key của người gọi), không phải toàn bộ session của tuần: số liệu đã tính (số session,
+         *     token, điểm 5 nhóm của tuần này, tuần trước và trung bình team), các rule bị vi phạm trong tuần (khóa, nhóm,
+         *     mức, số lần, lời khuyên của rule), số session theo loại việc B4, và tối đa 3 ví dụ prompt thật chọn bằng heuristic:
+         *     hai prompt thuộc session có finding mức cao hoặc nhiều nhất (`needs_work`) và một prompt của session điểm cao nhất
+         *     (`good`), mỗi prompt cắt 400 ký tự (đã che secret ở máy thành viên).
+         *
+         *     **Server giữ quyền quyết định số liệu:** AI chỉ viết lời nhận xét và chọn ví dụ theo mã; `sessionId`, `turnSeq`,
+         *     `kind`, `excerpt` của ví dụ lấy từ dữ liệu của server, mã không hợp lệ bị bỏ.
+         *
+         *     Lỗi riêng: `409 no_week_data` (tuần đó thành viên chưa có session nào); `400 validation_error` khi `week` không
+         *     phải thứ Hai hoặc ở tương lai. Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+         */
+        post: operations["runWeeklyReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/v1/consent": {
         parameters: {
             query?: never;
@@ -2421,6 +2466,52 @@ export interface components {
             weeks: components["schemas"]["ProfileWeek"][];
             patterns: components["schemas"]["ProfilePattern"][];
         };
+        RunWeeklyReportRequest: {
+            project: components["schemas"]["Id"];
+            locale: components["schemas"]["AiLocale"];
+            /**
+             * Format: date
+             * @description Thứ Hai (UTC) của tuần. Bỏ trống thì dùng tuần gần nhất mà thành viên có session.
+             */
+            week?: string;
+        };
+        WeeklyReportExample: {
+            sessionId: components["schemas"]["Id"];
+            turnSeq: number;
+            /**
+             * @description `good` là prompt của session điểm cao nhất; `needs_work` là prompt của session có finding nặng.
+             * @enum {string}
+             */
+            kind: "good" | "needs_work";
+            /** @description Nội dung prompt, cắt tối đa 400 ký tự (lấy từ dữ liệu của server). */
+            excerpt: string;
+            /** @description Nhận xét về ví dụ này, do AI viết. */
+            comment: string;
+        };
+        /** @description `result` của `AiResult` kind `weekly_user` (B1). */
+        WeeklyReportResult: {
+            /**
+             * Format: date
+             * @description Thứ Hai (UTC) của tuần được báo cáo (do server điền).
+             */
+            week: string;
+            /** @description Một đến hai câu tóm tắt tuần. */
+            headline: string;
+            strengths: string[];
+            weaknesses: string[];
+            /** @description So với tuần trước (hoặc nói chưa có dữ liệu tuần trước). */
+            vsLastWeek: string;
+            /** @description Một việc nên tập trong tuần tới. */
+            focus: {
+                title: string;
+                detail: string;
+            };
+            examples: components["schemas"]["WeeklyReportExample"][];
+        };
+        WeeklyReportSaved: {
+            /** @description Kết quả `weekly_user` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
         ProfileUser: {
             id: components["schemas"]["Id"];
             name: string;
@@ -3385,19 +3476,13 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Người gọi chưa nhập API key AI (`error`: `llm_key_missing`). */
-        LlmKeyMissing: {
+        /** @description Kết quả AI vừa tạo (đã lưu, ghi đè bản cũ của người gọi). */
+        AiResultOk: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "error": "llm_key_missing",
-                 *       "message": "Bạn chưa nhập API key AI. Vào Cài đặt AI để nhập key."
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
+                "application/json": components["schemas"]["AiResult"];
             };
         };
         /**
@@ -3454,13 +3539,19 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Kết quả AI vừa tạo (đã lưu, ghi đè bản cũ của người gọi). */
-        AiResultOk: {
+        /** @description Người gọi chưa nhập API key AI (`error`: `llm_key_missing`). */
+        LlmKeyMissing: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                "application/json": components["schemas"]["AiResult"];
+                /**
+                 * @example {
+                 *       "error": "llm_key_missing",
+                 *       "message": "Bạn chưa nhập API key AI. Vào Cài đặt AI để nhập key."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
             };
         };
         /** @description Thiếu token, token sai hoặc đã thu hồi (`error`: `invalid_token`). */
@@ -5522,6 +5613,75 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getWeeklyReport: {
+        parameters: {
+            query: {
+                project: components["schemas"]["Id"];
+                /**
+                 * @description Thứ Hai (UTC) của tuần, `YYYY-MM-DD`. Bỏ trống thì dùng tuần gần nhất mà thành viên có session (tính cả tuần
+                 *     hiện tại).
+                 */
+                week?: string;
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyReportSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runWeeklyReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunWeeklyReportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc thành viên chưa có session nào trong tuần đó (`no_week_data`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
         };
     };
     agentGetConsent: {

@@ -182,6 +182,8 @@ paths:
     $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1leaderboard'
   /api/v1/users/{userId}/profile:
     $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1profile'
+  /api/v1/users/{userId}/ai/weekly-report:
+    $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1ai~1weekly-report'
 
   # consent.yaml
   /agent/v1/consent:
@@ -425,6 +427,14 @@ components:
       $ref: './stats.yaml#/components/schemas/OverviewFinding'
     MemberProfile:
       $ref: './stats.yaml#/components/schemas/MemberProfile'
+    RunWeeklyReportRequest:
+      $ref: './stats.yaml#/components/schemas/RunWeeklyReportRequest'
+    WeeklyReportExample:
+      $ref: './stats.yaml#/components/schemas/WeeklyReportExample'
+    WeeklyReportResult:
+      $ref: './stats.yaml#/components/schemas/WeeklyReportResult'
+    WeeklyReportSaved:
+      $ref: './stats.yaml#/components/schemas/WeeklyReportSaved'
     ProfileUser:
       $ref: './stats.yaml#/components/schemas/ProfileUser'
     ProfileTotals:

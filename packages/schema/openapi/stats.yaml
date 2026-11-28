@@ -1,6 +1,7 @@
 # Nhóm `stats`: thống kê và điểm (cookieAuth), spec mục 7.4 và 10.
 # - GET /api/v1/projects/{projectId}/overview: tổng quan project cho leader (M2.9).
 # - GET /api/v1/users/{userId}/profile?project=: hồ sơ thành viên (M2.10).
+# - GET|POST /api/v1/users/{userId}/ai/weekly-report: báo cáo tuần theo người do AI viết (B1, M6.8).
 # Còn để sau:
 # - GET /api/v1/projects/{projectId}/leaderboard (M4.3)
 #
@@ -164,6 +165,121 @@ paths:
           $ref: './common.yaml#/components/responses/Forbidden'
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/users/{userId}/ai/weekly-report:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/UserId'
+    get:
+      operationId: getWeeklyReport
+      tags: [stats]
+      summary: B1 · báo cáo tuần đã lưu của người gọi về một thành viên
+      description: |
+        Chỉ trả kết quả của chính người gọi (kind `weekly_user`, subjectType `user_week`, theo `project`, `week` và
+        `locale`), hoặc `null`. Quyền như hồ sơ thành viên: member chỉ hỏi về chính mình (hỏi người khác trả `403`),
+        leader hỏi về mọi thành viên của project. Không dựng lại dữ liệu nên không ghi audit.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            $ref: './common.yaml#/components/schemas/Id'
+        - name: week
+          in: query
+          required: false
+          description: |
+            Thứ Hai (UTC) của tuần, `YYYY-MM-DD`. Bỏ trống thì dùng tuần gần nhất mà thành viên có session (tính cả tuần
+            hiện tại).
+          schema:
+            type: string
+            format: date
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+      responses:
+        '200':
+          description: Kết quả đã lưu hoặc `null`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyReportSaved'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: runWeeklyReport
+      tags: [stats]
+      summary: B1 · AI viết báo cáo tuần của một thành viên
+      description: |
+        Trả `AiResult` kind `weekly_user`, subjectType `user_week`, `result` theo `WeeklyReportResult`. Ghi đè bản cũ của
+        người gọi (cùng thành viên, project, tuần và locale). Kết quả chỉ người bấm đọc được; chủ dữ liệu (`subject_user_id`)
+        là thành viên được báo cáo nên xóa dữ liệu của họ cũng xóa báo cáo này.
+
+        **Quyền:** như hồ sơ thành viên. Member chỉ tạo báo cáo về chính mình; leader về mọi thành viên của project và
+        khi đó ghi audit `weekly_report.ai` (prompt của người khác được gửi cho nhà cung cấp LLM).
+
+        **Dữ liệu gửi cho LLM** (key của người gọi), không phải toàn bộ session của tuần: số liệu đã tính (số session,
+        token, điểm 5 nhóm của tuần này, tuần trước và trung bình team), các rule bị vi phạm trong tuần (khóa, nhóm,
+        mức, số lần, lời khuyên của rule), số session theo loại việc B4, và tối đa 3 ví dụ prompt thật chọn bằng heuristic:
+        hai prompt thuộc session có finding mức cao hoặc nhiều nhất (`needs_work`) và một prompt của session điểm cao nhất
+        (`good`), mỗi prompt cắt 400 ký tự (đã che secret ở máy thành viên).
+
+        **Server giữ quyền quyết định số liệu:** AI chỉ viết lời nhận xét và chọn ví dụ theo mã; `sessionId`, `turnSeq`,
+        `kind`, `excerpt` của ví dụ lấy từ dữ liệu của server, mã không hợp lệ bị bỏ.
+
+        Lỗi riêng: `409 no_week_data` (tuần đó thành viên chưa có session nào); `400 validation_error` khi `week` không
+        phải thứ Hai hoặc ở tương lai. Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunWeeklyReportRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: |
+            Chưa có API key (`llm_key_missing`) hoặc thành viên chưa có session nào trong tuần đó (`no_week_data`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              examples:
+                noKey:
+                  value:
+                    error: llm_key_missing
+                    message: Bạn chưa cấu hình API key AI.
+                noData:
+                  value:
+                    error: no_week_data
+                    message: Thành viên này chưa có session nào trong tuần đó.
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: './ai.yaml#/components/responses/LlmProviderError'
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
 
   /api/v1/users/{userId}/profile:
     parameters:
@@ -658,3 +774,91 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/ProfilePattern'
+
+    RunWeeklyReportRequest:
+      type: object
+      required: [project, locale]
+      additionalProperties: false
+      properties:
+        project:
+          $ref: './common.yaml#/components/schemas/Id'
+        locale:
+          $ref: './ai.yaml#/components/schemas/AiLocale'
+        week:
+          type: string
+          format: date
+          description: Thứ Hai (UTC) của tuần. Bỏ trống thì dùng tuần gần nhất mà thành viên có session.
+
+    WeeklyReportExample:
+      type: object
+      required: [sessionId, turnSeq, kind, excerpt, comment]
+      additionalProperties: false
+      properties:
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum: [good, needs_work]
+          description: '`good` là prompt của session điểm cao nhất; `needs_work` là prompt của session có finding nặng.'
+        excerpt:
+          type: string
+          description: Nội dung prompt, cắt tối đa 400 ký tự (lấy từ dữ liệu của server).
+        comment:
+          type: string
+          description: Nhận xét về ví dụ này, do AI viết.
+
+    WeeklyReportResult:
+      type: object
+      description: '`result` của `AiResult` kind `weekly_user` (B1).'
+      required: [week, headline, strengths, weaknesses, vsLastWeek, focus, examples]
+      additionalProperties: false
+      properties:
+        week:
+          type: string
+          format: date
+          description: Thứ Hai (UTC) của tuần được báo cáo (do server điền).
+        headline:
+          type: string
+          description: Một đến hai câu tóm tắt tuần.
+        strengths:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+        weaknesses:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+        vsLastWeek:
+          type: string
+          description: So với tuần trước (hoặc nói chưa có dữ liệu tuần trước).
+        focus:
+          type: object
+          description: Một việc nên tập trong tuần tới.
+          required: [title, detail]
+          additionalProperties: false
+          properties:
+            title:
+              type: string
+            detail:
+              type: string
+        examples:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/WeeklyReportExample'
+
+    WeeklyReportSaved:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          description: Kết quả `weekly_user` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
