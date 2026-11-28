@@ -154,7 +154,7 @@
 | **M6.12** | S1 triage + S2 sinh `SKILL.md` | 3 | M6.1, M6.11 |
 | **M6.13** | S3 catalog nhiều nguồn cấu hình được + chọn skill | 3 | M6.12 |
 | **M6.14** | C2 thư viện prompt: tìm ứng viên, duyệt, trang thư viện cho member | 3 | M6.1 |
-| — | Làm nốt **M4.3–M4.6** (M4.6 bỏ phần LLM provider) và **M5.4–M5.6** | 2 | |
+| — | Làm nốt **M4.3–M4.6** (✅ xong, #137–#149; M4.6 bỏ phần LLM provider) và **M5.4–M5.6** (M5.4 Người 1 làm thay, còn M5.5, M5.6) | 2 | |
 | **M6.7** | B4 phân loại việc bằng heuristic trong rule worker, lọc theo loại việc, thống kê ở Tổng quan | 2 | M6.0 |
 | **M6.8** | B1 báo cáo tuần theo người (trang hồ sơ thành viên) | 2 | M6.1 |
 | **M6.9** | B2 báo cáo tuần của team (Tổng quan) | 2 | M6.8 |

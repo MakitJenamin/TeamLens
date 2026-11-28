@@ -17,15 +17,56 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 1.5 · Tối giản tham gia | ✅ xong | PR #29–#37 |
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
-| Mốc 4 · Báo cáo và minh bạch | 🚧 đang làm | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 còn M4.3–M4.6 |
+| Mốc 4 · Báo cáo và minh bạch | ✅ xong (còn lỗi cần sửa, xem dưới) | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 xong M4.3 (#137–#139), M4.4 (#140–#142), M4.5 (#143, #144), M4.6 (#145–#149) |
 | Mốc 5 · Cài đặt và phát hành | 🚧 đang làm | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87) đến 0.3.0 (#111), bản mới nhất 0.4.0 có `tl mcp`. M5.4 do Người 1 làm thay (#106). Người 2 còn M5.5, M5.6 |
-| Mốc 6 · Tính năng AI và MCP | 🚧 đang làm | Người 1 xong M6.0 (#97, #98), M6.1 (#99, #101), M6.2 (#103, #104), M6.5 + M6.6 (#102). Người 3 xong M6.3 (#112, #113), M6.4 (#115), M6.15 (#117, #118), M6.16 (#120, #121, #122), M6.11 (#124, #125), M6.12 (#127, #128), M6.13 (#130, #131), M6.14 (#133, #134), xong hết phần của Người 3 ở Mốc 6. Người 2 chưa bắt đầu. Thiết kế: [AI_PLAN.md](AI_PLAN.md) |
+| Mốc 6 · Tính năng AI và MCP | 🚧 đang làm | Người 1 xong M6.0 (#97, #98), M6.1 (#99, #101), M6.2 (#103, #104), M6.5 + M6.6 (#102). Người 3 xong M6.3 (#112, #113), M6.4 (#115), M6.15 (#117, #118), M6.16 (#120, #121, #122), M6.11 (#124, #125), M6.12 (#127, #128), M6.13 (#130, #131), M6.14 (#133, #134), xong hết phần của Người 3 ở Mốc 6. Người 2 chưa bắt đầu (M6.7–M6.10). Thiết kế: [AI_PLAN.md](AI_PLAN.md) |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
-1. Người 1: hết việc Mốc 4 và Mốc 5. Bản `tl` mới nhất là 0.4.0 (GitHub Release `v0.4.0`, có `tl mcp` của M6.4). Còn lại: nghiệm thu chung (SPEC 12.3).
-2. Người 2: hết việc Mốc 2 và Mốc 3. Làm **M4.3** (leaderboard, đọc `user_weekly_stats` của M2.8) → **M4.4** → **M4.5** → **M4.6**, rồi Mốc 5 (M5.5, M5.6; M5.4 Người 1 đã làm thay, xem `deploy/README.md`). Khi làm M5.5: số ngày retention đọc từ bảng `settings` (khóa do M4.6 đặt), và nút "Chạy lại" của M4.4 phải bỏ qua session đã bị retention xóa turn, nếu không điểm sẽ thành sai. M4.6 bỏ phần "LLM provider" (AI giờ là BYO theo từng người, xem Mốc 6). Sau đó làm phần Mốc 6 của mình (M6.7 → M6.8 → M6.9 → M6.10). Nhắc: #70 và #110 đã đổi văn bản đồng ý nên **mọi thiết bị phải chạy `tl consent` một lần** (phiên bản văn bản đồng ý hiện tại `2026-11-28.1`, từ #110).
-3. Người 1: hết việc Mốc 6 (M6.0–M6.2, M6.5, M6.6). `LlmService` đã có trên `main` (đọc `apps/api/src/modules/llm/README.md`), Người 2, 3 code theo. Còn lại: nghiệm thu chung M6.17 khi Người 2, 3 xong.
-4. Người 3: xong **M6.3** (khung MCP, #112, #113) và **M6.4** (`tl mcp`, #115; có từ bản `tl` 0.4.0, thành viên chạy `tl update`). Đã xong **M6.15** (10 tool đọc, #117, #118; còn thiếu `get_leaderboard`, `get_skill_clusters`, `get_prompt_library` vì tính năng tương ứng chưa có). Đã xong **M6.16** (5 tool ghi cho leader và 2 prompt, #120, #121, #122; chỉ chỉnh rule session có sẵn, chưa tạo được rule mới). Đã xong **M6.11** (Skill Finder S0: gom cụm prompt lặp lại, trang web, tool `get_skill_clusters`; #124, #125). Đã xong **M6.12** (nút AI của Skill Finder: S1 triage, S2 soạn `SKILL.md`, prompt MCP `find-skills`; #127, #128). Đã xong **M6.13** (S3: nguồn catalog GitHub cấu hình được, AI chọn skill có sẵn; #130, #131). Đã xong **M6.14** (C2: thư viện prompt mẫu, tìm ứng viên bằng AI, trang web và tool `get_prompt_library`; #133, #134). Phần Người 3 của Mốc 6 đã hết; còn `get_leaderboard` chờ M4.3 của Người 2.
+1. **Người 2: sửa các lỗi review Mốc 4** (danh sách ngay dưới), ít nhất 4 lỗi mức cao, trước khi làm tiếp.
+2. Người 2: Mốc 5 còn **M5.5** (retention) và **M5.6** (xóa dữ liệu một người), rồi phần Mốc 6 (M6.7 → M6.8 → M6.9 → M6.10). Khi làm M5.5:
+   - Số ngày retention đọc từ `settings.retention_days` (M4.6). Không có dòng thì mặc định 90 ngày; jsonb `null` là **giữ vô hạn**, đừng viết `value ?? 90`. Nên export một hàm đọc dùng chung từ `admin/server-settings.service.ts` (giống `readConsentText`).
+   - Giao diện chỉ cho chọn 7–730 ngày, nên muốn tự test "retention 1 ngày" thì ghi thẳng vào DB.
+   - "Chạy lại" của M4.4 và "Thử trên 50 session" phải bỏ qua session đã bị retention xóa turn. `scoreSession` đã bỏ qua, `RuleConfigService.test` chưa.
+3. Người 3: phần Mốc 6 đã xong. Còn **`get_leaderboard`**, giờ làm được vì M4.3 đã có (`LeaderboardService` ở `stats/`, cùng quyền với `GET /projects/{id}/leaderboard`).
+4. Người 1: hết việc Mốc 4, 5, 6. Bản `tl` mới nhất là 0.4.0 (GitHub Release `v0.4.0`, có `tl mcp`). Còn lại: nghiệm thu chung (SPEC 12.3) và M6.17 khi Người 2, 3 xong.
+
+Nhắc chung:
+- Văn bản đồng ý giờ nằm ở bảng `settings` (khóa `consent_text`) và leader sửa trên trang Quản trị (M4.6). Mỗi lần lưu, phiên bản tự tăng và **mọi thiết bị phải chạy `tl consent` một lần**. Phiên bản hiện tại là `2026-11-28.1`.
+- Lưu pattern redaction cần helper Rust `apps/api/tools/regex-validator`. Dev build bằng `pnpm --filter @teamlens/api build:regex-validator`. Image Docker **chưa có helper này** (lỗi 1 bên dưới).
+
+### Lỗi cần sửa sau review Mốc 4 (Người 2, review ngày 2026-11-28)
+
+Mức cao:
+1. `apps/api/Dockerfile` không build `tools/regex-validator`, nên trên production lưu pattern redaction trả 503 `regex_validator_unavailable`. CI cũng không build helper này.
+2. Rule `high-interruption` (`weekly-rules.ts`) đếm `interrupted` trên prompt, nhưng adapter CLI gắn cờ này cho turn assistant, nên rule không bao giờ bắn trên dữ liệu thật.
+3. "Khôi phục mặc định" (`rule-config.service.ts` `restore`) xóa dòng `rules`, và `findings.rule_id` có `ON DELETE CASCADE` nên finding cũ bị xóa theo. Tuần đã bị retention xóa turn không chấm lại được, nên điểm tuần cũ và leaderboard đổi sai.
+4. Cursor audit (`admin/audit-cursor.ts`) chỉ chính xác tới mili giây, còn `audit_log.at` chính xác tới micro giây. Khi chuyển trang, các dòng ghi cùng transaction bị mất.
+
+Mức trung bình:
+- Điểm tháng của leaderboard trừ phạt `user_week` của mọi tuần trong tháng vào một lần (`leaderboard-math.ts` `monthScores`).
+- Lần chạy lại kẹt ở `running` nếu tiến trình chết giữa chừng, và UI khóa nút nên không gỡ được (`rescore.service.ts`).
+- `needsRerun` so với `finishedAt` thay vì `startedAt` của lần chạy.
+- Sửa rule trên dashboard và qua MCP (`RulesWriteService`) lệch nhau:
+  - Dashboard chạy test nội tuyến trên bản mặc định, nên không chặn được gì; rule sửa xong có thể làm `save_rule` của MCP trả 422.
+  - Hai đường đánh phiên bản khác nhau và ghi audit khác cột (`metadata` so với `details`).
+  - Lần chạy lại do MCP phát không có dòng `project_rescore_runs`.
+  - PATCH không khóa dòng: hai request đồng thời có thể trả 500 hoặc ghi đè mất dữ liệu.
+- Pattern có id `_` vẫn lưu được nhưng CLI bỏ qua, nên secret không bị che. Pattern khớp mọi thứ (`.+`) không bị chặn, lưu vào là mọi máy che trắng toàn bộ nội dung.
+- "Ai đã xem session của tôi" chỉ tính `session.view`, bỏ sót `session.ai` và `profile.view`.
+
+Mức thấp:
+- Leaderboard hiện khoảng ngày lệch 1 ngày.
+- Mỗi lần mở session ghi 2 dòng `session.view`.
+- Lượt xem của session đã bị xóa biến mất (dùng `innerJoin`).
+- Leaderboard vẫn xếp hạng người đã rời project.
+- Kết quả "Thử" pattern khác cách CLI che thật (khớp rỗng, group `secret` không tham gia khớp).
+- Lưu pattern và retention theo kiểu người lưu sau thắng.
+- Contract `rules/rerun/status` dùng `allOf` với `null`.
+
+Quy trình (nhắc cho các PR sau):
+- AGENTS.md quy định squash merge.
+- Sửa vùng của người khác (#148 đụng `agent/` của Người 1) hoặc vùng nền thì hỏi trước và tách PR.
+- Cập nhật TASKS.md và FLOW.md khi xong mốc.
 
 ## Ba người, ba nhóm tính năng
 
@@ -80,7 +121,7 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 | J.10 | Xóa luồng cũ: `device_codes`, `is_admin`, vai trò theo project, endpoint và trang `/device`; seed mới (chỉ `leader@teamlens.local` có mật khẩu, token member in ra console) | #36 |
 | Sửa sau chạy thử | Chuyển IP thật của người xem `/i/[code]` sang API (`X-Forwarded-For`) cho giới hạn tần suất; văn bản đồng ý đúng hiện trạng (phiên bản `2026-11-27.2`); gộp user giữ người thực hiện trong `audit_log`; sửa `tl sync` lỗi kết nối bị đóng (os error 10053); chạy thử nối liền `/setup` → `tl join` → `tl sync` → `tl open` → member và leader xem session | #37 |
 
-**Còn để lại cho mốc sau:** văn bản đồng ý chỉnh được trên web (M4.6). (Phần tải và cài `tl.exe` trong `install.ps1` là M5.2 #83, đăng ký chạy nền khi `tl join` là M3.8 #68, `tl consent`/`tl consent revoke` là M3.7 #69, endpoint `install.ps1` là M3.6 #74, đều đã xong.) **Endpoint `GET /install.ps1?code=` sau đó đã gỡ**, thay bằng lệnh cài `tl` chung từ GitHub Releases (`irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex`, hoặc bản CMD) và bước riêng `tl join <link>`; `installCommand` của API giữ nguyên tên/kiểu, giá trị là lệnh cài chung. Mã mời chỉ hiện một lần lúc tạo; muốn gửi lại thì tạo link mới.
+**Còn để lại cho mốc sau:** văn bản đồng ý chỉnh được trên web (M4.6, đã xong ở #145–#149). (Phần tải và cài `tl.exe` trong `install.ps1` là M5.2 #83, đăng ký chạy nền khi `tl join` là M3.8 #68, `tl consent`/`tl consent revoke` là M3.7 #69, endpoint `install.ps1` là M3.6 #74, đều đã xong.) **Endpoint `GET /install.ps1?code=` sau đó đã gỡ**, thay bằng lệnh cài `tl` chung từ GitHub Releases (`irm https://github.com/MakitJenamin/TeamLens/releases/latest/download/install.ps1 | iex`, hoặc bản CMD) và bước riêng `tl join <link>`; `installCommand` của API giữ nguyên tên/kiểu, giá trị là lệnh cài chung. Mã mời chỉ hiện một lần lúc tạo; muốn gửi lại thì tạo link mới.
 
 ---
 
@@ -89,7 +130,7 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
 | 1 | ✅ **M2.1** Che secret đầy đủ: ≥ 30 loại theo gitleaks + entropy sau từ khóa + bỏ output file `.env*`/`*.pem`/`*.key`; nhận thêm pattern từ `GET /agent/v1/config`<br>**Tự test:** bộ ≥ 30 secret mẫu bị che 100% (#43) | ✅ **M2.6** Seed riêng cho chấm điểm (nhiều người, nhiều tuần, đủ loại anti-pattern), tách khỏi seed chung (#27) |
-| 2 | ✅ **M2.2** API `GET /agent/v1/config`: pattern remote, pattern redaction (đọc từ `settings`), ngưỡng cắt, phiên bản văn bản đồng ý (lấy từ `apps/api/src/modules/consent/consent-text.ts`, khác phiên bản thì CLI ngừng gửi và nhắc đồng ý lại), phiên bản CLI tối thiểu<br>**Tự test:** curl bằng device token (#39, #42) | ✅ **M2.7** Rule engine: phạm vi `user_week`, `aggregate: ratio`, `min_sample`; 16 rule mức high/medium của RULES.md (#28) |
+| 2 | ✅ **M2.2** API `GET /agent/v1/config`: pattern remote, pattern redaction (đọc từ `settings`), ngưỡng cắt, phiên bản văn bản đồng ý (lúc đầu lấy từ `apps/api/src/modules/consent/consent-text.ts`, từ M4.6 đọc từ `settings.consent_text`; khác phiên bản thì CLI ngừng gửi và nhắc đồng ý lại), phiên bản CLI tối thiểu<br>**Tự test:** curl bằng device token (#39, #42) | ✅ **M2.7** Rule engine: phạm vi `user_week`, `aggregate: ratio`, `min_sample`; 16 rule mức high/medium của RULES.md (#28) |
 | 3 | ✅ **M2.3** Đọc tăng dần theo offset lưu trong SQLite `state.db`; session ổn định khi file không đổi 2 phút<br>**Tự test:** thêm dòng vào log → chỉ phần mới được gửi (#41) | ✅ **M2.8** Điểm 5 nhóm + `user_weekly_stats` (điểm và số session chỉ tính session gốc; token tính cả session con; finding tuần trừ vào điểm tuần) + API "chạy lại rule" chạy nền (`POST /projects/{id}/rules/rerun`)<br>**Tự test:** test với seed chấm điểm (e2e `weekly-stats`) (#55, #56) |
 | 4 | ✅ **M2.4** Claude Code đầy đủ: subagent thành session con, `permission_mode`, `instruction_files`, `interrupted`, compaction<br>**Tự test:** snapshot test có subagent (#40) | ✅ **M2.9** Trang tổng quan project (chỉ leader, mọi project): session, token, chi phí ước tính theo tuần, phân bố agent/model, thống kê không tính điểm, top anti-pattern<br>**Tự test:** xem trên web với seed (#57–#59, #61) |
 | 5 | ✅ **M2.5** Adapter Codex (fixtures, đọc, chuẩn hóa, `reasoning_effort`)<br>**Tự test:** snapshot test; `tl sync --once` với session Codex thật (#44) | ✅ **M2.10** Hồ sơ thành viên (`members/[userId]`; leader xem mọi người có audit, member xem của mình qua `tl open`): radar 5 nhóm, xu hướng theo tuần, anti-pattern hay mắc kèm ví dụ và lời khuyên<br>**Tự test:** xem hồ sơ một member seed bằng leader và bằng chính member đó (#62–#64) |
@@ -112,14 +153,14 @@ Thay device login qua trình duyệt bằng một lệnh `tl join <link mời>`,
 
 ---
 
-## Mốc 4 · Báo cáo cho leader, minh bạch cho member
+## Mốc 4 · Báo cáo cho leader, minh bạch cho member — ✅ xong (M4.1–M4.6)
 
 | Bước | Người 1 · Session của tôi lên dashboard | Người 2 · Giá trị cho leader |
 | --- | --- | --- |
-| 1 | ✅ **M4.1** Full-text search session (`tsvector`): `?q=` cú pháp web search, đoạn trích và link tới turn khớp (#77, #78)<br>**Tự test:** tìm theo nội dung prompt | **M4.3** Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
-| 2 | ✅ **M4.2** (#76, #79) Trang thành viên (`members/`, chỉ leader): danh sách kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý), người mới tham gia gần đây, thu hồi thiết bị, nút "Gộp vào…" (dùng lại `admin/merge-user.tsx`)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | **M4.4** Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
-| 3 | _Làm trước M5.1, M5.2_ | **M4.5** Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình; member vào bằng `tl open`) + trang audit cho leader<br>**Tự test:** leader đăng nhập bằng mật khẩu, member vào bằng `tl open` |
-| 4 | | **M4.6** Cài đặt server trong trang quản trị: pattern redaction riêng, retention, văn bản đồng ý (sửa thì tăng phiên bản, chuyển nguồn từ `consent-text.ts` sang bảng `settings`), ~~LLM provider~~ (bỏ: AI là BYO theo từng người, key nằm ở trang "Cài đặt AI" của Mốc 6)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về; sửa văn bản đồng ý → CLI ngừng gửi tới khi đồng ý lại |
+| 1 | ✅ **M4.1** Full-text search session (`tsvector`): `?q=` cú pháp web search, đoạn trích và link tới turn khớp (#77, #78)<br>**Tự test:** tìm theo nội dung prompt | ✅ **M4.3** (#137 contract, #138, #139) Leaderboard: tuần/tháng, ngưỡng 5 session, công tắc theo project, chế độ công khai cho member<br>**Tự test:** đăng nhập bằng leader và member |
+| 2 | ✅ **M4.2** (#76, #79) Trang thành viên (`members/`, chỉ leader): danh sách kèm thiết bị và trạng thái (online, offline N ngày, tạm dừng, đã rút đồng ý), người mới tham gia gần đây, thu hồi thiết bị, nút "Gộp vào…" (dùng lại `admin/merge-user.tsx`)<br>**Tự test:** `tl pause`, `tl consent revoke` rồi xem | ✅ **M4.4** (#140 contract, #141 migration `project_rescore_runs`, #142) Màn hình quản lý rule: bật/tắt, chỉnh ngưỡng và mức độ, xem JSON, "Thử trên 50 session", "Chạy lại"; 8 rule mức low<br>**Tự test:** đổi ngưỡng rồi chạy lại |
+| 3 | _Làm trước M5.1, M5.2_ | ✅ **M4.5** (#143 contract, #144) Trang "Của tôi" (đồng ý đã cấp, thiết bị, ai đã xem session của mình; member vào bằng `tl open`) + trang audit cho leader<br>**Tự test:** leader đăng nhập bằng mật khẩu, member vào bằng `tl open` |
+| 4 | | ✅ **M4.6** (#145 contract, #146 migration `consent_text`, #147, #148, #149) Cài đặt server trong trang quản trị: pattern redaction riêng, retention, văn bản đồng ý (sửa thì tăng phiên bản, chuyển nguồn từ `consent-text.ts` sang bảng `settings`), ~~LLM provider~~ (bỏ: AI là BYO theo từng người, key nằm ở trang "Cài đặt AI" của Mốc 6)<br>**Tự test:** thêm pattern → `GET /agent/v1/config` trả về; sửa văn bản đồng ý → CLI ngừng gửi tới khi đồng ý lại |
 
 **Demo chung:** leader xem tổng quan, hồ sơ, leaderboard, tìm kiếm; member chỉ thấy dữ liệu của mình.
 
@@ -143,7 +184,7 @@ Thiết kế, nguyên tắc và bảng tool MCP: [AI_PLAN.md](AI_PLAN.md). Làm 
 
 | Bước | Người 1 · Lõi AI + AI trên session | Người 2 · Báo cáo AI + rule | Người 3 · MCP + tri thức team |
 | --- | --- | --- | --- |
-| 1 | ✅ **M6.0** (#97, #98) 📜 PR contract (`ai.yaml`, `agent-tokens.yaml`, khung `mcp.yaml`, `skills.yaml`, `prompt-library.yaml`, `packages/schema/mcp/`) + PR migration **mọi** bảng AI (`user_llm_keys`, `ai_results`, `agent_tokens`, `prompt_library`, `skill_catalog_sources`, `sessions.work_type`), xóa bảng `llm_reviews` chưa dùng, sửa `user-merge.service.ts` cho bảng mới<br>**Tự test:** `pnpm --filter @teamlens/schema build`, `db:migrate` trên DB sạch | Làm nốt M4.3–M4.6, M5.4–M5.6 | ✅ **M6.3** (#112, #113) Khung MCP: `/api/v1/mcp` (Streamable HTTP, không giữ phiên), guard nhận `tld_`/`tlp_`, cửa ra che secret, tool `whoami`; audit do từng tool tự ghi (xem `modules/mcp/README.md`)<br>**Tự test:** MCP Inspector gọi `whoami` bằng device token của seed |
+| 1 | ✅ **M6.0** (#97, #98) 📜 PR contract (`ai.yaml`, `agent-tokens.yaml`, khung `mcp.yaml`, `skills.yaml`, `prompt-library.yaml`, `packages/schema/mcp/`) + PR migration **mọi** bảng AI (`user_llm_keys`, `ai_results`, `agent_tokens`, `prompt_library`, `skill_catalog_sources`, `sessions.work_type`), xóa bảng `llm_reviews` chưa dùng, sửa `user-merge.service.ts` cho bảng mới<br>**Tự test:** `pnpm --filter @teamlens/schema build`, `db:migrate` trên DB sạch | Làm nốt M5.5, M5.6 (M4.3–M4.6 xong, M5.4 Người 1 làm thay) | ✅ **M6.3** (#112, #113) Khung MCP: `/api/v1/mcp` (Streamable HTTP, không giữ phiên), guard nhận `tld_`/`tlp_`, cửa ra che secret, tool `whoami`; audit do từng tool tự ghi (xem `modules/mcp/README.md`)<br>**Tự test:** MCP Inspector gọi `whoami` bằng device token của seed |
 | 2 | ✅ **M6.1** (#99, #101) Module `llm`: tuần đầu merge interface `LlmService` + adapter giả; sau đó adapter Anthropic + OpenAI-compatible, JSON schema, timeout, phân loại lỗi, câu chặn injection, ghi/ghi đè `ai_results`, mã hóa key<br>**Tự test:** unit test với adapter giả; gọi thật bằng Ollama local | **M6.7** B4 phân loại việc bằng heuristic trong rule worker, lọc theo loại việc, thống kê ở Tổng quan<br>**Tự test:** seed chấm điểm có đủ loại việc | ✅ **M6.4** (#115) `tl mcp`: cầu nối stdio ↔ `/api/v1/mcp` bằng device token; tài liệu cài cho Claude Code, Codex (`cli/AGENTS.md`)<br>**Tự test:** `claude mcp add teamlens -- tl mcp` rồi hỏi "tuần này tôi bị finding gì" |
 | 3 | ✅ **M6.2** (#103, #104) Trang "Cài đặt AI" `(dashboard)/settings/ai`: API key của tôi (nhập, kiểm tra, xóa) + token cho agent `tlp_` (tạo, liệt kê, thu hồi); link sidebar (PR vùng nền nhỏ)<br>**Tự test:** leader và member (qua `tl open`) cùng thêm key | **M6.8** B1 báo cáo tuần theo người (trang hồ sơ thành viên)<br>**Tự test:** leader xem của member, member xem của mình, kết quả của người này người khác không thấy | ✅ **M6.15** (#117, #118) 10 tool MCP đọc (`whoami`, `list_projects`, `list_members`, `get_overview`, `get_member_profile`, `search_sessions`, `get_session`, `get_findings`, `list_rules`, `get_rule`, `get_my_ai_results`; còn thiếu `get_leaderboard` chờ M4.3, `get_skill_clusters` và `get_prompt_library` đã thêm ở M6.11 và M6.14); import service sẵn có, không sửa code module khác<br>**Tự test:** member chỉ thấy dữ liệu của mình, leader thấy tất cả, có audit |
 | 4 | ✅ **M6.5** (#102) A1 tóm tắt + A5 đánh giá kết quả trên trang session<br>**Tự test:** bấm lại thì ghi đè; người khác mở cùng session không thấy kết quả | **M6.9** B2 báo cáo tuần của team (Tổng quan, chỉ leader)<br>**Tự test:** seed chấm điểm nhiều tuần | ✅ **M6.16** (#120 migration `audit_log.details`, #121 contract, #122 code) Tool MCP ghi cho leader (`draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_note`) + MCP prompts `coach-me`, `weekly-review` (`find-skills`, `improve-agents-md` chờ M6.11 và C3). **Chỉ chỉnh rule session có sẵn** (ngưỡng, mức độ, thông điệp, lời khuyên), không đổi `match`, không tạo rule mới<br>**Tự test:** tắt rule qua MCP → audit có giá trị cũ/mới, điểm được tính lại |

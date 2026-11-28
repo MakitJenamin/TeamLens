@@ -14,6 +14,7 @@ pnpm --filter @teamlens/api test           # unit test (không cần DB)
 pnpm --filter @teamlens/api test:e2e       # e2e, cần Postgres dev (dùng DB riêng `teamlens_test`)
 pnpm --filter @teamlens/api lint && pnpm --filter @teamlens/api typecheck && pnpm --filter @teamlens/api build
 pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db/schema/
+pnpm --filter @teamlens/api build:regex-validator   # helper Rust kiểm pattern redaction (M4.6), cần cargo
 ```
 
 ## Cấu trúc
@@ -30,7 +31,8 @@ pnpm --filter @teamlens/api db:generate    # sinh migration sau khi sửa src/db
 | `src/modules/device` | Device token của CLI (cấp ở `POST /agent/v1/join`, module `invites`): `whoami`, `logout`, `web-login` (`tl open`), danh sách và thu hồi thiết bị; `DeviceAuthGuard` toàn cục cho `/agent/*`. |
 | `src/modules/access` | `AccessService`, `AuditService`, `@LeaderOnly()`, `@ProjectAccess()`. |
 | `src/modules/projects` | project, thành viên, repo pattern, user. |
-| `src/modules/{agent,sessions,invites,consent,rules,stats,admin,retention}` | Module rỗng, xem `README.md` trong từng thư mục. |
+| `src/modules/{agent,sessions,invites,consent,rules,stats,admin}` | Module tính năng của Mốc 1–4, xem `README.md` trong từng thư mục. `retention` còn rỗng (M5.5). |
+| `tools/regex-validator` | Helper Rust (crate riêng, ngoài workspace `cli/`) kiểm pattern redaction bằng đúng crate `regex` của CLI; `admin/regex-validator.service.ts` gọi qua stdin/stdout, đường dẫn đổi bằng env `REGEX_VALIDATOR_BIN`. Chưa build thì lưu pattern trả 503. |
 | `src/modules/{llm,ai-settings,mcp,skills,prompt-library}` | Mốc 6: lõi gọi LLM và `ai_results` (`llm`); API key BYO và token `tlp_` (`ai-settings`); endpoint MCP `/api/v1/mcp` (`mcp`, khung, 18 tool đọc và ghi cho leader, prompt, xem README); Skill Finder (`skills`, S0 gom cụm prompt, nút AI S1, S2, S3 chọn skill trong catalog GitHub, xem README) và thư viện prompt mẫu (`prompt-library`, C2: leader tìm ứng viên rồi duyệt, thành viên xem, xem README). Thiết kế ở [docs/AI_PLAN.md](../../docs/AI_PLAN.md). |
 
 ## Quy ước
