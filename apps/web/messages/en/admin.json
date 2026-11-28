@@ -36,6 +36,10 @@
   "cancel": "Cancel",
   "confirmMerge": "Merge {from} into {into}? {from} will be deleted and this cannot be undone.",
   "mergeDone": "Merged into {name}.",
+  "erase": "Erase data",
+  "confirmErase": "Erase all of {name}'s data? This can't be undone.",
+  "eraseTypeName": "Type the name to confirm",
+  "eraseDone": "Erased {name}'s data.",
   "invites": {
     "title": "Invite links",
     "expiresInDays": "Expires after (days)",

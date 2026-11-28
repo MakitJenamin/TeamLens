@@ -1,4 +1,4 @@
-Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), gộp user (J.8). Còn M5.6 (xóa dữ liệu của một người). Từ Mốc 1.5 không còn vai trò admin: mọi route ở đây chỉ dành cho leader.
+Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), xóa dữ liệu của một người (M5.6); gộp user (J.8) nằm ở module `projects`. Từ Mốc 1.5 không còn vai trò admin: mọi route ở đây chỉ dành cho leader.
 
 ## Cài đặt server (M4.6, contract `admin.yaml`)
 
@@ -17,6 +17,17 @@ Cài đặt server (M4.6), nhật ký audit cho leader (M4.5), gộp user (J.8).
 - **Kiểm regex:** `regex-validator.service.ts` gọi helper Rust `apps/api/tools/regex-validator`, cùng crate `regex` và `size_limit` 2 MiB với CLI, timeout 5 giây. Không log regex hay đoạn mẫu.
   - Build: `pnpm --filter @teamlens/api build:regex-validator`. Đổi đường dẫn bằng `REGEX_VALIDATOR_BIN`.
   - Chưa có helper thì lưu hoặc thử pattern trả 503 `regex_validator_unavailable`. **`apps/api/Dockerfile` chưa build helper này.**
+
+## Xóa dữ liệu của một người (M5.6, contract `admin.yaml`, operationId `eraseUser`)
+
+`user-erase.controller.ts`, `user-erase.service.ts`. `DELETE /api/v1/admin/users/{userId}` trả `{ userId, sessions, devices }` (số session gồm cả session con).
+
+- Một transaction: khóa `FOR UPDATE` các leader còn hoạt động (theo id) rồi tới user đích. Hai leader xóa nhau cùng lúc thì lệnh sau chờ rồi nhận 409, không deadlock.
+- Thứ tự lỗi: không phải UUID, không tồn tại hoặc đã có `deleted_at` → 404; tự xóa mình → 400 `cannot_erase_self`; đích là leader cuối cùng → 409 `last_leader`.
+- Xóa tay phần cascade không tới: ghi chú người đó viết (`notes.author_id` là SET NULL), kết quả AI trỏ tới session/finding của họ mà thiếu `subject_user_id`. Sau đó xóa dòng `users`; FK cascade lo phần còn lại (session, turn, finding, điểm, ghi chú và mục thư viện prompt trên session, thiết bị, đồng ý, thống kê tuần, kết quả AI, API key, token `tlp_`, thành viên project, phiên đăng nhập, `ingest_batches`).
+- Audit log giữ lại: `actor_id` của người bị xóa thành null, dòng có target là session của họ còn nguyên. Thêm dòng `user.erase` (target `user`), `metadata` chỉ có số đếm, không ghi tên hay email.
+- Job `session.ingested` còn trong hàng đợi cho session đã xóa: `scoreSession` không thấy session thì bỏ qua, job vẫn completed.
+- Web: nút "Xóa dữ liệu" ở tab Tài khoản (`admin/erase-user.tsx`), phải gõ đúng tên mới bật nút xóa.
 
 ## Nhật ký audit (M4.5)
 

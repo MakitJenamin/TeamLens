@@ -31,7 +31,7 @@ export default async function AdminPage({ params, searchParams }: PageProps<"/[l
   } else if (tab === "audit") {
     panel = <AuditPanel />;
   } else if (tab === "users") {
-    panel = <UserAdmin users={await serverApi<User[]>("/users")} />;
+    panel = <UserAdmin users={await serverApi<User[]>("/users")} currentUserId={me.user.id} />;
   } else {
     const projects = await serverApi<ProjectSummary[]>("/projects");
     const selected = projects.find((p) => p.id === query.project) ?? projects[0];
