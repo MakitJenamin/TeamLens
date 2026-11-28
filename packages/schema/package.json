@@ -12,6 +12,7 @@
     },
     "./session.v1.schema.json": "./session.v1.schema.json",
     "./mcp/*.json": "./mcp/*.json",
+    "./mcp/prompts/*.json": "./mcp/prompts/*.json",
     "./openapi.yaml": "./dist/openapi.yaml"
   },
   "types": "./src/index.ts",

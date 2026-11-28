@@ -1,0 +1,6 @@
+{
+  "name": "coach-me",
+  "description": "Huấn luyện cá nhân: xem tuần này mình bị nhận xét gì nhiều nhất và nên tập gì trước.",
+  "arguments": [],
+  "template": "Hãy huấn luyện tôi cách dùng AI agent tốt hơn dựa trên dữ liệu TeamLens của chính tôi.\n\n1. Gọi `whoami` để biết tôi tham gia project nào (nếu có nhiều project, hỏi tôi chọn một).\n2. Gọi `get_member_profile` cho tôi trong project đó (mặc định 2 tuần gần nhất).\n3. Với tối đa 2 mẫu lỗi tôi hay gặp nhất, gọi `get_session` hoặc `get_findings` cho một session ví dụ để xem chuyện gì đã xảy ra.\n4. Trả lời ngắn gọn bằng tiếng Việt: (a) điểm mạnh, (b) một việc nên tập trước, kèm cách viết lại prompt cụ thể từ ví dụ thật của tôi, (c) việc đó giúp ích thế nào.\n\nChỉ dùng số liệu có thật từ các tool, không bịa. Nếu chưa có dữ liệu thì nói rõ."
+}
