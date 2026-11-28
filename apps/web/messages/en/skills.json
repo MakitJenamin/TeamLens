@@ -53,7 +53,37 @@
       "forbidden": "You are not allowed to use AI on this cluster.",
       "not_found": "Data not found.",
       "network_error": "Could not reach the server.",
-      "unknown": "Something went wrong running AI. Try again later."
+      "unknown": "Something went wrong running AI. Try again later.",
+      "no_clusters": "No task was repeated at least 3 times in this range, so there is nothing to match yet. Try a wider range.",
+      "catalog_unavailable": "Could not read the skill catalog (no source is enabled, or GitHub is unreachable). Try again later or ask a leader to check the sources."
+    }
+  },
+  "catalog": {
+    "title": "Suggest ready-made skills",
+    "description": "Match your repeated tasks against existing community skills (for example anthropics/skills) so you can use one instead of writing your own.",
+    "run": "Suggest ready-made skills",
+    "privateNote": "Uses your own API key. The cluster labels and the skill names and descriptions from the catalog are sent to the AI provider. Results are visible only to you.",
+    "addKey": "Add an AI API key to get ready-made skill suggestions",
+    "nothingFits": "Out of {count} skills considered, none clearly fits your repeated tasks.",
+    "picksNote": "Considered {count} skills from the catalog. Read the SKILL.md carefully before installing: it is third-party code.",
+    "showSources": "Catalog sources",
+    "hideSources": "Hide catalog sources",
+    "sourcesHint": "The GitHub repos the suggestions read from. Only a leader can add or remove them.",
+    "sourcesHintLeader": "The public GitHub repos the suggestions read from (shared by the whole team). The server reads the default branch and caches it for about 6 hours.",
+    "loading": "Loading…",
+    "sourcesLoadError": "Could not load the sources.",
+    "noSources": "No sources yet. A leader should add a GitHub repo.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "remove": "Remove source {name}",
+    "removeShort": "Remove",
+    "sourceError": "Could not update this source. Try again.",
+    "addLabel": "Add a source (GitHub repo URL)",
+    "add": "Add",
+    "errors": {
+      "invalid_url": "Only public GitHub repo URLs such as https://github.com/owner/repo are accepted.",
+      "source_exists": "This source already exists.",
+      "unknown": "Could not add the source. Try again later."
     }
   }
 }

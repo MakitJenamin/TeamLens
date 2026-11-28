@@ -20,7 +20,7 @@ import { Link } from "@/i18n/navigation";
 import { api, ApiError } from "@/lib/api/client";
 import { useLlmKeyStatus } from "../../sessions/_components/session-ai";
 
-type AiLocale = "vi" | "en";
+export type AiLocale = "vi" | "en";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface ClusterFilters {
@@ -32,7 +32,7 @@ const queryKeyOf = (projectId: string, clusterId: string, locale: AiLocale) =>
   ["skill-clusters", projectId, clusterId, "ai", locale] as const;
 
 /** Thân request: cùng bộ lọc với danh sách để server dựng lại đúng cụm. */
-function runBody(locale: AiLocale, filters: ClusterFilters) {
+export function runBody(locale: AiLocale, filters: ClusterFilters) {
   return {
     locale,
     from: new Date(Date.now() - filters.days * DAY_MS).toISOString(),
@@ -55,7 +55,7 @@ function useRun(projectId: string, clusterId: string, filters: ClusterFilters, s
   });
 }
 
-function AiError({ error }: { error: unknown }) {
+export function AiError({ error }: { error: unknown }) {
   const t = useTranslations("skills.ai");
   const code = error instanceof ApiError ? error.code : "unknown";
   const key = `errors.${code}`;
@@ -75,7 +75,7 @@ function AiError({ error }: { error: unknown }) {
   );
 }
 
-function RunButton({
+export function RunButton({
   pending,
   hasResult,
   label,

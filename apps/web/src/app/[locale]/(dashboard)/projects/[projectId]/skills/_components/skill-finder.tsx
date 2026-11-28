@@ -14,6 +14,7 @@ import { Link } from "@/i18n/navigation";
 import { api } from "@/lib/api/client";
 import type { SkillCluster, SkillClusterList } from "@/lib/api/types";
 import { ClusterAi, type ClusterFilters } from "./skill-ai";
+import { CatalogSection } from "./skill-catalog";
 
 export const RANGE_DAYS = [7, 30, 90] as const;
 export const DEFAULT_DAYS = 30;
@@ -115,6 +116,7 @@ export function SkillFinder({ projectId, members }: { projectId: string; members
               <AlertDescription>{t("truncated")}</AlertDescription>
             </Alert>
           )}
+          <CatalogSection projectId={projectId} isLeader={members !== null} filters={{ days, userId }} />
           {query.data.clusters.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">

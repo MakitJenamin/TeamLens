@@ -91,7 +91,7 @@ describe("ClusterAi (nút AI của Skill Finder)", () => {
   it("chưa có key: chỉ có link tới Cài đặt AI, không có nút", async () => {
     mockApi({ hasKey: false });
     await openCluster();
-    const link = await screen.findByRole("link", { name: /Thêm API key AI/ });
+    const link = await screen.findByRole("link", { name: /Thêm API key AI để đánh giá cụm/ });
     expect(link).toHaveAttribute("href", "/settings/ai");
     expect(screen.queryByRole("button", { name: "Đánh giá cụm này" })).not.toBeInTheDocument();
   });
