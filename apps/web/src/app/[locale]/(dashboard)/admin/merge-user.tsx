@@ -88,7 +88,6 @@ export function MergeUser({ user, users }: { user: User; users: User[] }) {
           {t("cancel")}
         </Button>
       </fieldset>
-      <p className="mt-1 text-sm text-muted-foreground">{t("mergeHint", { name: user.name })}</p>
       {mutation.error && (
         <p role="alert" className="mt-1 text-sm text-destructive">
           {mutation.error.message}

@@ -1,7 +1,6 @@
 {
   "list": {
     "title": "Session",
-    "description": "Session làm việc với AI agent trong project, mới nhất trước. Leader thấy cả team, member chỉ thấy của mình.",
     "filters": {
       "agent": "Agent",
       "user": "Thành viên",
@@ -25,12 +24,10 @@
     "loadMore": "Tải thêm",
     "loadingMore": "Đang tải...",
     "emptyTitle": "Chưa có session nào",
-    "emptyDescription": "Session sẽ hiện ở đây sau khi CLI gửi lên (tl sync). Nếu đang lọc, thử bỏ bộ lọc.",
     "errorTitle": "Không tải được danh sách session",
     "tokensDetail": "Input {input} · output {output} · cache đọc {cacheRead} · cache ghi {cacheWrite}",
     "children": "{count} session con",
     "noResultsTitle": "Không tìm thấy session khớp",
-    "noResultsDescription": "Không có session nào chứa “{q}”. Thử từ khóa khác hoặc bỏ bộ lọc.",
     "matchTurn": "Turn #{seq}:"
   },
   "agents": {
@@ -53,7 +50,6 @@
   },
   "detail": {
     "title": "Xem lại session",
-    "description": "Dòng hội thoại của session: prompt, câu trả lời, tool call và diff.",
     "back": "Danh sách session",
     "untitled": "Session không có prompt",
     "meta": {
@@ -79,7 +75,7 @@
     "openParent": "Mở session cha",
     "openChild": "Session con {index}",
     "timeline": "Dòng thời gian",
-    "noTurns": "Session này chưa có turn nào.",
+    "noTurns": "Chưa có turn.",
     "roles": {
       "user": "Người dùng",
       "assistant": "Agent",
@@ -98,8 +94,8 @@
     "hideDetails": "Thu gọn",
     "input": "Input",
     "output": "Output",
-    "truncated": "Output đã bị cắt (giữ phần đầu và phần cuối)",
-    "truncatedBytes": "Output đã bị cắt, bản gốc {bytes} byte (giữ phần đầu và phần cuối)",
+    "truncated": "Output đã bị cắt bớt phần giữa",
+    "truncatedBytes": "Output đã bị cắt bớt phần giữa. Bản gốc {bytes} byte",
     "diffStats": "+{added} −{removed}",
     "redactions": "Đã che {count} secret",
     "attachments": "{count} tệp đính kèm",
@@ -110,18 +106,17 @@
     "sessionId": "Mã session: {id}",
     "showDiff": "Hiện diff",
     "hideDiff": "Ẩn diff",
-    "diffLines": "{count} dòng, bấm để xem",
+    "diffLines": "{count} dòng",
     "childLabel": "Session con",
     "childTurns": "{count} turn",
     "openChildPage": "Mở trang riêng",
     "childLoading": "Đang tải session con...",
     "childError": "Không tải được session con.",
-    "childrenSection": "Session con",
-    "childrenUnplaced": "Các session con không ghép được vào turn gọi tool nào của session này."
+    "childrenSection": "Session con"
   },
   "findings": {
     "title": "Finding",
-    "empty": "Không có finding nào cho session này.",
+    "empty": "Không có finding.",
     "turn": "Turn {seq}",
     "severity": {
       "info": "Thông tin",
@@ -140,7 +135,7 @@
     "addSession": "Thêm ghi chú chung cho session",
     "turnLabel": "Ghi chú cho turn {seq}",
     "sessionLabel": "Ghi chú chung cho session",
-    "placeholder": "Nhận xét, gợi ý cho người làm (chỉ leader viết, chủ session đọc được)",
+    "placeholder": "Chủ session đọc được ghi chú này.",
     "save": "Lưu ghi chú",
     "saving": "Đang lưu...",
     "cancel": "Hủy",
@@ -151,7 +146,7 @@
   },
   "ai": {
     "title": "AI",
-    "addKey": "Thêm API key để dùng AI",
+    "addKey": "Thêm API key",
     "openSettings": "Mở Cài đặt AI",
     "summarize": "Tóm tắt",
     "evaluate": "Đánh giá kết quả",
@@ -181,13 +176,13 @@
       "unclear": "Chưa rõ"
     },
     "errors": {
-      "llm_key_missing": "Bạn chưa nhập API key. Thêm key trong Cài đặt AI để dùng tính năng này.",
-      "llm_key_invalid": "Nhà cung cấp AI từ chối API key. Kiểm tra lại key trong Cài đặt AI.",
-      "llm_model_not_found": "Model đã chọn không tồn tại. Đổi model trong Cài đặt AI.",
+      "llm_key_missing": "Chưa có API key.",
+      "llm_key_invalid": "Nhà cung cấp AI từ chối API key.",
+      "llm_model_not_found": "Model đã chọn không tồn tại.",
       "llm_quota_exceeded": "Đã hết quota hoặc bị giới hạn tốc độ ở nhà cung cấp AI. Thử lại sau.",
       "llm_timeout": "AI phản hồi quá lâu (quá 60 giây). Thử lại sau.",
       "llm_provider_error": "Không gọi được nhà cung cấp AI. Thử lại sau.",
-      "llm_bad_output": "AI trả kết quả không đúng định dạng. Bấm thử lại, hoặc chọn model mạnh hơn.",
+      "llm_bad_output": "AI trả kết quả sai định dạng. Thử lại hoặc chọn model mạnh hơn.",
       "forbidden": "Bạn không có quyền dùng AI trên session này.",
       "not_found": "Không tìm thấy dữ liệu.",
       "network_error": "Không kết nối được tới máy chủ.",

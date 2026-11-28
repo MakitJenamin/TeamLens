@@ -15,6 +15,8 @@ name = "tl"
 path = "src/main.rs"
 
 [dependencies]
+# Bật ANSI trên console Windows và đọc NO_COLOR (đã có trong lockfile qua clap).
+anstyle-query = "1.1"
 tl-core = { workspace = true }
 tl-adapters = { workspace = true }
 tl-platform = { workspace = true }
