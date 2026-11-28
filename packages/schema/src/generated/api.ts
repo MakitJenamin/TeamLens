@@ -1113,7 +1113,7 @@ export interface paths {
         };
         /**
          * Mở luồng SSE để server gửi message cho client
-         * @description Server không hỗ trợ luồng này thì trả `405` theo đặc tả MCP.
+         * @description Server không mở luồng này (stateless) nên luôn trả `405` theo đặc tả MCP.
          */
         get: operations["mcpGet"];
         put?: never;
@@ -1121,10 +1121,14 @@ export interface paths {
          * Gửi message JSON-RPC 2.0 tới server MCP
          * @description Client gửi một request, notification hoặc response JSON-RPC 2.0 (MCP Streamable HTTP).
          *     Request trả `application/json` (một response JSON-RPC) hoặc `text/event-stream`; notification/response
-         *     trả `202`. Header `Mcp-Session-Id` do server cấp ở `initialize`, client gửi lại ở mọi request sau.
+         *     trả `202`. Server **không giữ phiên** (stateless): không cấp `Mcp-Session-Id`, mỗi request tự xác thực
+         *     bằng token; client có gửi header này thì bị bỏ qua.
          */
         post: operations["mcpPost"];
-        /** Kết thúc phiên MCP */
+        /**
+         * Kết thúc phiên MCP
+         * @description Server không giữ phiên (stateless) nên không có gì để kết thúc; luôn trả `204` cho token hợp lệ.
+         */
         delete: operations["mcpDelete"];
         options?: never;
         head?: never;
@@ -2483,7 +2487,7 @@ export interface components {
         AiLocaleQuery: components["schemas"]["AiLocale"];
         FindingId: components["schemas"]["Id"];
         TokenId: components["schemas"]["Id"];
-        /** @description Mã phiên MCP do server cấp ở `initialize`. */
+        /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
         McpSessionId: string;
     };
     requestBodies: never;
@@ -4670,24 +4674,12 @@ export interface operations {
     mcpGet: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
-                "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Luồng SSE chứa các message JSON-RPC 2.0. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
             401: components["responses"]["McpInvalidToken"];
             /** @description Server không mở luồng SSE riêng. */
             405: {
@@ -4702,7 +4694,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
                 "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
             };
             path?: never;
@@ -4733,14 +4725,13 @@ export interface operations {
             };
             400: components["responses"]["ValidationError"];
             401: components["responses"]["McpInvalidToken"];
-            404: components["responses"]["NotFound"];
         };
     };
     mcpDelete: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
                 "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
             };
             path?: never;
@@ -4748,7 +4739,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Đã kết thúc phiên. */
+            /** @description Đã nhận (không làm gì). */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -4756,7 +4747,6 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["McpInvalidToken"];
-            404: components["responses"]["NotFound"];
         };
     };
 }
