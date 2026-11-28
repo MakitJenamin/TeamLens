@@ -4,8 +4,8 @@ import { ApiError, notFound } from '../../common/api-error.js';
 import type { AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
-import { findings, projects, rules, sessions, sessionScores, users, userWeeklyStats } from '../../db/schema/index.js';
-import { leaderboardWindow, monthScores, rankLeaderboard, type LeaderboardCategory, type LeaderboardCandidate, type LeaderboardPeriod } from './leaderboard-math.js';
+import { findings, projectMembers, projects, rules, sessions, sessionScores, users, userWeeklyStats } from '../../db/schema/index.js';
+import { leaderboardWindow, monthScores, rankLeaderboard, type LeaderboardCategory, type LeaderboardCandidate, type LeaderboardPeriod, type MonthSession } from './leaderboard-math.js';
 import type { Severity, WeeklyScores } from './weekly-stats.js';
 
 @Injectable()
@@ -50,17 +50,21 @@ export class LeaderboardService {
       .select({ userId: userWeeklyStats.userId, name: users.name, sessions: userWeeklyStats.sessions, scores: userWeeklyStats.scores })
       .from(userWeeklyStats)
       .innerJoin(users, eq(users.id, userWeeklyStats.userId))
-      .where(and(eq(userWeeklyStats.projectId, projectId), eq(userWeeklyStats.week, from.toISOString().slice(0, 10))));
+      .innerJoin(projectMembers, and(eq(projectMembers.projectId, userWeeklyStats.projectId), eq(projectMembers.userId, userWeeklyStats.userId)))
+      .where(and(
+        eq(userWeeklyStats.projectId, projectId), eq(userWeeklyStats.week, from.toISOString().slice(0, 10)), isNull(users.deletedAt),
+      ));
     return rows.map((row) => ({ userId: row.userId, name: row.name, sessions: row.sessions, scores: row.scores as WeeklyScores }));
   }
 
   private async monthCandidates(projectId: string, from: Date, to: Date): Promise<LeaderboardCandidate[]> {
     const roots = await this.db
-      .select({ id: sessions.id, userId: sessions.userId, name: users.name, turnCount: sessions.turnCount })
+      .select({ id: sessions.id, userId: sessions.userId, name: users.name, turnCount: sessions.turnCount, startedAt: sessions.startedAt })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
+      .innerJoin(projectMembers, and(eq(projectMembers.projectId, sessions.projectId), eq(projectMembers.userId, sessions.userId)))
       .where(and(
-        eq(sessions.projectId, projectId), gte(sessions.startedAt, from), lt(sessions.startedAt, to),
+        eq(sessions.projectId, projectId), isNull(users.deletedAt), gte(sessions.startedAt, from), lt(sessions.startedAt, to),
         isNull(sessions.parentSessionId), isNull(sessions.parentSourceId),
       ));
     if (roots.length === 0) return [];
@@ -79,18 +83,16 @@ export class LeaderboardService {
       values[row.category] = row.score;
       scoresBySession.set(row.sessionId, values);
     }
-    const byUser = new Map<string, { name: string; sessions: number; scored: Array<{ turnCount: number; scores: Record<string, number> }>; ids: Set<string> }>();
+    const byUser = new Map<string, { name: string; sessions: MonthSession[]; ids: Set<string> }>();
     for (const root of roots) {
-      const user = byUser.get(root.userId) ?? { name: root.name, sessions: 0, scored: [], ids: new Set<string>() };
-      user.sessions++;
+      const user = byUser.get(root.userId) ?? { name: root.name, sessions: [], ids: new Set<string>() };
+      user.sessions.push({ id: root.id, startedAt: root.startedAt, turnCount: root.turnCount, scores: scoresBySession.get(root.id) });
       user.ids.add(root.id);
-      const values = scoresBySession.get(root.id);
-      if (values) user.scored.push({ turnCount: root.turnCount, scores: values });
       byUser.set(root.userId, user);
     }
     return [...byUser].map(([userId, user]) => ({
-      userId, name: user.name, sessions: user.sessions,
-      scores: monthScores(user.scored, penalties.filter((penalty) => user.ids.has(penalty.sessionId))),
+      userId, name: user.name, sessions: user.sessions.length,
+      scores: monthScores(user.sessions, penalties.filter((penalty) => user.ids.has(penalty.sessionId))),
     }));
   }
 }
