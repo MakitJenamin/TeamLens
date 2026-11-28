@@ -4,6 +4,7 @@
 **/.next
 **/.turbo
 **/coverage
+**/target
 **/*.tsbuildinfo
 .git
 .github

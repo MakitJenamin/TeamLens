@@ -85,6 +85,60 @@ jobs:
       - name: Type sinh từ OpenAPI đã được commit
         run: git diff --exit-code -- packages/schema/src/generated/api.ts
 
+  # e2e của API trên Postgres thật, kèm helper Rust `regex-validator` để test lưu pattern redaction
+  # chạy đúng đường thật (không rơi vào nhánh 503 `regex_validator_unavailable`).
+  api-e2e:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.result != 'success' || needs.changes.outputs.js == 'true') }}
+    runs-on: ubuntu-latest
+    env:
+      TURBO_TELEMETRY_DISABLED: '1'
+      DATABASE_URL: postgres://teamlens:teamlens@localhost:5432/teamlens
+      TEST_DATABASE_URL: postgres://teamlens:teamlens@localhost:5432/teamlens_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: teamlens
+          POSTGRES_PASSWORD: teamlens
+          POSTGRES_DB: teamlens
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U teamlens"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust (regex-validator)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/api/tools/regex-validator
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build regex-validator
+        run: pnpm --filter @teamlens/api build:regex-validator
+
+      - name: e2e API
+        run: pnpm --filter @teamlens/api test:e2e
+
   # Chạy song song với `validate` (khi cả hai cùng cần chạy). Dùng Windows vì tl.exe có code riêng cho Windows (Credential Manager, mutex).
   rust-windows:
     needs: changes
