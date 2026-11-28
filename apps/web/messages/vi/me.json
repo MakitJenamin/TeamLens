@@ -1,7 +1,8 @@
 {
   "title": "Của tôi",
-  "description": "Xem các lần đồng ý theo thiết bị, máy đã kết nối và ai đã xem session của bạn.",
-  "leader": "Trưởng nhóm", "member": "Thành viên", "devices": "Thiết bị", "consents": "Lịch sử đồng ý", "views": "Lịch sử xem session", "loading": "Đang tải...",
-  "noDevices": "Chưa có thiết bị nào.", "noConsents": "Chưa có lần đồng ý nào.", "noViews": "Chưa có ai xem session của bạn.", "removedDevice": "Thiết bị không còn tồn tại",
-  "revoked": "Đã rút đồng ý", "granted": "Đã cấp đồng ý", "backfillYes": "Có gửi dữ liệu cũ", "backfillNo": "Chỉ gửi dữ liệu mới", "deletedAccount": "Tài khoản không còn tồn tại", "session": "Session", "more": "Xem thêm"
+  "description": "Xem các lần đồng ý theo thiết bị, máy đã kết nối và ai đã xem dữ liệu của bạn.",
+  "leader": "Trưởng nhóm", "member": "Thành viên", "devices": "Thiết bị", "consents": "Lịch sử đồng ý", "views": "Ai đã xem", "loading": "Đang tải...",
+  "noDevices": "Chưa có thiết bị nào.", "noConsents": "Chưa có lần đồng ý nào.", "noViews": "Chưa có ai xem dữ liệu của bạn.", "removedDevice": "Thiết bị không còn tồn tại",
+  "revoked": "Đã rút đồng ý", "granted": "Đã cấp đồng ý", "backfillYes": "Có gửi dữ liệu cũ", "backfillNo": "Chỉ gửi dữ liệu mới", "deletedAccount": "Tài khoản không còn tồn tại", "session": "Session", "more": "Xem thêm",
+  "action": { "session.view": "Mở session", "session.ai": "Chạy AI trên session", "profile.view": "Xem hồ sơ" }, "sessionDeleted": "đã xóa"
 }
