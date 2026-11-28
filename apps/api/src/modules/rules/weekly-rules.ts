@@ -64,7 +64,21 @@ function sample(session: WeekSession, rule: WeeklyRule): Sample {
     return { eligible: prompts.length, hits: prompts.filter((prompt) => !file.test(prompt.text ?? '')) };
   }
   if (rule.metric === 'interrupted') {
-    return { eligible: prompts.length, hits: prompts.filter((prompt) => prompt.interrupted === true) };
+    // Adapter gắn `interrupted` cho turn assistant đang trả lời (Codex gắn vào prompt khi lượt chưa có turn
+    // assistant nào), nên một prompt bị ngắt khi chính nó hoặc một turn trước prompt kế tiếp mang cờ này.
+    const hits: RuleTurn[] = [];
+    let current: RuleTurn | undefined;
+    let interrupted = false;
+    for (const turn of ordered) {
+      if (turn.role === 'user' && turn.kind === 'prompt') {
+        if (current && interrupted) hits.push(current);
+        current = turn;
+        interrupted = false;
+      }
+      if (current && turn.interrupted === true) interrupted = true;
+    }
+    if (current && interrupted) hits.push(current);
+    return { eligible: prompts.length, hits };
   }
   if (rule.metric === 'premiumTrivial') {
     const hits: RuleTurn[] = [];
@@ -195,6 +209,16 @@ const fast = (gap: number) =>
       },
     ]),
   );
+/** Giống dữ liệu thật: cờ ngắt nằm ở turn assistant trả lời prompt, không nằm ở prompt. */
+const interruptedReplies = (n: number) => [
+  session(
+    'a',
+    Array.from({ length: 20 }, (_, i) => [
+      p(i * 2, 'Làm tiếp'),
+      { seq: i * 2 + 1, role: 'assistant' as const, kind: 'reply' as const, interrupted: i < n },
+    ]).flat(),
+  ),
+];
 export const weeklyRules: WeeklyRule[] = [
   {
     key: 'no-spec-first', category: 'prompt_quality', severity: 'low', scope: 'user_week',
@@ -236,8 +260,8 @@ export const weeklyRules: WeeklyRule[] = [
     message: '{{count}}/{{total}} prompt bị ngắt trong tuần.',
     advice: 'Kiểm tra nguyên nhân ngắt và chia nhỏ yêu cầu.',
     tests: [
-      { name: 'bốn trong hai mươi bị ngắt', input: [session('a', Array.from({ length: 20 }, (_, i) => ({ ...p(i, 'Làm tiếp'), interrupted: i < 4 })))], expect: 'triggered' },
-      { name: 'ba trong hai mươi', input: [session('a', Array.from({ length: 20 }, (_, i) => ({ ...p(i, 'Làm tiếp'), interrupted: i < 3 })))], expect: 'clean' },
+      { name: 'bốn trong hai mươi lượt trả lời bị ngắt', input: interruptedReplies(4), expect: 'triggered' },
+      { name: 'ba trong hai mươi', input: interruptedReplies(3), expect: 'clean' },
     ],
   },
   {

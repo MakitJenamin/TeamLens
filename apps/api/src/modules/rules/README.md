@@ -54,8 +54,8 @@ Sau mỗi lần chấm một session (kể cả session con, vì token của nó
 - **8 rule mức low:**
   - Session: `vague-followup`, `instruction-bloat`, `pasted-long-log` (`additional-rules.ts`).
   - Tuần: `no-spec-first`, `low-constraint-usage`, `no-file-context`, `high-interruption`, `premium-for-trivial` (`weekly-rules.ts`).
+  - `high-interruption` đếm prompt bị ngắt: prompt có cờ `interrupted` ở chính nó hoặc ở turn bất kỳ trước prompt kế tiếp. Adapter CLI gắn cờ cho turn assistant đang trả lời (Claude Code: turn assistant gần nhất trước `[Request interrupted by user]`; Codex: turn assistant cuối của lượt, hoặc chính prompt khi lượt chưa có turn assistant).
 - **Lỗi đã biết (review 2026-11-28, chi tiết ở `docs/TASKS.md`):**
-  - `high-interruption` đếm cờ ngắt trên prompt, trong khi CLI gắn cờ này cho turn assistant.
   - `restore` xóa dòng `rules`, nên finding cũ bị cascade xóa.
   - Lần chạy kẹt ở `running` không gỡ được từ UI.
   - `needsRerun` so với `finishedAt` thay vì `startedAt`.

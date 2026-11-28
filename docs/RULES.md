@@ -86,7 +86,7 @@ Cột "Phạm vi": `session` = mỗi session vi phạm tạo một finding; `use
 | --- | --- | --- | --- | --- | --- |
 | `mega-session` | medium | session | Số prompt người gõ trong session ≥ ngưỡng | `maxPrompts: 50` | coach `mega-sessions` |
 | `repeated-compaction` | medium | session | Số turn `kind = compaction` ≥ ngưỡng | `min: 2` | spec 9.1 |
-| `high-interruption` | low | user_week | Tỉ lệ prompt bị người dùng ngắt (`turn.interrupted = true`) | `maxRate: 0.15`, `minSample: 20` | coach `high-cancellation` |
+| `high-interruption` | low | user_week | Tỉ lệ prompt bị người dùng ngắt: prompt hoặc turn trả lời nó (trước prompt kế tiếp) có `turn.interrupted = true` | `maxRate: 0.15`, `minSample: 20` | coach `high-cancellation` |
 | `premium-for-trivial` | low | user_week | Tỉ lệ prompt ngắn (< 120 ký tự), không tạo diff, không gọi tool, dạng hỏi tra cứu (`là gì`, `ở đâu`, `làm sao`, `tại sao`, `giải thích`, `what is`, `how do i`, `explain`) mà chạy trên model đắt nhất (danh sách model "cao cấp" cấu hình được) | `maxRatio: 0.1`, `minSample: 10` | coach `premium-waste`, `premium-for-lookup-questions` + spec 9.1 |
 
 ### 3.5 Kiểm chứng kết quả (`verification`)
@@ -109,7 +109,7 @@ Thêm dạng **tùy chọn** (tương thích ngược) vào `packages/schema/ses
 | --- | --- | --- | --- |
 | `session.permission_mode` | `default \| accept_edits \| plan \| bypass \| unknown` | Claude Code: `permissionMode` trên dòng user; Codex: `turn_context.approval_policy` + `sandbox_policy` | `yolo-mode` |
 | `session.instruction_files` | `[{ path, bytes }]` (chỉ đường dẫn tương đối và kích thước, **không gửi nội dung**) | CLI đọc thư mục gốc repo: `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.claude/CLAUDE.md` | `no-instruction-file`, `instruction-bloat` |
-| `turn.interrupted` | boolean | Claude Code: tin nhắn `[Request interrupted by user]`; Codex: event `turn_aborted` | `high-interruption` |
+| `turn.interrupted` | boolean | Gắn cho turn assistant đang trả lời (Codex: gắn vào prompt nếu lượt chưa có turn assistant). Claude Code: tin nhắn `[Request interrupted by user]`; Codex: event `turn_aborted` | `high-interruption` |
 | `turn.reasoning_effort` | string \| null | Codex: `turn_context.effort`; Claude Code: để null | thống kê `reasoning-effort-overuse` |
 
 ## 5. Định nghĩa rule và test nội tuyến
