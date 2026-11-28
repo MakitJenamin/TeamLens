@@ -15,10 +15,14 @@ import {
   type RegexInput,
 } from './regex-validator.service.js';
 import type { RedactionPatternInput } from './server-settings.schemas.js';
+import {
+  DEFAULT_RETENTION_DAYS,
+  readLastRetentionRun,
+  RETENTION_KEY,
+} from '../retention/retention-settings.js';
 
 export const REDACTION_KEY = 'redaction_patterns';
-export const RETENTION_KEY = 'retention_days';
-export const DEFAULT_RETENTION_DAYS = 90;
+export { DEFAULT_RETENTION_DAYS, RETENTION_KEY };
 
 export interface ServerSettingsUpdate {
   redactionPatterns?: RedactionPatternInput[];
@@ -71,6 +75,7 @@ export class ServerSettingsService {
         : DEFAULT_RETENTION_DAYS,
       consentText,
       affectedDevices: active?.n ?? 0,
+      retentionLastRun: await readLastRetentionRun(this.db),
     };
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api/client";
 import type { RedactionPattern, ServerSettings } from "@/lib/api/types";
@@ -106,6 +106,7 @@ function RedactionSection({ settings, onSaved }: SectionProps) {
 
 function RetentionSection({ settings, onSaved }: SectionProps) {
   const t = useTranslations("admin");
+  const format = useFormatter();
   const [forever, setForever] = useState(settings.retentionDays === null);
   const [days, setDays] = useState(String(settings.retentionDays ?? 90));
   const [busy, setBusy] = useState(false);
@@ -136,6 +137,11 @@ function RetentionSection({ settings, onSaved }: SectionProps) {
       )}
       {!valid && <p className="text-destructive text-sm" role="alert">{t("settingsDaysRange")}</p>}
       <p className="text-muted-foreground text-xs">{t("settingsRetentionNote")}</p>
+      <p className="text-muted-foreground text-xs">
+        {settings.retentionLastRun
+          ? t("settingsRetentionLastRun", { at: format.dateTime(new Date(settings.retentionLastRun.at), { dateStyle: "medium", timeStyle: "short" }) })
+          : t("settingsRetentionNeverRun")}
+      </p>
       <button type="button" className={buttonClass} disabled={busy || !valid} onClick={save}>{t("settingsSave")}</button>
       {message && <p className="text-sm" role="status">{message}</p>}
       {error && <p className="text-destructive text-sm" role="alert">{error}</p>}
