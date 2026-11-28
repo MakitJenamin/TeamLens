@@ -1,54 +1,25 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { ApiError, isUniqueViolation, notFound } from '../../common/api-error.js';
+import { ApiError, notFound } from '../../common/api-error.js';
 import type { AuthUser } from '../../common/auth-context.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import { projectRescoreRuns, projects, rules, sessions, turns } from '../../db/schema/index.js';
-import { JOBS } from '../../queue/jobs.js';
-import { QueueService } from '../../queue/queue.service.js';
 import { AuditService } from '../access/audit.service.js';
 import { isUuid } from '../access/access.service.js';
 import { evaluateSession, type RuleTurn, type SessionRule } from './session-engine.js';
 import { evaluateWeek, type WeekSession, type WeeklyRule } from './weekly-rules.js';
+import { RulesWriteService } from './rules-write.service.js';
 
 type Definition = SessionRule | WeeklyRule;
 type RuleRow = typeof rules.$inferSelect;
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
-
-function validateThresholds(base: Definition, next: Record<string, number>) {
-  for (const [key, value] of Object.entries(next)) {
-    if (!(key in base.thresholds) || !Number.isFinite(value) || value < 0 || value > 1_000_000 ||
-        (Number.isInteger(base.thresholds[key]) && !Number.isInteger(value)) ||
-        (/Rate|Ratio/.test(key) && value > 1)) {
-      throw new ApiError(400, 'rule_invalid', `Ngưỡng ${key} không hợp lệ`);
-    }
-  }
-  const merged = { ...base.thresholds, ...next };
-  // Các ngưỡng đếm/chữ không nhận 0; tỉ lệ có thể bằng 0.
-  for (const [key, value] of Object.entries(merged)) {
-    if (value === 0 && !/Rate|Ratio/.test(key)) throw new ApiError(400, 'rule_invalid', `Ngưỡng ${key} phải lớn hơn 0`);
-  }
-  return next;
-}
-
-/** Chạy các ca nội tuyến của rule gốc để phát hiện definition sai trước khi tạo bản ghi đè. */
-function checkInlineTests(rule: Definition) {
-  for (const test of rule.tests) {
-    const hits = rule.scope === 'session'
-      ? evaluateSession((test as SessionRule['tests'][number]).input, [rule])
-      : evaluateWeek((test as WeeklyRule['tests'][number]).input, [rule]);
-    if ((hits.length > 0) !== (test.expect === 'triggered'))
-      throw new ApiError(400, 'rule_invalid', `Ca nội tuyến ${test.name} không đạt`);
-  }
-}
 
 @Injectable()
 export class RuleConfigService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(AuditService) private readonly audit: AuditService,
-    @Inject(QueueService) private readonly queue: QueueService,
+    @Inject(RulesWriteService) private readonly writer: RulesWriteService,
   ) {}
 
   private async requireProject(projectId: string) {
@@ -73,67 +44,38 @@ export class RuleConfigService {
       source: row.projectId ? 'project' as const : 'default' as const, needsRerun };
   }
 
-  async list(projectId: string) {
-    const { selected } = await this.effective(projectId);
-    const [lastRun] = await this.db.select({ finishedAt: projectRescoreRuns.finishedAt })
+  /**
+   * Thời điểm bắt đầu của lần chấm lại thành công gần nhất. Rule sửa sau thời điểm này cần chạy lại: lần chạy đọc rule
+   * ở từng session trong lúc chạy, nên sửa giữa chừng thì chưa chắc đã áp cho mọi session.
+   */
+  private async lastRunStart(projectId: string) {
+    const [lastRun] = await this.db.select({ startedAt: projectRescoreRuns.startedAt })
       .from(projectRescoreRuns)
       .where(and(eq(projectRescoreRuns.projectId, projectId), eq(projectRescoreRuns.status, 'succeeded')))
-      .orderBy(desc(projectRescoreRuns.finishedAt)).limit(1);
-    return [...selected.values()].sort((a, b) => a.key.localeCompare(b.key))
-      .map((row) => this.toDto(row, Boolean(row.projectId && (!lastRun?.finishedAt || row.updatedAt > lastRun.finishedAt))));
+      .orderBy(desc(projectRescoreRuns.startedAt)).limit(1);
+    return lastRun?.startedAt ?? null;
   }
 
+  private needsRerun(row: RuleRow, lastStart: Date | null) {
+    return Boolean(row.projectId && (!lastStart || row.updatedAt >= lastStart));
+  }
+
+  async list(projectId: string) {
+    const { selected } = await this.effective(projectId);
+    const lastStart = await this.lastRunStart(projectId);
+    return [...selected.values()].sort((a, b) => a.key.localeCompare(b.key))
+      .map((row) => this.toDto(row, this.needsRerun(row, lastStart)));
+  }
+
+  /** Dùng chung đường ghi với tool MCP (`RulesWriteService.update`). */
   async update(user: AuthUser, projectId: string, key: string,
     patch: { enabled?: boolean; severity?: 'low' | 'medium' | 'high'; thresholds?: Record<string, number> }) {
-    const { defaults, selected } = await this.effective(projectId);
-    const current = selected.get(key);
-    const base = defaults.get(key);
-    if (!current || !base) throw notFound('Không tìm thấy rule');
-    const baseDefinition = base.definition as Definition;
-    checkInlineTests(baseDefinition);
-    const definition = current.definition as Definition;
-    const thresholds = patch.thresholds
-      ? { ...definition.thresholds, ...validateThresholds(baseDefinition, patch.thresholds) }
-      : definition.thresholds;
-    const updatedDefinition = { ...definition, thresholds, severity: patch.severity ?? current.severity };
-    const old = { enabled: current.enabled, severity: current.severity, thresholds: definition.thresholds };
-    const next = { enabled: patch.enabled ?? current.enabled, severity: patch.severity ?? current.severity, thresholds };
-    const row = await this.db.transaction(async (tx) => {
-      const values = { projectId, key, category: current.category, severity: next.severity,
-        definition: updatedDefinition, enabled: next.enabled, version: current.version + 1, updatedAt: new Date() };
-      const [saved] = current.projectId
-        ? await tx.update(rules).set(values).where(eq(rules.id, current.id)).returning()
-        : await tx.insert(rules).values(values).returning();
-      await this.audit.record(user.id, 'rules.update', 'project', projectId, tx, undefined, { key, old, next });
-      return saved;
-    });
-    return this.toDto(row, true);
+    const { row } = await this.writer.update(user, projectId, key, patch, 'dashboard');
+    return this.toDto(row, this.needsRerun(row, await this.lastRunStart(projectId)));
   }
 
-  async restore(user: AuthUser, projectId: string, key: string) {
-    const { defaults, selected } = await this.effective(projectId);
-    if (!defaults.has(key)) throw notFound('Không tìm thấy rule');
-    const override = selected.get(key);
-    if (!override?.projectId) throw notFound('Project không có bản rule ghi đè');
-    let run: typeof projectRescoreRuns.$inferSelect;
-    try {
-      run = await this.db.transaction(async (tx: Tx) => {
-        const [created] = await tx.insert(projectRescoreRuns).values({ projectId }).returning();
-        await tx.delete(rules).where(eq(rules.id, override.id));
-        await this.audit.record(user.id, 'rules.restore', 'project', projectId, tx, undefined, { key });
-        return created;
-      });
-    } catch (error) {
-      if (isUniqueViolation(error)) throw new ApiError(409, 'rescore_in_progress', 'Project đang được chấm lại');
-      throw error;
-    }
-    try {
-      await this.queue.send(JOBS.projectRescore, { projectId, runId: run.id });
-    } catch (error) {
-      await this.db.update(projectRescoreRuns).set({ status: 'failed', errorCode: 'queue_failed', updatedAt: new Date(), finishedAt: new Date() }).where(eq(projectRescoreRuns.id, run.id));
-      throw error;
-    }
-    return { status: 'queued' as const, runId: run.id };
+  restore(user: AuthUser, projectId: string, key: string) {
+    return this.writer.restore(user, projectId, key, 'dashboard');
   }
 
   async test(user: AuthUser, projectId: string, key: string) {
@@ -191,7 +133,7 @@ export class RuleConfigService {
         }
       }
     }
-    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, undefined, { key, sampledSessions: complete.length, matchedSessions });
+    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, { key, sampledSessions: complete.length, matchedSessions });
     return { sampledSessions: complete.length, matchedSessions, approximate: definition.scope === 'user_week', examples };
   }
 }

@@ -262,6 +262,9 @@ describe('Tool MCP ghi cho leader và prompt (M6.16, e2e)', () => {
         next: { scope: 'project', severity: 'medium', version: 2 },
       });
       expect(audit.details.changes).toEqual(res.changes);
+      // Lần chấm lại do MCP phát có dòng theo dõi như nút "Chạy lại" của dashboard.
+      expect(await querySql('SELECT 1 FROM project_rescore_runs WHERE project_id=$1', [projectId])).toHaveLength(1);
+      expect(await querySql("SELECT 1 FROM audit_log WHERE action='rules.rerun' AND details->>'via'='mcp'")).toHaveLength(1);
 
       // Điểm được tính lại: finding mới của session sA mang mức độ medium.
       await vi.waitFor(async () => expect(await findingSeverity(sA)).toEqual([{ severity: 'medium' }]), {
@@ -283,7 +286,9 @@ describe('Tool MCP ghi cho leader và prompt (M6.16, e2e)', () => {
   describe('set_rule_enabled', () => {
     it('tắt rule: audit giá trị cũ và mới, điểm tính lại (finding biến mất); bật lại thì finding trở lại', async () => {
       const off = await ok(leaderToken, 'set_rule_enabled', { key: RULE, projectId, enabled: false });
-      expect(off).toMatchObject({ previousEnabled: true, rescore: 'queued', rule: { enabled: false, scope: 'project' } });
+      expect(off).toMatchObject({ previousEnabled: true, rule: { enabled: false, scope: 'project' } });
+      // Lần chạy trước có thể còn chạy: `in_progress`, và lần đó xong sẽ tự xếp thêm lần chạy (finding vẫn biến mất).
+      expect(['queued', 'in_progress']).toContain(off.rescore);
       const [audit] = await querySql<{ details: any }>(
         "SELECT details FROM audit_log WHERE action='rule.set_enabled' AND actor_id=$1 ORDER BY at DESC LIMIT 1",
         [leaderId],

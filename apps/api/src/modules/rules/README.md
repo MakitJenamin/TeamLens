@@ -8,7 +8,7 @@ Ví dụ, `lazy-prompting` cần ít nhất 10 prompt có nội dung và chỉ c
 
 API đăng ký worker `session.ingested` sau khi hàng đợi khởi động. Worker và lệnh dev dùng chung giao dịch chấm điểm. Chạy `pnpm --filter @teamlens/api rules:run` để tính lại trên DB đã migrate và seed; thêm `--session <UUID>` để chọn một session. Session con không có điểm. Khi retention đã xóa turn, các điểm đã tính được giữ lại.
 
-Truy vấn findings nằm ở `FindingsService` (M6.15, tách khỏi controller để tool MCP `get_findings` dùng lại cùng quyền và audit); rule đọc qua `RulesQueryService` (chỉ đọc, rule riêng của project ghi đè rule mặc định cùng khóa; M4.4 dùng lại cho danh sách rule). `RulesWriteService` (M6.16, `rules-write.service.ts` và `rule-definition.ts`) là phần ghi cho tool MCP của leader: soạn thử, chạy thử trên 50 session, lưu bản riêng của project, bật/tắt; chỉ chỉnh ngưỡng, mức độ, thông điệp, lời khuyên của rule **session có sẵn** (không đổi `match`, không tạo rule mới), từ chối khi `tests` nội tuyến không còn đúng, audit kèm giá trị cũ và mới, phát job `project.rescore`. Chi tiết ở `mcp/README.md`; M4.4 dùng lại hoặc mở rộng. Các service này được export cho module `mcp`.
+Truy vấn findings nằm ở `FindingsService` (M6.15, tách khỏi controller để tool MCP `get_findings` dùng lại cùng quyền và audit); rule đọc qua `RulesQueryService` (chỉ đọc, rule riêng của project ghi đè rule mặc định cùng khóa; M4.4 dùng lại cho danh sách rule). `RulesWriteService` (M6.16, `rules-write.service.ts` và `rule-definition.ts`) là **đường ghi rule duy nhất**, dùng chung cho dashboard (M4.4) và tool MCP của leader: soạn thử, chạy thử trên 50 session, lưu bản riêng của project, bật/tắt; chỉ chỉnh ngưỡng, mức độ, thông điệp, lời khuyên của rule **session có sẵn** (không đổi `match`, không tạo rule mới), từ chối khi `tests` nội tuyến không còn đúng, audit kèm giá trị cũ và mới, phát job `project.rescore`. Chi tiết ở `mcp/README.md`; M4.4 dùng lại hoặc mở rộng. Các service này được export cho module `mcp`.
 
 `GET /api/v1/sessions/{sessionId}/findings` dùng cookie dashboard và cùng quyền xem với trang session. Đoạn trích lấy từ turn còn được lưu; khi turn hết hạn, trường `evidenceExcerpt` trả về `null`.
 
@@ -45,19 +45,15 @@ Sau mỗi lần chấm một session (kể cả session con, vì token của nó
 | Route | Việc |
 | --- | --- |
 | `GET /api/v1/projects/{id}/rules` | Rule hiệu lực (bản riêng ghi đè bản mặc định), kèm `needsRerun` |
-| `PATCH /rules/{key}` | Bật/tắt, mức độ, ngưỡng; tạo hoặc cập nhật bản riêng; audit `rules.update` (cột `metadata`) |
-| `DELETE /rules/{key}/override` | Khôi phục mặc định rồi chấm lại (202); audit `rules.restore` |
+| `PATCH /rules/{key}` | Bật/tắt, mức độ, ngưỡng qua `RulesWriteService.update` (cùng đường với MCP); audit `rule.save`/`rule.set_enabled` (cột `details`) |
+| `DELETE /rules/{key}/override` | Khôi phục mặc định rồi chấm lại (202); finding cũ chuyển sang rule mặc định, không bị xóa; audit `rule.restore` |
 | `POST /rules/{key}/test` | Thử trên 50 session gốc gần nhất; audit `rules.test` |
 | `POST /rules/rerun`, `GET /rules/rerun/status` | Chạy lại có theo dõi, xem tiến độ |
 
-- **Theo dõi lần chạy:** bảng `project_rescore_runs` (migration `0009`) với trạng thái `queued` → `running` → `succeeded`/`failed`. Unique index một phần đảm bảo mỗi project chỉ có một lần đang chạy, chạy trùng trả 409. Lần chạy `queued`/`running` quá 1 giờ được đánh `failed` (`rescore_stale`) khi có lần chạy mới. Job `project.rescore` nhận thêm `runId`; không có `runId` (tool MCP) thì chạy như cũ và không tạo dòng.
+- **Theo dõi lần chạy:** bảng `project_rescore_runs` (migration `0009`) với trạng thái `queued` → `running` → `succeeded`/`failed`. Unique index một phần đảm bảo mỗi project chỉ có một lần đang chạy, chạy trùng trả 409. Khi chạy, `execute` cập nhật `updated_at` mỗi 30 giây; lần chạy `queued`/`running` quá 5 phút không cập nhật (tiến trình chết) được đánh `failed` (`rescore_stale`) ngay khi đọc trạng thái hoặc xếp lần chạy mới, nên UI mở lại nút. Nút "Chạy lại", "Khôi phục mặc định" và tool MCP `save_rule`/`set_rule_enabled` đều tạo dòng này (`RescoreService.createRun`); job `project.rescore` không có `runId` chỉ còn ở lệnh dev.
+- **`needsRerun`:** bản riêng sửa từ lúc **bắt đầu** lần chạy thành công gần nhất trở đi (lần chạy đọc rule ở từng session trong lúc chạy).
+- **Sửa rule (dashboard và MCP):** khóa rule mặc định cùng khóa rồi bản riêng (`FOR UPDATE`), áp thay đổi lên rule hiện hành, chạy `tests` nội tuyến trên kết quả (422 `rule_tests_failed`), kiểm ngưỡng theo kiểu của rule dựng sẵn (nguyên/thực, tỉ lệ trong [0, 1]; 400 `validation_error`), tăng phiên bản khi định nghĩa hoặc mức độ đổi.
 - **8 rule mức low:**
   - Session: `vague-followup`, `instruction-bloat`, `pasted-long-log` (`additional-rules.ts`).
   - Tuần: `no-spec-first`, `low-constraint-usage`, `no-file-context`, `high-interruption`, `premium-for-trivial` (`weekly-rules.ts`).
   - `high-interruption` đếm prompt bị ngắt: prompt có cờ `interrupted` ở chính nó hoặc ở turn bất kỳ trước prompt kế tiếp. Adapter CLI gắn cờ cho turn assistant đang trả lời (Claude Code: turn assistant gần nhất trước `[Request interrupted by user]`; Codex: turn assistant cuối của lượt, hoặc chính prompt khi lượt chưa có turn assistant).
-- **Lỗi đã biết (review 2026-11-28, chi tiết ở `docs/TASKS.md`):**
-  - `restore` xóa dòng `rules`, nên finding cũ bị cascade xóa.
-  - Lần chạy kẹt ở `running` không gỡ được từ UI.
-  - `needsRerun` so với `finishedAt` thay vì `startedAt`.
-  - `PATCH` kiểm test nội tuyến trên bản mặc định, không khóa dòng, và đánh phiên bản khác `RulesWriteService`.
-  - `test` không bỏ session đã bị retention xóa turn.
