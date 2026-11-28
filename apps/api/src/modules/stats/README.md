@@ -46,3 +46,16 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 - **Ngưỡng:** chỉ xếp người có ít nhất 5 session gốc trong kỳ.
 - **Cài đặt theo project** (`projects.settings`): `leaderboardEnabled`, `leaderboardPublic`. Leader luôn xem được. Member chỉ xem được khi cả hai cùng bật, không thì 403 `leaderboard_disabled`.
 - **Member thấy gì:** hạng và điểm của mọi người, nhưng `userId`/`name` của người khác là `null`. Kèm `mySessions` và `sessionsNeeded` của chính mình.
+
+## Báo cáo tuần theo người do AI viết (B1, M6.8)
+
+`GET|POST /api/v1/users/{userId}/ai/weekly-report` (contract `stats.yaml`; code: `weekly-report.service.ts`, `weekly-report-prompts.ts` thuần có test, `weekly-report.controller.ts`). Dùng key BYO của **người bấm** qua `LlmService` (kind `weekly_user`, subjectType `user_week`, `subjectId` là UUID v5 của project, người và tuần: `userWeekId`).
+
+- **Quyền** như hồ sơ thành viên: member chỉ về chính mình (403 với người khác), leader về mọi thành viên của project (404 khi người đó không thuộc project). Leader tạo báo cáo về người khác ghi audit `weekly_report.ai` (target là người được báo cáo) vì prompt của họ được gửi cho nhà cung cấp LLM.
+- **Tuần** là thứ Hai UTC; bỏ trống thì lấy tuần gần nhất mà người đó có session (từ `user_weekly_stats`). Tuần không phải thứ Hai hoặc ở tương lai thì 400; tuần không có session gốc thì 409 `no_week_data`. Chưa có key thì 409 `llm_key_missing` **trước** khi đụng dữ liệu (không audit).
+- **AI không nhận cả session** mà nhận: số session và token của tuần, điểm 5 nhóm của tuần này, tuần trước và trung bình team, các rule bị vi phạm trong tuần (khóa, nhóm, mức nặng nhất, số lần, lời khuyên của rule, tối đa 8), số session theo loại việc B4 (M6.7), và tối đa 3 prompt ví dụ: hai prompt đầu tiên của các session có finding nặng nhất (`needs_work`, trọng số high 3, medium 2, low 1) và một prompt đầu tiên của session có điểm trung bình cao nhất từ 70 (`good`). Mỗi prompt tối đa 400 ký tự và phải dài từ 15 ký tự; session đã mất turn do retention không còn prompt nên tự bị bỏ qua. Số session gốc đếm trực tiếp từ bảng `sessions`, không chờ bảng thống kê tuần.
+- **AI chỉ viết lời nhận xét** (tóm tắt, điểm mạnh, điểm yếu, so với tuần trước, một việc nên tập, nhận xét từng ví dụ theo mã `e1`...). Server lọc mã không hợp lệ hoặc trùng và tự điền `week`, `sessionId`, `turnSeq`, `kind`, `excerpt` rồi mới lưu `ai_results`; mỗi danh sách tối đa 3 mục.
+- **Chủ dữ liệu** (`subject_user_id`) là thành viên được báo cáo (kể cả khi leader bấm), nên M5.6 xóa dữ liệu một người cũng xóa các báo cáo về người đó (có test e2e).
+- Kết quả chỉ người bấm đọc được; bấm lại thì ghi đè. Tool MCP `get_my_ai_results` (subjectType `user_week`) trả đúng kết quả của chính người gọi.
+
+Test: `weekly-report-prompts.spec.ts` (đầu vào, chuẩn hóa), `test/weekly-report.e2e-spec.ts` (quyền, dữ liệu gửi đi, audit, ghi đè, tuần sai, lỗi, injection, xóa người).

@@ -26,6 +26,7 @@ import { VIZ_VARS } from "../../../overview/_components/viz-colors";
 import { ScoresChart } from "../../../overview/_components/weekly-charts";
 import { type MemberProfile, PROFILE_DEFAULT_WEEKS, RECENT_SESSIONS } from "./profile-types";
 import { ProfileRadar } from "./profile-radar";
+import { WeeklyReportCard } from "./weekly-report";
 
 const selectClass =
   "border-input bg-background dark:bg-input/30 h-8 rounded-lg border px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -142,6 +143,8 @@ export function ProfileDashboard({ projectId, userId }: { projectId: string; use
           </div>
 
           <TrendTable profile={profile} weekLabel={weekLabel} compact={compact} />
+
+          <WeeklyReportCard projectId={projectId} userId={userId} weeks={profile.weeks} />
 
           <Card>
             <CardHeader>
