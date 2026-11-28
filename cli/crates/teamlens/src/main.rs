@@ -8,6 +8,7 @@ use teamlens::cli::Cli;
 use teamlens::commands::dispatch;
 use teamlens::context::AppContext;
 use teamlens::error::AppError;
+use teamlens::style;
 use teamlens::update::notice::{self, NoticeOptions, Notifier};
 
 fn main() -> ExitCode {
@@ -32,9 +33,11 @@ fn main() -> ExitCode {
     };
 
     let stdout = std::io::stdout();
-    let mut out = stdout.lock();
+    let color = style::enabled_for(&stdout);
+    let mut out = style::Painter::new(stdout.lock(), color);
     let result = runtime.block_on(dispatch(cli.command, AppContext::from_platform, &mut out));
     let _ = out.flush();
+    drop(out);
 
     let code = match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -70,10 +73,14 @@ fn report_error(e: &AppError, debug: bool) {
         eprintln!("{e}");
         return;
     }
-    eprintln!("Lỗi: {e}");
+    let stderr = std::io::stderr();
+    let color = style::enabled_for(&stderr);
+    let mut err = stderr.lock();
+    style::write_line(&mut err, color, &format!("Lỗi: {e}"));
     if let Some(hint) = e.hint() {
-        eprintln!("Gợi ý: {hint}");
+        style::write_line(&mut err, color, &format!("Gợi ý: {hint}"));
     }
+    drop(err);
     if debug {
         eprintln!();
         eprintln!("Chi tiết (TL_LOG=debug): {e:?}");
@@ -83,6 +90,6 @@ fn report_error(e: &AppError, debug: bool) {
             source = s.source();
         }
     } else if std::error::Error::source(e).is_some() {
-        eprintln!("(Đặt TL_LOG=debug để xem chi tiết.)");
+        eprintln!("Xem chi tiết: đặt TL_LOG=debug.");
     }
 }

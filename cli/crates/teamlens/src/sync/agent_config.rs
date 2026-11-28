@@ -164,20 +164,18 @@ impl SendBlock {
         match self {
             SendBlock::ConsentOutdated { required, accepted } => AppError::user(
                 format!(
-                    "Văn bản đồng ý của TeamLens đã đổi (bản {required}{}), nên chưa gửi gì.",
+                    "Văn bản đồng ý đã đổi sang bản {required}{}. Chưa gửi gì.",
                     if accepted.is_empty() {
                         String::new()
                     } else {
                         format!(", máy này mới đồng ý bản {}", accepted.join(", "))
                     }
                 ),
-                "Chạy lại `tl join <link mời>` (link do leader gửi) để đọc và đồng ý bản mới.",
+                "Đồng ý bản mới: `tl consent`.",
             ),
             SendBlock::CliTooOld { current, required } => AppError::user(
-                format!(
-                    "Bản tl {current} đã cũ, server yêu cầu tối thiểu bản {required}, nên chưa gửi gì."
-                ),
-                format!("Chạy `tl update` để cập nhật tl (cần bản {required} trở lên) rồi chạy lại `tl sync`."),
+                format!("Server cần tl {required} trở lên, máy đang dùng {current}. Chưa gửi gì."),
+                "Chạy `tl update` rồi chạy lại `tl sync`.".to_owned(),
             ),
         }
     }
@@ -316,7 +314,7 @@ mod tests {
                 accepted: vec!["v1".into()]
             }
         );
-        assert!(err.to_error().hint().unwrap().contains("tl join"));
+        assert!(err.to_error().hint().unwrap().contains("tl consent"));
         // Một project đã đồng ý bản mới là đủ.
         assert!(check_send(&local(&["v1", "v2"]), &agent_config("v2", "0.1.0"), "0.1.0").is_ok());
         // Chưa đồng ý gì: để consent_gate lo.

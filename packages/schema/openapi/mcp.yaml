@@ -15,7 +15,8 @@ paths:
       description: |
         Client gửi một request, notification hoặc response JSON-RPC 2.0 (MCP Streamable HTTP).
         Request trả `application/json` (một response JSON-RPC) hoặc `text/event-stream`; notification/response
-        trả `202`. Header `Mcp-Session-Id` do server cấp ở `initialize`, client gửi lại ở mọi request sau.
+        trả `202`. Server **không giữ phiên** (stateless): không cấp `Mcp-Session-Id`, mỗi request tự xác thực
+        bằng token; client có gửi header này thì bị bỏ qua.
       security:
         - deviceToken: []
         - agentToken: []
@@ -43,25 +44,15 @@ paths:
           $ref: './common.yaml#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/McpInvalidToken'
-        '404':
-          $ref: './common.yaml#/components/responses/NotFound'
     get:
       operationId: mcpGet
       tags: [mcp]
       summary: Mở luồng SSE để server gửi message cho client
-      description: Server không hỗ trợ luồng này thì trả `405` theo đặc tả MCP.
+      description: Server không mở luồng này (stateless) nên luôn trả `405` theo đặc tả MCP.
       security:
         - deviceToken: []
         - agentToken: []
-      parameters:
-        - $ref: '#/components/parameters/McpSessionId'
       responses:
-        '200':
-          description: Luồng SSE chứa các message JSON-RPC 2.0.
-          content:
-            text/event-stream:
-              schema:
-                type: string
         '401':
           $ref: '#/components/responses/McpInvalidToken'
         '405':
@@ -70,6 +61,7 @@ paths:
       operationId: mcpDelete
       tags: [mcp]
       summary: Kết thúc phiên MCP
+      description: Server không giữ phiên (stateless) nên không có gì để kết thúc; luôn trả `204` cho token hợp lệ.
       security:
         - deviceToken: []
         - agentToken: []
@@ -77,11 +69,9 @@ paths:
         - $ref: '#/components/parameters/McpSessionId'
       responses:
         '204':
-          description: Đã kết thúc phiên.
+          description: Đã nhận (không làm gì).
         '401':
           $ref: '#/components/responses/McpInvalidToken'
-        '404':
-          $ref: './common.yaml#/components/responses/NotFound'
 
 components:
   parameters:
@@ -89,7 +79,7 @@ components:
       name: Mcp-Session-Id
       in: header
       required: false
-      description: Mã phiên MCP do server cấp ở `initialize`.
+      description: Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này.
       schema:
         type: string
 

@@ -1,0 +1,318 @@
+{
+  "name": "get_member_profile",
+  "description": "Hồ sơ một thành viên trong một project: điểm theo nhóm kỹ năng so với trung bình team, diễn biến theo tuần, các mẫu lỗi hay gặp kèm lời khuyên và ví dụ (đã che secret). Member chỉ xem được hồ sơ của chính mình; leader xem được mọi thành viên (có ghi audit).",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "userId",
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "userId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Thành viên cần xem (từ `list_members`)."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project để tính hồ sơ."
+      },
+      "from": {
+        "type": "string",
+        "format": "date-time",
+        "description": "`from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601; server làm tròn ra biên tuần UTC (thứ Hai 00:00) và trả khoảng thực tế ở `range`. Mặc định: 2 tuần gần nhất."
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Chỉ tính session trước mốc này."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "user",
+      "projectId",
+      "range",
+      "totals",
+      "scores",
+      "teamScores",
+      "weeks",
+      "patterns"
+    ],
+    "properties": {
+      "user": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Định danh (UUID)."
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Định danh (UUID)."
+      },
+      "range": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Thứ Hai 00:00 UTC của tuần đầu tiên (bao gồm)."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Thứ Hai 00:00 UTC sau tuần cuối cùng (không bao gồm)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "totals": {
+        "type": "object",
+        "required": [
+          "sessions",
+          "tokens"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số session gốc của thành viên trong khoảng."
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Token của mọi session của thành viên, kể cả session con."
+          }
+        },
+        "additionalProperties": false
+      },
+      "scores": {
+        "type": "object",
+        "description": "Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.",
+        "propertyNames": {
+          "type": "string",
+          "description": "5 nhóm kỹ năng (SPEC 9.1).",
+          "enum": [
+            "prompt_quality",
+            "context",
+            "correction_loop",
+            "session_management",
+            "verification"
+          ]
+        },
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "teamScores": {
+        "type": "object",
+        "description": "Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.",
+        "propertyNames": {
+          "type": "string",
+          "description": "5 nhóm kỹ năng (SPEC 9.1).",
+          "enum": [
+            "prompt_quality",
+            "context",
+            "correction_loop",
+            "session_management",
+            "verification"
+          ]
+        },
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "weeks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "week",
+            "sessions",
+            "tokens",
+            "scores",
+            "teamScores"
+          ],
+          "properties": {
+            "week": {
+              "type": "string",
+              "format": "date",
+              "description": "Ngày thứ Hai (UTC) của tuần."
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scores": {
+              "type": "object",
+              "description": "Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.",
+              "propertyNames": {
+                "type": "string",
+                "description": "5 nhóm kỹ năng (SPEC 9.1).",
+                "enum": [
+                  "prompt_quality",
+                  "context",
+                  "correction_loop",
+                  "session_management",
+                  "verification"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "teamScores": {
+              "type": "object",
+              "description": "Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.",
+              "propertyNames": {
+                "type": "string",
+                "description": "5 nhóm kỹ năng (SPEC 9.1).",
+                "enum": [
+                  "prompt_quality",
+                  "context",
+                  "correction_loop",
+                  "session_management",
+                  "verification"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "patterns": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "required": [
+            "ruleKey",
+            "category",
+            "severity",
+            "count",
+            "advice",
+            "examples"
+          ],
+          "properties": {
+            "ruleKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "category": {
+              "type": "string",
+              "description": "5 nhóm kỹ năng (SPEC 9.1).",
+              "enum": [
+                "prompt_quality",
+                "context",
+                "correction_loop",
+                "session_management",
+                "verification"
+              ]
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Số lần thành viên này vi phạm rule trong khoảng."
+            },
+            "advice": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Lời khuyên của rule; `null` nếu rule không có."
+            },
+            "examples": {
+              "type": "array",
+              "maxItems": 3,
+              "items": {
+                "type": "object",
+                "required": [
+                  "sessionId",
+                  "turnSeq",
+                  "message",
+                  "excerpt"
+                ],
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "turnSeq": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "description": "Số thứ tự turn làm bằng chứng; `null` nếu áp dụng cho cả session."
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Nhận xét của rule cho lần vi phạm này."
+                  },
+                  "excerpt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 160,
+                    "description": "Đoạn trích ngắn đã che secret; `null` khi turn đã bị xóa theo retention hoặc khi turn không có văn bản (vd. compaction)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}
