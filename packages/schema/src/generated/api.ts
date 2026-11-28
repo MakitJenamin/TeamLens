@@ -1083,7 +1083,7 @@ export interface paths {
         head?: never;
         /**
          * Cập nhật cài đặt server (leader)
-         * @description Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Retention chỉ lưu cấu hình; cleanup thuộc M5.5.
+         * @description Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Job retention hằng đêm (M5.5) đọc retentionDays ở lần chạy kế tiếp.
          */
         patch: operations["updateServerSettings"];
         trace?: never;
@@ -1100,6 +1100,30 @@ export interface paths {
         /** Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader) */
         post: operations["testRedactionPattern"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Xóa toàn bộ dữ liệu của một người (leader)
+         * @description Xóa hẳn người dùng cùng mọi dữ liệu của họ: session (kèm turn, finding, điểm, ghi chú, mục
+         *     thư viện prompt trỏ tới), thiết bị và device token, bản đồng ý, thống kê tuần, kết quả AI
+         *     của họ và kết quả AI về dữ liệu của họ, API key AI, token `tlp_`, ghi chú họ viết, thành viên
+         *     project. Audit log giữ lại (người thực hiện thành null), kèm một dòng `user.erase`.
+         *     Không hoàn tác được. Người đó muốn dùng lại thì tham gia lại bằng link mời như người mới.
+         */
+        delete: operations["eraseUser"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2199,6 +2223,8 @@ export interface components {
             };
             /** @description Số thiết bị có consent còn hiệu lực với phiên bản văn bản hiện tại. */
             affectedDevices: number;
+            /** @description Lần chạy gần nhất của job retention; null khi chưa chạy lần nào. */
+            retentionLastRun: components["schemas"]["RetentionRun"] | null;
         };
         RedactionPattern: {
             id: string;
@@ -2206,6 +2232,30 @@ export interface components {
             description?: string;
             /** @description Cú pháp crate regex của Rust; tối đa 4096 byte UTF-8. */
             regex: string;
+        };
+        RetentionRun: {
+            /** Format: date-time */
+            at: string;
+            /** @description Giá trị dùng ở lần chạy đó; null là vô hạn (không xóa gì). */
+            retentionDays: number | null;
+            /**
+             * Format: date-time
+             * @description Nội dung thô có thời điểm trước mốc này bị xóa; null khi vô hạn.
+             */
+            cutoff: string | null;
+            /** @description Partition `turns` đã drop (cả tháng quá hạn). */
+            droppedPartitions: string[];
+            /** @description Turn xóa lẻ trong partition chỉ quá hạn một phần. */
+            deletedTurns: number;
+            deletedAiResults: number;
+            deletedNotes: number;
+            deletedPromptLibrary: number;
+        };
+        UserErasure: {
+            userId: components["schemas"]["Id"];
+            /** @description Số session đã xóa, kể cả session con. */
+            sessions: number;
+            devices: number;
         };
         /**
          * @description 5 nhóm kỹ năng (SPEC 9.1).
@@ -5601,7 +5651,7 @@ export interface operations {
             content: {
                 "application/json": {
                     redactionPatterns?: components["schemas"]["RedactionPattern"][];
-                    /** @description null là lưu vô hạn; job dọn dữ liệu làm ở M5.5. */
+                    /** @description null là lưu vô hạn. Job retention hằng đêm xóa nội dung thô cũ hơn số ngày này. */
                     retentionDays?: number | null;
                     consentText?: string;
                     expectedConsentVersion?: string;
@@ -5680,6 +5730,55 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    eraseUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa; số bản ghi chính đã xóa. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserErasure"];
+                };
+            };
+            /** @description Không tự xóa chính mình (`cannot_erase_self`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "cannot_erase_self",
+                     *       "message": "Không thể xóa dữ liệu của chính bạn"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Đây là leader cuối cùng (`last_leader`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listProjectMemberStatus: {

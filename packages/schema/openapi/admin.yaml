@@ -1,8 +1,7 @@
-# KHUNG — chưa có endpoint. Task: M4.5, M4.6, M5.6.
-#
-# Quản trị toàn server (chỉ leader), spec mục 7.4 và 11:
-# - GET/PATCH /api/v1/admin/settings (retention, pattern redaction; key AI do từng người tự nhập, xem ai.yaml)
+# Quản trị toàn server (chỉ leader), spec mục 7.4 và 11. Task: M4.5, M4.6, M5.5, M5.6.
+# - GET/PATCH /api/v1/admin/settings (retention, pattern redaction, văn bản đồng ý; key AI do từng người tự nhập, xem ai.yaml)
 # - GET /api/v1/audit
+# - DELETE /api/v1/admin/users/{userId} (xóa toàn bộ dữ liệu của một người, M5.6)
 #
 # Cách thêm endpoint:
 # 1. Viết path item dưới `paths:` bên dưới (path đầy đủ, vd. `/api/v1/...`), schema dùng chung
@@ -35,7 +34,7 @@ paths:
       operationId: updateServerSettings
       tags: [admin]
       summary: Cập nhật cài đặt server (leader)
-      description: Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Retention chỉ lưu cấu hình; cleanup thuộc M5.5.
+      description: Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Job retention hằng đêm (M5.5) đọc retentionDays ở lần chạy kế tiếp.
       security:
         - cookieAuth: []
       requestBody:
@@ -55,7 +54,7 @@ paths:
                   type: [integer, 'null']
                   minimum: 7
                   maximum: 730
-                  description: null là lưu vô hạn; job dọn dữ liệu làm ở M5.5.
+                  description: null là lưu vô hạn. Job retention hằng đêm xóa nội dung thô cũ hơn số ngày này.
                 consentText:
                   type: string
                   minLength: 1
@@ -133,6 +132,54 @@ paths:
           $ref: './common.yaml#/components/responses/Unauthenticated'
         '403':
           $ref: './common.yaml#/components/responses/Forbidden'
+
+  /api/v1/admin/users/{userId}:
+    delete:
+      operationId: eraseUser
+      tags: [admin]
+      summary: Xóa toàn bộ dữ liệu của một người (leader)
+      description: |
+        Xóa hẳn người dùng cùng mọi dữ liệu của họ: session (kèm turn, finding, điểm, ghi chú, mục
+        thư viện prompt trỏ tới), thiết bị và device token, bản đồng ý, thống kê tuần, kết quả AI
+        của họ và kết quả AI về dữ liệu của họ, API key AI, token `tlp_`, ghi chú họ viết, thành viên
+        project. Audit log giữ lại (người thực hiện thành null), kèm một dòng `user.erase`.
+        Không hoàn tác được. Người đó muốn dùng lại thì tham gia lại bằng link mời như người mới.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            $ref: './common.yaml#/components/schemas/Id'
+      responses:
+        '200':
+          description: Đã xóa; số bản ghi chính đã xóa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserErasure'
+        '400':
+          description: Không tự xóa chính mình (`cannot_erase_self`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: cannot_erase_self
+                message: Không thể xóa dữ liệu của chính bạn
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: Đây là leader cuối cùng (`last_leader`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
 
   /api/v1/audit:
     get:
@@ -218,7 +265,7 @@ components:
     ServerSettings:
       type: object
       additionalProperties: false
-      required: [redactionPatterns, retentionDays, consentText, affectedDevices]
+      required: [redactionPatterns, retentionDays, consentText, affectedDevices, retentionLastRun]
       properties:
         redactionPatterns:
           type: array
@@ -238,6 +285,54 @@ components:
         affectedDevices:
           type: integer
           description: Số thiết bị có consent còn hiệu lực với phiên bản văn bản hiện tại.
+        retentionLastRun:
+          oneOf:
+            - $ref: '#/components/schemas/RetentionRun'
+            - type: 'null'
+          description: Lần chạy gần nhất của job retention; null khi chưa chạy lần nào.
+
+    RetentionRun:
+      type: object
+      additionalProperties: false
+      required: [at, retentionDays, cutoff, droppedPartitions, deletedTurns, deletedAiResults, deletedNotes, deletedPromptLibrary]
+      properties:
+        at:
+          type: string
+          format: date-time
+        retentionDays:
+          type: [integer, 'null']
+          description: Giá trị dùng ở lần chạy đó; null là vô hạn (không xóa gì).
+        cutoff:
+          type: [string, 'null']
+          format: date-time
+          description: Nội dung thô có thời điểm trước mốc này bị xóa; null khi vô hạn.
+        droppedPartitions:
+          type: array
+          items:
+            type: string
+          description: Partition `turns` đã drop (cả tháng quá hạn).
+        deletedTurns:
+          type: integer
+          description: Turn xóa lẻ trong partition chỉ quá hạn một phần.
+        deletedAiResults:
+          type: integer
+        deletedNotes:
+          type: integer
+        deletedPromptLibrary:
+          type: integer
+
+    UserErasure:
+      type: object
+      additionalProperties: false
+      required: [userId, sessions, devices]
+      properties:
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        sessions:
+          type: integer
+          description: Số session đã xóa, kể cả session con.
+        devices:
+          type: integer
 
     AuditEntry:
       type: object
