@@ -2,11 +2,10 @@ import type { IngestTurn } from '@teamlens/schema';
 
 type Turn = Omit<IngestTurn, 'seq' | 'ts'>;
 const file = 'src/total.ts';
-const prompt = (text: string, interrupted = false): Turn => ({
+const prompt = (text: string): Turn => ({
   role: 'user',
   kind: 'prompt',
   text,
-  interrupted,
 });
 const reply = (text: string): Turn => ({
   role: 'assistant',
@@ -14,6 +13,8 @@ const reply = (text: string): Turn => ({
   text,
   usage: { input: 110, output: 35 },
 });
+/** Như adapter CLI: cờ ngắt gắn vào turn assistant đang trả lời khi người dùng ngắt. */
+const interrupted = (turn: Turn): Turn => ({ ...turn, interrupted: true });
 const shell = (
   command: string,
   status: 'ok' | 'error',
@@ -51,18 +52,17 @@ function longSession(): Turn[] {
   for (let i = 0; i < 40; i++)
     result.push(shell('pnpm test', i < 5 ? 'error' : 'ok'));
   for (let i = 0; i < 4; i++)
-    result.push(edit(12, i % 2 === 1), prompt('sai rồi', true));
+    result.push(interrupted(edit(12, i % 2 === 1)), prompt('sai rồi'));
   result.push(
     { role: 'system', kind: 'compaction' },
     { role: 'system', kind: 'compaction' },
   );
   for (let i = 0; i < 40; i++)
     result.push(
-      prompt(
-        'Giải thích cách bộ tính tổng xử lý trường hợp dữ liệu rỗng?',
-        i % 2 === 0,
-      ),
-      reply('Tổng của danh sách rỗng là 0.'),
+      prompt('Giải thích cách bộ tính tổng xử lý trường hợp dữ liệu rỗng?'),
+      i % 2 === 0
+        ? interrupted(reply('Tổng của danh sách rỗng là 0.'))
+        : reply('Tổng của danh sách rỗng là 0.'),
     );
   result.push(
     prompt(
@@ -78,8 +78,8 @@ function longSession(): Turn[] {
 function uncheckedEdit(): Turn[] {
   return [
     prompt('sửa đi'),
-    edit(12),
-    prompt('tiếp đi', true),
+    interrupted(edit(12)),
+    prompt('tiếp đi'),
     reply('Đang thử cách khác.'),
     prompt('sai rồi'),
     edit(250),
