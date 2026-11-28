@@ -1,0 +1,126 @@
+{
+  "name": "add_session_note",
+  "description": "Thêm ghi chú của leader vào một session, gắn vào một turn hoặc cả session. Ghi chú hiện trên trang session cho người xem được session đó. Chỉ LEADER; có audit.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "sessionId",
+      "body"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Session cần ghi chú."
+      },
+      "turnSeq": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "description": "`seq` của turn; bỏ trống hoặc null là ghi chú chung."
+      },
+      "body": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4000,
+        "description": "Nội dung ghi chú."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "note"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "note": {
+        "type": "object",
+        "description": "Ghi chú của leader trên session, gắn vào một turn hoặc cả session.",
+        "required": [
+          "id",
+          "sessionId",
+          "turnSeq",
+          "body",
+          "author",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Định danh (UUID)."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Định danh (UUID)."
+          },
+          "turnSeq": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "`seq` của turn được ghi chú; null là ghi chú chung cho cả session."
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "author": {
+            "description": "Người viết; null khi tài khoản đã bị xóa.",
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "Thông tin rút gọn của user (dùng cho CLI).",
+                "required": [
+                  "id",
+                  "email",
+                  "name"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "email": {
+                    "description": "`null` với member (không có email).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "format": "email"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

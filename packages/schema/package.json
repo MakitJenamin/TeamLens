@@ -11,6 +11,8 @@
       "default": "./src/index.ts"
     },
     "./session.v1.schema.json": "./session.v1.schema.json",
+    "./mcp/*.json": "./mcp/*.json",
+    "./mcp/prompts/*.json": "./mcp/prompts/*.json",
     "./openapi.yaml": "./dist/openapi.yaml"
   },
   "types": "./src/index.ts",
@@ -18,6 +20,7 @@
     "dev": "pnpm run build",
     "bundle": "redocly lint openapi/openapi.yaml && redocly bundle openapi/openapi.yaml --output dist/openapi.yaml",
     "generate": "openapi-typescript dist/openapi.yaml --output src/generated/api.ts",
+    "generate:mcp": "redocly bundle openapi/openapi.yaml --dereferenced --ext json --output dist/openapi.deref.json && node scripts/gen-mcp-tools.mjs dist/openapi.deref.json mcp",
     "build": "pnpm run bundle && pnpm run generate",
     "lint": "redocly lint openapi/openapi.yaml",
     "typecheck": "tsc --noEmit",

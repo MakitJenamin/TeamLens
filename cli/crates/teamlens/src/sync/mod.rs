@@ -61,7 +61,7 @@ pub async fn connect(ctx: &AppContext) -> Result<Connected, AppError> {
     let not_logged_in = || {
         AppError::user(
             "Máy này chưa đăng nhập TeamLens.",
-            "Chạy `tl join <link mời>` (link do leader gửi) trước.",
+            "Chạy `tl join <link mời>` trước.",
         )
     };
     let server_url = config.server_url.ok_or_else(not_logged_in)?;
@@ -90,8 +90,8 @@ fn login_hint(e: ApiError) -> AppError {
     }) || matches!(e, ApiError::Api { status: 401, .. })
     {
         return AppError::user(
-            "Token của máy này không còn hiệu lực (đã hết hạn hoặc bị thu hồi).",
-            "Chạy lại `tl join <link mời>` (xin leader link còn hạn) để tham gia lại.",
+            "Token của máy này không còn hiệu lực.",
+            "Xin leader link mời còn hạn rồi chạy lại `tl join <link mời>`.",
         );
     }
     AppError::Api(e)
@@ -114,24 +114,22 @@ pub(crate) fn ingest_app_error(e: IngestError) -> AppError {
                 }
             ),
             match min_cli_version {
-                Some(v) => format!(
-                    "Chạy `tl update` để cập nhật tl (cần bản {v} trở lên) rồi chạy lại `tl sync`."
-                ),
-                None => "Chạy `tl update` để cập nhật tl rồi chạy lại `tl sync`.".to_owned(),
+                Some(v) => format!("Cần bản {v} trở lên. Chạy `tl update` rồi chạy lại `tl sync`."),
+                None => "Chạy `tl update` rồi chạy lại `tl sync`.".to_owned(),
             },
         ),
         IngestError::RateLimited { .. } => AppError::user(
-            "Server vẫn báo gửi quá nhanh sau khi đã chờ.",
+            "Server báo gửi quá nhanh.",
             "Đợi vài phút rồi chạy lại `tl sync`.",
         ),
         IngestError::TooLarge => AppError::user(
             "Batch vượt giới hạn kích thước của server.",
-            "Báo admin kiểm tra giới hạn body của server/proxy.",
+            "Báo leader kiểm tra giới hạn body của server hoặc proxy.",
         ),
         IngestError::Api(e) => {
             if e.code() == Some(&ApiErrorCode::Other("consent_required".into())) {
                 return AppError::user(
-                    "Thiết bị này chưa đồng ý (hoặc đã rút đồng ý) chia sẻ dữ liệu.",
+                    "Máy này chưa đồng ý hoặc đã rút đồng ý chia sẻ dữ liệu.",
                     "Chạy lại `tl join <link mời>` để xem và đồng ý.",
                 );
             }

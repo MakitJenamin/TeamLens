@@ -12,7 +12,7 @@ use crate::error::AppError;
 
 #[derive(Debug, Args)]
 pub struct OpenArgs {
-    /// Không tự mở trình duyệt, chỉ in link (link dùng một lần, hết hạn sau 60 giây)
+    /// Chỉ in link, không mở trình duyệt
     #[arg(long)]
     pub no_browser: bool,
 }
@@ -27,7 +27,7 @@ pub async fn run(
     let not_joined = || {
         AppError::user(
             "Máy này chưa tham gia TeamLens.",
-            "Chạy `tl join <link mời>` (link do leader gửi) trước.",
+            "Chạy `tl join <link mời>` trước.",
         )
     };
     let server_url = config.server_url.ok_or_else(not_joined)?;
@@ -44,8 +44,8 @@ pub async fn run(
         ) || matches!(e, ApiError::Api { status: 401, .. });
         if revoked {
             AppError::user(
-                "Token của máy này không còn hiệu lực (đã bị thu hồi?).",
-                "Chạy lại `tl join <link mời>` (xin leader link còn hạn) để tham gia lại.",
+                "Token của máy này không còn hiệu lực.",
+                "Xin leader link mời còn hạn rồi chạy lại `tl join <link mời>`.",
             )
         } else {
             AppError::Api(e)
@@ -56,17 +56,17 @@ pub async fn run(
         let _ = writeln!(out, "{}", login.url);
         let _ = writeln!(
             out,
-            "(Link đăng nhập dùng một lần, hết hạn sau {} giây. Đừng gửi cho người khác.)",
+            "Link dùng một lần, hết hạn sau {} giây.",
             login.expires_in
         );
+        let _ = writeln!(out, "Đừng gửi link này cho người khác.");
     };
     if args.no_browser {
-        let _ = writeln!(out, "Mở link sau trên trình duyệt để vào dashboard:");
         print_link(out);
     } else if (ctx.open_browser)(&login.url) {
         let _ = writeln!(out, "Đã mở dashboard trên trình duyệt.");
     } else {
-        let _ = writeln!(out, "Không mở được trình duyệt, hãy tự mở link sau:");
+        let _ = writeln!(out, "Không mở được trình duyệt. Mở link này:");
         print_link(out);
     }
     let _ = out.flush();

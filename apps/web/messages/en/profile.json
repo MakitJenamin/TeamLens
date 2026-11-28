@@ -1,6 +1,5 @@
 {
   "title": "Member profile",
-  "description": "Score in the 5 skill groups, weekly trend, the anti-patterns they hit most with examples and advice. Leaders can see every member; each member can see their own profile.",
   "back": "Back to members",
   "range": {
     "label": "Time range",
@@ -8,16 +7,13 @@
   },
   "totals": {
     "sessions": "Sessions",
-    "sessionsHint": "Top-level sessions only",
-    "tokens": "Tokens",
-    "tokensHint": "Includes subagent child sessions"
+    "tokens": "Tokens"
   },
   "radar": {
     "title": "Score in the 5 skill groups",
-    "description": "Average of the weekly scores in the selected range, weighted by sessions per week. The dashed line is the team average.",
     "member": "Member",
     "team": "Team average",
-    "noScore": "No session was scored in this range."
+    "noScore": "No scored sessions."
   },
   "categories": {
     "prompt_quality": "Prompt quality",
@@ -28,7 +24,7 @@
   },
   "trend": {
     "title": "Weekly score trend",
-    "tableCaption": "Weekly figures (Monday is the first day of the week); the small number below is the team average",
+    "tableCaption": "Weekly figures",
     "columns": {
       "week": "Week",
       "sessions": "Sessions",
@@ -39,12 +35,11 @@
   },
   "patterns": {
     "title": "Common anti-patterns",
-    "description": "Rules this member broke most often in the selected range, with examples and advice.",
-    "empty": "No anti-pattern recorded yet.",
+    "empty": "No anti-patterns yet.",
     "count": "{count} times",
     "advice": "Advice",
     "examples": "Examples",
-    "noExcerpt": "No excerpt (the turn has no text or is past its retention period)",
+    "noExcerpt": "No excerpt",
     "openSession": "Open session",
     "turn": "turn {seq}",
     "severity": {
@@ -65,8 +60,7 @@
     }
   },
   "empty": {
-    "title": "No data in this range",
-    "description": "Figures appear once the member sends sessions (tl sync). Try a longer time range."
+    "title": "No data in this range"
   },
   "error": {
     "title": "Could not load the member profile"

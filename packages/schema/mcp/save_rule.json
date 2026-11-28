@@ -1,0 +1,158 @@
+{
+  "name": "save_rule",
+  "description": "Lưu thay đổi cho rule thành bản riêng của project rồi chấm lại điểm (chạy nền). Từ chối khi các `tests` nội tuyến không còn đúng. Ghi audit giá trị cũ và mới. Chỉ LEADER. Chỉ chỉnh rule **session** có sẵn (ngưỡng, mức độ, thông điệp, lời khuyên); không đổi logic `match`, không tạo rule mới, không áp dụng cho rule tuần.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "key",
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Khóa rule."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project áp dụng."
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "description": "Mức độ mới của rule."
+      },
+      "thresholds": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": "Ngưỡng cần đổi (chỉ các khóa rule đã có, ví dụ `min`); khóa không nêu thì giữ nguyên. `min` phải >= 1."
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "description": "Thông điệp mới (có thể dùng `{{count}}`)."
+      },
+      "advice": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "description": "Lời khuyên mới."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "rule",
+      "changes",
+      "rescore"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "rule": {
+        "type": "object",
+        "required": [
+          "key",
+          "category",
+          "severity",
+          "enabled",
+          "version",
+          "scope",
+          "definition",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "examples": [
+              "no-test-after-edit"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Nhóm kỹ năng của rule."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "default",
+              "project"
+            ],
+            "description": "`default`: rule mặc định toàn server; `project`: rule riêng của project (ghi đè rule mặc định cùng `key`)."
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Định nghĩa rule sau khi lưu."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Lần sửa gần nhất."
+          }
+        }
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "field",
+            "from",
+            "to"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Trường đổi: `severity`, `message`, `advice` hoặc `thresholds.<khóa>`."
+            },
+            "from": {
+              "description": "Giá trị hiện hành."
+            },
+            "to": {
+              "description": "Giá trị mới."
+            }
+          }
+        }
+      },
+      "rescore": {
+        "type": "string",
+        "enum": [
+          "queued"
+        ],
+        "description": "Đã xếp job chấm lại điểm cho project."
+      }
+    }
+  }
+}
