@@ -264,7 +264,7 @@ paths:
       summary: Thêm một nguồn catalog (leader)
       description: |
         Chỉ nhận URL repo GitHub công khai dạng `https://github.com/{owner}/{repo}` (chấp nhận thêm `.git`, dấu `/` ở cuối,
-        `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}`). Server **không** gọi URL nào khác ngoài
+        `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}` và luôn đọc nhánh mặc định, nhánh trong URL bị bỏ). Server **không** gọi URL nào khác ngoài
         `api.github.com` và `raw.githubusercontent.com`, nên không dùng được để dò mạng nội bộ. Không kiểm repo có tồn tại
         lúc thêm; repo không đọc được chỉ bị bỏ qua khi chọn skill. Thêm URL đã có trả `409 source_exists`.
       security:
@@ -378,7 +378,7 @@ paths:
 
         Các bước ở server: (1) dựng cụm prompt lặp lại của người gọi như `listSkillClusters` (cùng `userId`, `from`, `to`;
         lấy tối đa 8 cụm lặp nhiều nhất); (2) đọc catalog từ các nguồn đang bật (tên và mô tả trong front matter của
-        `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) lọc sơ bằng từ khóa còn tối đa 40 ứng viên; (4) gửi cụm (nhãn, số lần, số
+        `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) xếp theo độ trùng từ khóa với các cụm rồi lấy tối đa 100 ứng viên (điểm 0 không bị loại vì catalog thường bằng tiếng Anh còn prompt có thể bằng tiếng Việt); (4) gửi cụm (nhãn, số lần, số
         người) và ứng viên cho LLM bằng **key của người gọi**. Nhãn cụm là nội dung prompt nên quyền và audit như
         `runSkillTriage` (leader dùng prompt của người khác ghi `skill_clusters.ai`).
 
