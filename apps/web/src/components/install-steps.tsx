@@ -4,14 +4,14 @@ import { installCommand, installCommandCmd, joinCommand } from "@/lib/invite-com
 
 /**
  * Hai bước để thành viên tham gia: (1) cài `tl` bằng lệnh chung (PowerShell hoặc CMD),
- * (2) `tl join <link mời>`. Dùng cho trang /i/<mã>, wizard /setup và quản lý link mời.
+ * (2) `tl join <link mời>`. Chỉ dùng cho trang /i/<mã> (wizard /setup và quản lý link mời chỉ hiện link).
  */
 export function InstallSteps({
   inviteUrl,
   headingLevel = "h3",
 }: {
   inviteUrl: string;
-  headingLevel?: "h2" | "h3" | "h4";
+  headingLevel?: "h2" | "h3";
 }) {
   const t = useTranslations("common.installSteps");
   const Heading = headingLevel;
@@ -19,7 +19,6 @@ export function InstallSteps({
     <div className="flex flex-col gap-5">
       <section className="space-y-2">
         <Heading className="text-sm font-semibold">{t("installTitle")}</Heading>
-        <p className="text-muted-foreground text-xs">{t("installHint")}</p>
         <CopyField label={t("powershell")} value={installCommand} />
         <CopyField label={t("cmd")} value={installCommandCmd} />
       </section>

@@ -53,7 +53,7 @@ export class RescoreService {
       await this.db.update(projectRescoreRuns).set({ status: 'failed', errorCode: 'queue_failed', finishedAt: new Date(), updatedAt: new Date() }).where(eq(projectRescoreRuns.id, run.id));
       throw error;
     }
-    await this.audit.record(user.id, 'rules.rerun', 'project', projectId, this.db, { runId: run.id });
+    await this.audit.record(user.id, 'rules.rerun', 'project', projectId, this.db, undefined, { runId: run.id });
     return { status: 'queued' as const, runId: run.id };
   }
 

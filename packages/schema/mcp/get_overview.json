@@ -1,0 +1,329 @@
+{
+  "name": "get_overview",
+  "description": "Tổng quan một project theo tuần: điểm 5 nhóm kỹ năng, số session, token, chi phí ước tính, các nhận xét phổ biến nhất. CHỈ LEADER (giống dashboard); member nhận lỗi quyền. Chi phí là ước tính từ bảng giá cố định, không phải hóa đơn.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần xem."
+      },
+      "from": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Chỉ tính session từ mốc này. `from` (>=) và `to` (<) theo `startedAt` của session, ISO 8601; server làm tròn ra biên tuần UTC (thứ Hai 00:00) và trả khoảng thực tế ở `range`. Mặc định: 8 tuần gần nhất."
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Chỉ tính session trước mốc này."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "range",
+      "totals",
+      "weeks",
+      "byAgent",
+      "byModel",
+      "usageStats",
+      "topFindings"
+    ],
+    "properties": {
+      "range": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Thứ Hai 00:00 UTC của tuần đầu tiên (bao gồm)."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Thứ Hai 00:00 UTC sau tuần cuối cùng (không bao gồm)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "totals": {
+        "type": "object",
+        "required": [
+          "sessions",
+          "activeMembers",
+          "tokens",
+          "estimatedCostUsd"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số session gốc trong khoảng."
+          },
+          "activeMembers": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số thành viên có ít nhất một session gốc trong khoảng."
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tổng input + output + cache đọc + cache ghi của mọi session, kể cả session con."
+          },
+          "estimatedCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Chi phí ước tính (USD), `null` khi không còn turn nào để tính."
+          }
+        },
+        "additionalProperties": false
+      },
+      "weeks": {
+        "type": "array",
+        "description": "Mỗi tuần trong khoảng một phần tử, sắp xếp tăng dần; tuần không có dữ liệu vẫn có mặt với số 0.",
+        "items": {
+          "type": "object",
+          "required": [
+            "week",
+            "sessions",
+            "tokens",
+            "estimatedCostUsd",
+            "scores"
+          ],
+          "properties": {
+            "week": {
+              "type": "string",
+              "format": "date",
+              "description": "Ngày thứ Hai (UTC) của tuần."
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimatedCostUsd": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "scores": {
+              "type": "object",
+              "description": "Điểm 0–100 theo nhóm. Rỗng khi chưa có session nào được chấm; nhóm không có điểm thì vắng mặt.",
+              "propertyNames": {
+                "type": "string",
+                "description": "5 nhóm kỹ năng (SPEC 9.1).",
+                "enum": [
+                  "prompt_quality",
+                  "context",
+                  "correction_loop",
+                  "session_management",
+                  "verification"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "byAgent": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "agent",
+            "sessions",
+            "tokens"
+          ],
+          "properties": {
+            "agent": {
+              "type": "string",
+              "enum": [
+                "claude_code",
+                "codex",
+                "copilot_vscode",
+                "antigravity"
+              ],
+              "description": "Agent sinh ra session."
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Số session gốc."
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Token của mọi session của agent này, kể cả session con."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "byModel": {
+        "type": "array",
+        "description": "Sắp xếp theo `tokens` giảm dần.",
+        "items": {
+          "type": "object",
+          "required": [
+            "model",
+            "turns",
+            "tokens",
+            "estimatedCostUsd"
+          ],
+          "properties": {
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Tên model; `null` với các turn không ghi model."
+            },
+            "turns": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Số turn của assistant chạy bằng model này."
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimatedCostUsd": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Là `null` khi model chưa có trong bảng giá."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "usageStats": {
+        "type": "object",
+        "description": "Số liệu tham khảo, không tính điểm. Mỗi trường `null` khi không có dữ liệu để tính.",
+        "required": [
+          "cacheHitRate",
+          "premiumModelRate",
+          "highReasoningRate",
+          "avgOutputTokensPerTurn"
+        ],
+        "properties": {
+          "cacheHitRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "cache đọc / (input + cache đọc + cache ghi)."
+          },
+          "premiumModelRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Tỉ lệ turn của assistant chạy bằng model cao cấp."
+          },
+          "highReasoningRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Tỉ lệ turn có `reasoning_effort` mức cao, trên các turn có ghi mức suy luận."
+          },
+          "avgOutputTokensPerTurn": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Token output trung bình mỗi turn của assistant."
+          }
+        },
+        "additionalProperties": false
+      },
+      "topFindings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "Một anti-pattern hay gặp trong khoảng thời gian. Sắp xếp theo `count` giảm dần, tối đa 10 mục.",
+          "required": [
+            "ruleKey",
+            "category",
+            "severity",
+            "count",
+            "memberCount"
+          ],
+          "properties": {
+            "ruleKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "category": {
+              "type": "string",
+              "description": "5 nhóm kỹ năng (SPEC 9.1).",
+              "enum": [
+                "prompt_quality",
+                "context",
+                "correction_loop",
+                "session_management",
+                "verification"
+              ]
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Số finding của rule này."
+            },
+            "memberCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Số thành viên khác nhau mắc."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

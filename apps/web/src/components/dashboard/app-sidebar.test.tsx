@@ -47,6 +47,8 @@ describe("AppSidebar", () => {
       "Tổng quan": "/projects/p-2/overview",
       "Thành viên": "/projects/p-2/members",
       Session: "/projects/p-2/sessions",
+      "Skill Finder": "/projects/p-2/skills",
+      "Thư viện prompt": "/projects/p-2/prompt-library",
       Leaderboard: "/projects/p-2/leaderboard",
       Rule: "/projects/p-2/rules",
       "Của tôi": "/me",

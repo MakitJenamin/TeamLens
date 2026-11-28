@@ -54,7 +54,6 @@ export function MembersPanel({ projectId, currentUserId, initialData, users }: P
             <UserPlusIcon className="size-4" aria-hidden />
             {t("recent.title", { days: RECENT_JOIN_DAYS })}
           </CardTitle>
-          <CardDescription>{t("recent.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           {recent.length === 0 ? (
@@ -81,7 +80,6 @@ export function MembersPanel({ projectId, currentUserId, initialData, users }: P
         <h2 id="members-list" className="text-lg font-semibold">
           {t("list.title", { count: items.length })}
         </h2>
-        {items.length === 0 && <p className="text-muted-foreground text-sm">{t("list.empty")}</p>}
         {items.map((member) => (
           <MemberCard
             key={member.userId}
@@ -123,7 +121,6 @@ function MemberCard({
     onError: (error) => toast.error(error.message),
   });
   const user: User = { id: member.userId, name: member.name, email: member.email, role: member.role };
-  const activeDevices = member.devices.filter((d) => !d.revokedAt).length;
 
   return (
     <Card id={`member-${member.userId}`} aria-label={member.name} className="scroll-mt-4">
@@ -145,7 +142,6 @@ function MemberCard({
               ? t("lastSession", { date: date(member.lastSessionAt) })
               : t("noSession")}
           </span>
-          <span>{t("deviceCount", { active: activeDevices, total: member.devices.length })}</span>
         </CardDescription>
         <div className="flex flex-wrap items-start gap-2">
           <Button
@@ -186,7 +182,6 @@ function MemberCard({
 
 function DeviceRow({ projectId, device, now }: { projectId: string; device: Device; now: Date }) {
   const t = useTranslations("members");
-  const format = useFormatter();
   const client = useQueryClient();
   const badge = deviceBadge(device, now);
   const revoke = useMutation({
@@ -206,8 +201,6 @@ function DeviceRow({ projectId, device, now }: { projectId: string; device: Devi
           <p className="truncate text-sm font-medium">{device.name}</p>
           <p className="text-muted-foreground text-xs">
             {device.os} · tl {device.cliVersion}
-            {device.lastSeenAt &&
-              ` · ${t("lastSeen", { date: format.dateTime(new Date(device.lastSeenAt), { dateStyle: "short", timeStyle: "short" }) })}`}
           </p>
         </div>
       </div>

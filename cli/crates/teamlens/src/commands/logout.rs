@@ -16,7 +16,7 @@ pub struct LogoutArgs {}
 pub async fn run(ctx: &AppContext, _args: LogoutArgs, out: &mut dyn Write) -> Result<(), AppError> {
     let config = ctx.load_config()?;
     let Some(server_url) = config.server_url else {
-        let _ = writeln!(out, "Máy này chưa đăng nhập server TeamLens nào.");
+        let _ = writeln!(out, "Máy này chưa đăng nhập.");
         return Ok(());
     };
 
@@ -29,10 +29,8 @@ pub async fn run(ctx: &AppContext, _args: LogoutArgs, out: &mut dyn Write) -> Re
         Ok(client) => {
             if let Err(e) = client.logout().await {
                 tracing::debug!(error = ?e, "báo logout lên server thất bại");
-                let _ = writeln!(
-                    out,
-                    "Cảnh báo: chưa báo được server ({e}). Vẫn xóa token trên máy; có thể thu hồi thiết bị trên dashboard."
-                );
+                let _ = writeln!(out, "Cảnh báo: chưa báo được server ({e}).");
+                let _ = writeln!(out, "Thu hồi thiết bị này trên dashboard nếu cần.");
             }
         }
         Err(e) => tracing::debug!(error = ?e, "không tạo được HTTP client"),

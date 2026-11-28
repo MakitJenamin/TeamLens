@@ -347,10 +347,7 @@ async fn kiem_xong_ghi_state_va_status_hien_ban_moi() {
     .unwrap();
     let text = String::from_utf8(out).unwrap();
     assert!(
-        text.contains(&format!(
-            "tl {} — có bản mới 999.0.0",
-            teamlens::CLI_VERSION
-        )),
+        text.contains(&format!("tl {}, có bản mới 999.0.0", teamlens::CLI_VERSION)),
         "{text}"
     );
 }
