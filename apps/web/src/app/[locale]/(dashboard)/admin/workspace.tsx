@@ -18,6 +18,7 @@ import {
   type User,
 } from "@/lib/api/types";
 import { InvitesPanel } from "./invites-panel";
+import { EraseUser } from "./erase-user";
 import { MergeUser } from "./merge-user";
 
 const panel = "space-y-4 rounded-xl border bg-card p-4 sm:p-5";
@@ -94,7 +95,7 @@ function roleLabel(t: ReturnType<typeof useTranslations<"admin">>, role: User["r
   return role === "leader" ? t("leader") : t("member");
 }
 
-export function UserAdmin({ users }: { users: User[] }) {
+export function UserAdmin({ users, currentUserId }: { users: User[]; currentUserId: string }) {
   const t = useTranslations("admin");
   return (
     <div className="space-y-5">
@@ -172,6 +173,7 @@ export function UserAdmin({ users }: { users: User[] }) {
                 </ActionForm>
               )}
               <MergeUser user={user} users={users} />
+              <EraseUser user={user} currentUserId={currentUserId} />
             </li>
           ))}
         </ul>

@@ -36,6 +36,10 @@
   "cancel": "Hủy",
   "confirmMerge": "Gộp {from} vào {into}? {from} sẽ bị xóa và không hoàn tác được.",
   "mergeDone": "Đã gộp vào {name}.",
+  "erase": "Xóa dữ liệu",
+  "confirmErase": "Xóa toàn bộ dữ liệu của {name}? Không hoàn tác được.",
+  "eraseTypeName": "Gõ tên để xác nhận",
+  "eraseDone": "Đã xóa dữ liệu của {name}.",
   "invites": {
     "title": "Link mời",
     "expiresInDays": "Hết hạn sau (ngày)",
