@@ -1347,6 +1347,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/ai/prompt-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * C2 · kết quả tìm prompt mẫu đã lưu của leader
+         * @description Chỉ trả kết quả của chính người gọi (kind `prompt_candidates`, subjectType `project`, theo `locale`), hoặc `null`. Chỉ leader.
+         */
+        get: operations["getPromptCandidates"];
+        put?: never;
+        /**
+         * C2 · tìm prompt mẫu để đưa vào thư viện (leader)
+         * @description Trả `AiResult` kind `prompt_candidates`, subjectType `project` (subjectId là `projectId`), `result` theo
+         *     `PromptCandidatesResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale). **Chỉ leader.**
+         *
+         *     **Chọn ứng viên (heuristic, không tốn tiền):** trong khoảng `from`/`to` (mặc định 30 ngày, tối đa 90), lấy các
+         *     session gốc (không phải session con) có điểm trung bình các nhóm kỹ năng từ 70 trở lên, không có finding mức
+         *     `high`, chưa nằm trong thư viện, và có prompt đầu tiên dài 30 đến 1500 ký tự (không phải prompt rác). Xếp theo điểm
+         *     rồi theo độ mới, lấy tối đa 10. Ứng viên là **prompt đầu tiên** của session.
+         *
+         *     **AI** (key của người gọi) viết tiêu đề ngắn và lý do vì sao prompt tốt cho từng ứng viên, và có thể bỏ ứng viên
+         *     không đáng đưa vào. Server chỉ giữ ứng viên có mã hợp lệ; id session, người gõ, điểm lấy từ dữ liệu của server chứ
+         *     không từ AI. Leader dùng prompt của người khác nên ghi audit `prompt_library.candidates`. Chưa có key thì
+         *     `409 llm_key_missing` trước khi đụng dữ liệu; không có session nào đạt thì `409 no_candidates`.
+         */
+        post: operations["runPromptCandidates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/prompt-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Các prompt mẫu đã được leader duyệt của project
+         * @description Mọi thành viên của project (và leader) xem được. Mới nhất trước.
+         *
+         *     **Quyền riêng tư:** đây là chỗ duy nhất prompt của người này tới tay người khác, và chỉ sau khi leader duyệt từng
+         *     mục. Mục có `hideAuthor` thì thành viên không thấy tên (`author` là `null`), cũng không thấy `sessionId` và
+         *     `turnSeq` (hai trường này chỉ trả cho leader). Leader luôn thấy tác giả. Nội dung prompt đã được che secret ở
+         *     máy thành viên. Mục bị xóa khi session gốc bị xóa (hết retention hoặc leader xóa dữ liệu).
+         */
+        get: operations["listPromptLibrary"];
+        put?: never;
+        /**
+         * Duyệt một prompt vào thư viện (leader)
+         * @description Chỉ leader. `sessionId` phải là session gốc của project. `turnSeq` là `seq` của một prompt của người dùng trong
+         *     session đó; bỏ qua thì dùng prompt đầu tiên của session (server luôn lưu `turnSeq` cụ thể). Sai turn trả
+         *     `400 invalid_turn`; đã có trong thư viện trả `409 already_in_library`. Ghi audit `prompt_library.add`.
+         */
+        post: operations["addPromptLibraryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/prompt-library/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Gỡ một mục khỏi thư viện (leader)
+         * @description Chỉ leader. Ghi audit `prompt_library.remove`.
+         */
+        delete: operations["deletePromptLibraryItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2515,6 +2608,81 @@ export interface components {
             /** @description Số skill trong catalog đã đưa vào xét sau bước lọc sơ. */
             candidatesConsidered: number;
         };
+        RunPromptCandidatesRequest: {
+            locale: components["schemas"]["AiLocale"];
+            /**
+             * Format: date-time
+             * @description Chỉ session bắt đầu từ mốc này. Mặc định 30 ngày trước `to`.
+             */
+            from?: string;
+            /**
+             * Format: date-time
+             * @description Chỉ session bắt đầu trước mốc này. Mặc định bây giờ.
+             */
+            to?: string;
+        };
+        PromptCandidate: {
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của prompt (prompt đầu tiên của session). */
+            turnSeq: number;
+            userId: components["schemas"]["Id"];
+            userName: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** @description Điểm trung bình các nhóm kỹ năng của session. */
+            score: number;
+            workType: components["schemas"]["SessionWorkType"] | null;
+            /** @description Nội dung prompt, cắt tối đa 600 ký tự (đã che secret ở máy thành viên). */
+            prompt: string;
+            /** @description Tiêu đề ngắn do AI viết (không phải dữ liệu của server). */
+            title: string;
+            /** @description Lý do vì sao prompt tốt, do AI viết. */
+            why: string;
+        };
+        /** @description `result` của `AiResult` kind `prompt_candidates`. Có thể rỗng khi AI thấy không có ứng viên đáng đưa vào. */
+        PromptCandidatesResult: {
+            candidates: components["schemas"]["PromptCandidate"][];
+            /** @description Số ứng viên heuristic đã đưa cho AI xét. */
+            considered: number;
+        };
+        PromptCandidatesSaved: {
+            /** @description Kết quả `prompt_candidates` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
+        AddPromptLibraryItemRequest: {
+            sessionId: components["schemas"]["Id"];
+            /** @description Bỏ qua thì dùng prompt đầu tiên của session. */
+            turnSeq?: number;
+            /** @description Ghi chú vì sao prompt này tốt (hiện cho cả thành viên). Có thể chép từ `why` của ứng viên. */
+            note?: string;
+            /**
+             * @description Ẩn tên tác giả với thành viên.
+             * @default false
+             */
+            hideAuthor: boolean;
+        };
+        PromptLibraryItem: {
+            id: components["schemas"]["Id"];
+            /** @description Nội dung prompt (đã che secret ở máy thành viên), tối đa 4000 ký tự. */
+            prompt: string;
+            note: string | null;
+            workType: components["schemas"]["SessionWorkType"] | null;
+            /** @description Tác giả. `null` khi `hideAuthor` và người gọi không phải leader. */
+            author: {
+                userId: components["schemas"]["Id"];
+                name: string;
+            } | null;
+            hideAuthor: boolean;
+            /** @description Chỉ trả cho leader (để mở session gốc); thành viên nhận `null`. */
+            sessionId: components["schemas"]["Id"] | null;
+            /** @description Chỉ trả cho leader; thành viên nhận `null`. */
+            turnSeq: number | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PromptLibraryList: {
+            items: components["schemas"]["PromptLibraryItem"][];
+        };
         SourceId: string;
         Session: {
             /** @description `<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id). */
@@ -2890,6 +3058,7 @@ export interface components {
         /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
         ClusterId: components["schemas"]["Id"];
         SourceId: components["schemas"]["Id"];
+        ItemId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -5495,6 +5664,167 @@ export interface operations {
                 };
             };
             504: components["responses"]["LlmTimeout"];
+        };
+    };
+    getPromptCandidates: {
+        parameters: {
+            query?: {
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptCandidatesSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runPromptCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunPromptCandidatesRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc chưa có session nào đủ tốt để đề xuất (`no_candidates`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    listPromptLibrary: {
+        parameters: {
+            query?: {
+                /** @description Số mục tối đa (mặc định 50). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Các mục đã duyệt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLibraryList"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addPromptLibraryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddPromptLibraryItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Mục vừa thêm (góc nhìn của leader). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLibraryItem"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Prompt này đã có trong thư viện (`error`: `already_in_library`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "already_in_library",
+                     *       "message": "Prompt này đã có trong thư viện."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deletePromptLibraryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã gỡ. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

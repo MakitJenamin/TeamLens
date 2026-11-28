@@ -29,7 +29,7 @@ Mỗi tool một file `<tên-tool>.json`:
 | Số liệu | `get_overview` (chỉ leader), `get_leaderboard` (chưa có: chờ M4.3), `get_member_profile` (điểm 5 nhóm theo tuần, token) | Theo quyền | [`get_overview`](get_overview.json), [`get_member_profile`](get_member_profile.json) |
 | Session | `search_sessions` (người, agent, ngày, từ khóa; lọc loại việc B4 khi B4 xong), `get_session` (phân trang turn), `get_findings` | Theo quyền | [`search_sessions`](search_sessions.json), [`get_session`](get_session.json), [`get_findings`](get_findings.json) |
 | Rule | `list_rules`, `get_rule` | Mọi người | [`list_rules`](list_rules.json), [`get_rule`](get_rule.json) |
-| Tri thức team | `get_skill_clusters` (S0), `get_prompt_library` (C2, mục đã duyệt, chờ M6.14) | Theo quyền | [`get_skill_clusters`](get_skill_clusters.json) |
+| Tri thức team | `get_skill_clusters` (S0), `get_prompt_library` (C2, mục đã duyệt) | Theo quyền | [`get_skill_clusters`](get_skill_clusters.json), [`get_prompt_library`](get_prompt_library.json) |
 | Kết quả AI | `get_my_ai_results` (kết quả AI chính người gọi đã tạo trên dashboard) | Mọi người | [`get_my_ai_results`](get_my_ai_results.json) |
 | Ghi (leader) | `draft_rule`, `test_rule`, `save_rule`, `set_rule_enabled`, `add_session_note` | Leader | [`draft_rule`](draft_rule.json), [`test_rule`](test_rule.json), [`save_rule`](save_rule.json), [`set_rule_enabled`](set_rule_enabled.json), [`add_session_note`](add_session_note.json) |
 | MCP prompts | `coach-me`, `find-skills` (mọi người), `weekly-review` (leader); `improve-agents-md` chờ C3 | Theo quyền | [`prompts/coach-me`](prompts/coach-me.json), [`prompts/find-skills`](prompts/find-skills.json), [`prompts/weekly-review`](prompts/weekly-review.json) |

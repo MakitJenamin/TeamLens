@@ -6,8 +6,9 @@
 #
 # members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   admin.yaml, prompt-library.yaml (M6.14)
+#   admin.yaml
 # skills.yaml có skill-clusters (M6.11, Skill Finder S0) và nút AI S1, S2 (M6.12); S3 (M6.13): nguồn catalog và chọn skill.
+# prompt-library.yaml (M6.14): tìm prompt mẫu (AI) và thư viện prompt đã duyệt.
 # Mốc 6 (M6.0): ai.yaml (key AI của tôi, kết quả AI A1/A4/A5), agent-tokens.yaml (token `tlp_`),
 # mcp.yaml (endpoint `/api/v1/mcp`, chi tiết tool ở packages/schema/mcp/).
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
@@ -71,6 +72,8 @@ tags:
     description: Endpoint MCP (Streamable HTTP, JSON-RPC 2.0) cho agent.
   - name: skills
     description: Skill Finder (cụm prompt lặp lại, gợi ý skill).
+  - name: prompt-library
+    description: Thư viện prompt mẫu của project (leader duyệt, thành viên xem).
 
 paths:
   # health.yaml
@@ -216,7 +219,15 @@ paths:
   /api/v1/projects/{projectId}/ai/catalog-picks:
     $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1ai~1catalog-picks'
 
-  # admin.yaml, prompt-library.yaml:
+  # prompt-library.yaml
+  /api/v1/projects/{projectId}/ai/prompt-candidates:
+    $ref: './prompt-library.yaml#/paths/~1api~1v1~1projects~1{projectId}~1ai~1prompt-candidates'
+  /api/v1/projects/{projectId}/prompt-library:
+    $ref: './prompt-library.yaml#/paths/~1api~1v1~1projects~1{projectId}~1prompt-library'
+  /api/v1/projects/{projectId}/prompt-library/{itemId}:
+    $ref: './prompt-library.yaml#/paths/~1api~1v1~1projects~1{projectId}~1prompt-library~1{itemId}'
+
+  # admin.yaml:
   # thêm `$ref` ở đây khi file đó có path.
 
 components:
@@ -497,3 +508,18 @@ components:
       $ref: './skills.yaml#/components/schemas/SkillCatalogPick'
     SkillCatalogPicksResult:
       $ref: './skills.yaml#/components/schemas/SkillCatalogPicksResult'
+    # prompt-library.yaml
+    RunPromptCandidatesRequest:
+      $ref: './prompt-library.yaml#/components/schemas/RunPromptCandidatesRequest'
+    PromptCandidate:
+      $ref: './prompt-library.yaml#/components/schemas/PromptCandidate'
+    PromptCandidatesResult:
+      $ref: './prompt-library.yaml#/components/schemas/PromptCandidatesResult'
+    PromptCandidatesSaved:
+      $ref: './prompt-library.yaml#/components/schemas/PromptCandidatesSaved'
+    AddPromptLibraryItemRequest:
+      $ref: './prompt-library.yaml#/components/schemas/AddPromptLibraryItemRequest'
+    PromptLibraryItem:
+      $ref: './prompt-library.yaml#/components/schemas/PromptLibraryItem'
+    PromptLibraryList:
+      $ref: './prompt-library.yaml#/components/schemas/PromptLibraryList'

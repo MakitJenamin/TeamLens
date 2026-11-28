@@ -356,6 +356,18 @@ const tools = {
     ),
     outputSchema: clean(S.SkillClusterList),
   },
+  get_prompt_library: {
+    description:
+      'Thư viện prompt mẫu của project (C2): các prompt leader đã duyệt vì làm tốt, kèm ghi chú vì sao tốt, loại việc, tác giả (ẩn nếu leader chọn ẩn tên). Mọi thành viên của project dùng được. Mới nhất trước.',
+    inputSchema: obj(
+      {
+        projectId: uuid('Project cần xem (từ `list_projects`).'),
+        limit: { type: 'integer', minimum: 1, maximum: 100, default: 50, description: 'Số mục tối đa.' },
+      },
+      ['projectId'],
+    ),
+    outputSchema: clean(S.PromptLibraryList),
+  },
   // --- Tool ghi cho leader (M6.16) ---
   draft_rule: {
     description:
