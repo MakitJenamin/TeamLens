@@ -4,6 +4,8 @@ export const JOBS = {
   sessionIngested: 'session.ingested',
   /** Leader bấm "Chạy lại" (M2.8): chấm lại mọi session của một project. */
   projectRescore: 'project.rescore',
+  /** Job retention hằng đêm (M5.5), pg-boss tự phát theo lịch. */
+  retentionNightly: 'retention.nightly',
 } as const;
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS];
@@ -12,4 +14,5 @@ export interface JobPayloads {
   'session.ingested': { sessionId: string };
   /** `runId` có khi leader yêu cầu qua dashboard; tool MCP M6.16 vẫn phát job trực tiếp. */
   'project.rescore': { projectId: string; runId?: string };
+  'retention.nightly': Record<string, never>;
 }
