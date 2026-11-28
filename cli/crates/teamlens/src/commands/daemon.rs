@@ -23,7 +23,7 @@ use crate::update;
 
 #[derive(Debug, Args)]
 pub struct DaemonArgs {
-    /// Chạy ẩn (Task Scheduler): không in ra console, log chỉ ghi vào file
+    /// Chạy ẩn, chỉ ghi log ra file
     #[arg(long)]
     pub background: bool,
 }
@@ -44,21 +44,15 @@ pub async fn run(ctx: &AppContext, args: DaemonArgs, out: &mut dyn Write) -> Res
     let exe = std::env::current_exe().ok();
     let Some(instance) = daemon::instance::acquire(platform.as_ref(), &data_dir)? else {
         if !args.background {
-            let _ = writeln!(
-                out,
-                "Daemon TeamLens đang chạy rồi (cùng thư mục dữ liệu {}), không mở thêm.",
-                data_dir.display()
-            );
+            let _ = writeln!(out, "Daemon đang chạy rồi ({}).", data_dir.display());
         }
         return Ok(());
     };
     let (log_guard, log_path) = daemon::init_log(&data_dir, !args.background)?;
     if !args.background {
-        let _ = writeln!(
-            out,
-            "Daemon TeamLens đang chạy, tự gửi session khi file log ổn định 2 phút. Log: {}. Nhấn Ctrl+C để dừng.",
-            log_path.display()
-        );
+        let _ = writeln!(out, "Daemon đang chạy.");
+        let _ = writeln!(out, "Log: {}", log_path.display());
+        let _ = writeln!(out, "Dừng: Ctrl+C");
         let _ = out.flush();
     }
     let result = daemon::run(ctx, &Sources::from_env(), MAX_BATCH_JSON_BYTES).await;
@@ -74,14 +68,14 @@ pub async fn run(ctx: &AppContext, args: DaemonArgs, out: &mut dyn Write) -> Res
         // Nhả file log trước khi bản mới mở lại nó.
         drop(log_guard);
         if !args.background {
-            let _ = writeln!(out, "Đã cập nhật tl, chạy lại daemon bằng bản mới...");
+            let _ = writeln!(out, "Đã cập nhật tl, đang chạy lại daemon...");
             let _ = out.flush();
         }
         if let Err(e) = update::restart::spawn_daemon(&exe, args.background) {
             // Log đã nhả: báo qua lỗi của lệnh (foreground in ra console).
             return Err(AppError::user(
-                format!("Không chạy lại được daemon bằng bản tl mới: {e}"),
-                "Chạy `tl daemon` (hoặc đăng xuất rồi đăng nhập lại Windows).",
+                format!("Không chạy lại được daemon bằng bản mới: {e}"),
+                "Chạy `tl daemon` hoặc đăng nhập lại Windows.",
             ));
         }
         return Ok(());

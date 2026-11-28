@@ -46,7 +46,12 @@ pub const CI_ENV: &str = "CI";
 pub fn command_wants_notice(command: &Command) -> bool {
     !matches!(
         command,
-        Command::Update(_) | Command::Daemon(_) | Command::Uninstall(_) | Command::Status(_)
+        Command::Update(_)
+            | Command::Daemon(_)
+            | Command::Uninstall(_)
+            | Command::Status(_)
+            // `tl mcp` sống lâu và stdout/stderr thuộc về giao thức của agent (M6.4).
+            | Command::Mcp(_)
     )
 }
 
@@ -313,6 +318,7 @@ mod tests {
             &["uninstall"],
             &["status"],
             &["status", "--json"],
+            &["mcp"],
         ] {
             assert!(!command_wants_notice(&cmd(args)), "{args:?} không nhắc");
         }

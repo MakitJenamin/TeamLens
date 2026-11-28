@@ -92,7 +92,6 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
           <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
             <InboxIcon className="size-6" />
             <p className="text-foreground font-medium">{t("empty.title")}</p>
-            <p className="max-w-md">{t("empty.description")}</p>
           </CardContent>
         </Card>
       )}
@@ -100,17 +99,15 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
       {data && !isEmpty && (
         <div className={`flex flex-col gap-6 ${VIZ_VARS}`}>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label={t("totals.sessions")} value={format.number(data.totals.sessions)} hint={t("totals.sessionsHint")} />
+            <StatCard label={t("totals.sessions")} value={format.number(data.totals.sessions)} />
             <StatCard
               label={t("totals.members")}
               value={format.number(data.totals.activeMembers)}
-              hint={t("totals.membersHint")}
             />
-            <StatCard label={t("totals.tokens")} value={compact(data.totals.tokens)} hint={t("totals.tokensHint")} />
+            <StatCard label={t("totals.tokens")} value={compact(data.totals.tokens)} />
             <StatCard
               label={t("totals.cost")}
               value={usd(data.totals.estimatedCostUsd)}
-              hint={data.totals.estimatedCostUsd === null ? t("totals.costUnavailable") : t("totals.costHint")}
             />
           </div>
 
@@ -134,7 +131,6 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("weekly.scoresChart")}</CardTitle>
-                  <CardDescription>{t("weekly.scoresHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScoresChart
@@ -221,27 +217,21 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
           </div>
 
           <section aria-labelledby="overview-usage" className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <h2 id="overview-usage" className="text-lg font-semibold tracking-tight">
-                {t("usage.title")}
-              </h2>
-              <p className="text-muted-foreground max-w-3xl text-sm">{t("usage.note")}</p>
-            </div>
+            <h2 id="overview-usage" className="text-lg font-semibold tracking-tight">
+              {t("usage.title")}
+            </h2>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 label={t("usage.cacheHitRate")}
                 value={percent(data.usageStats.cacheHitRate)}
-                hint={t("usage.cacheHitRateHint")}
               />
               <StatCard
                 label={t("usage.premiumModelRate")}
                 value={percent(data.usageStats.premiumModelRate)}
-                hint={t("usage.premiumModelRateHint")}
               />
               <StatCard
                 label={t("usage.highReasoningRate")}
                 value={percent(data.usageStats.highReasoningRate)}
-                hint={t("usage.highReasoningRateHint")}
               />
               <StatCard
                 label={t("usage.avgOutputTokens")}
@@ -250,7 +240,6 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
                     ? t("usage.noValue")
                     : format.number(Math.round(data.usageStats.avgOutputTokensPerTurn))
                 }
-                hint={t("usage.avgOutputTokensHint")}
               />
             </div>
           </section>
@@ -258,7 +247,6 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
           <Card>
             <CardHeader>
               <CardTitle>{t("findings.title")}</CardTitle>
-              <CardDescription>{t("findings.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               {data.topFindings.length === 0 ? (
@@ -293,14 +281,13 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card size="sm">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-xs">{hint}</CardContent>
     </Card>
   );
 }

@@ -172,7 +172,7 @@ fn db_error(path: &Path, e: impl std::fmt::Display) -> AppError {
     tracing::debug!(error = %e, path = %path.display(), "lỗi state.db");
     AppError::user(
         format!("Không mở/ghi được file trạng thái {}.", path.display()),
-        "Kiểm tra quyền ghi thư mục dữ liệu TeamLens; nếu file hỏng có thể xóa state.db (lần sau sẽ gửi lại từ đầu, server không ghi trùng).",
+        "Kiểm tra quyền ghi thư mục %LOCALAPPDATA%\\teamlens. File hỏng thì xóa state.db, server không ghi trùng.",
     )
 }
 

@@ -1245,7 +1245,7 @@ export interface paths {
         };
         /**
          * Mở luồng SSE để server gửi message cho client
-         * @description Server không hỗ trợ luồng này thì trả `405` theo đặc tả MCP.
+         * @description Server không mở luồng này (stateless) nên luôn trả `405` theo đặc tả MCP.
          */
         get: operations["mcpGet"];
         put?: never;
@@ -1253,11 +1253,320 @@ export interface paths {
          * Gửi message JSON-RPC 2.0 tới server MCP
          * @description Client gửi một request, notification hoặc response JSON-RPC 2.0 (MCP Streamable HTTP).
          *     Request trả `application/json` (một response JSON-RPC) hoặc `text/event-stream`; notification/response
-         *     trả `202`. Header `Mcp-Session-Id` do server cấp ở `initialize`, client gửi lại ở mọi request sau.
+         *     trả `202`. Server **không giữ phiên** (stateless): không cấp `Mcp-Session-Id`, mỗi request tự xác thực
+         *     bằng token; client có gửi header này thì bị bỏ qua.
          */
         post: operations["mcpPost"];
-        /** Kết thúc phiên MCP */
+        /**
+         * Kết thúc phiên MCP
+         * @description Server không giữ phiên (stateless) nên không có gì để kết thúc; luôn trả `204` cho token hợp lệ.
+         */
         delete: operations["mcpDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/skill-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Các cụm prompt lặp lại của project (Skill Finder, S0)
+         * @description Gom những prompt người dùng gõ lặp lại gần như giống nhau trong project, để gợi ý biến chúng thành skill hoặc
+         *     chỉ dẫn dùng chung. Heuristic thuần, không gọi LLM, không tốn tiền.
+         *
+         *     **Quyền:** leader thấy mọi thành viên (lọc được theo `userId`; xem dữ liệu của người khác ghi audit
+         *     `skill_clusters.view`); member chỉ thấy prompt của chính mình (đặt `userId` của người khác trả `403`).
+         *
+         *     **Cách gom (SPEC và AI_PLAN 3.2):** chỉ dùng prompt của **session gốc** (prompt trong session con do agent viết,
+         *     SPEC 9.1). Bỏ prompt dưới 15 hoặc trên 2000 ký tự và prompt rác ("tiếp", "ok", "continue"...). Chuẩn hóa NFC, giữ chữ
+         *     có dấu (tiếng Việt), thay mã, chuỗi, đường dẫn, URL, số bằng chỗ trống rồi tách từ, bỏ từ dừng tiếng Việt và tiếng Anh.
+         *     "Dấu vân tay" là 4 từ đầu tiên sau khi sắp xếp từ khóa theo thứ tự chữ cái; prompt cùng dấu vân tay vào một cụm. Cụm cần ít
+         *     nhất 3 lần lặp. Đây là gần đúng (cụm có thể thiếu hoặc lẫn); S1 (AI) sẽ lọc lại.
+         *
+         *     **Khoảng thời gian:** `from` (>=) và `to` (<) theo thời điểm của prompt, ISO 8601. Mặc định 30 ngày gần nhất; tối đa
+         *     90 ngày. Chỉ có prompt còn được lưu (retention). Tối đa 20000 prompt được xét; vượt thì lấy các prompt mới nhất và
+         *     `stats.truncated` là `true`.
+         *
+         *     **Đoạn trích** (`excerpt`) lấy từ nội dung prompt đã che secret ở máy thành viên, tối đa 160 ký tự.
+         */
+        get: operations["listSkillClusters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Kết quả AI đã lưu của chính người gọi cho một cụm
+         * @description Trả bản `skill_triage` (S1) và `skill_content` (S2) mới nhất của **chính người gọi** cho cụm, theo `locale`;
+         *     mỗi phần là `null` khi người gọi chưa bấm nút tương ứng. Không bao giờ trả kết quả của người khác. Không dựng lại cụm
+         *     nên không ghi audit; chỉ cần vào được project.
+         */
+        get: operations["getSkillClusterAi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/triage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * S1 · AI đánh giá một cụm có đáng làm thành skill không
+         * @description Trả `AiResult` kind `skill_triage`, subjectType `skill_cluster`, `result` theo `SkillTriageResult`
+         *     (`strong`, `maybe` hoặc `skip`, lý do, tên skill gợi ý). Ghi đè bản cũ của người gọi (cùng cụm, cùng locale).
+         *
+         *     Server **dựng lại cụm** từ prompt người gọi xem được trong khoảng `from`/`to` (mặc định 30 ngày, giống
+         *     `listSkillClusters`; đặt cùng bộ lọc `userId`, `from`, `to` như lúc xem danh sách) rồi gửi cho LLM tối đa 8 prompt của
+         *     cụm (mỗi prompt tối đa 600 ký tự, đã che secret ở máy thành viên) bằng **key của người gọi**. Quyền như
+         *     `listSkillClusters` (member chỉ prompt của mình); leader chạy AI trên prompt của người khác ghi audit
+         *     `skill_clusters.ai`. Cụm không còn trong khoảng đó thì `404 cluster_not_found`.
+         */
+        post: operations["runSkillTriage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/skill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * S2 · AI soạn SKILL.md từ một cụm
+         * @description Trả `AiResult` kind `skill_content`, subjectType `skill_cluster`, `result` theo `SkillContentResult`
+         *     (tên, mô tả, hướng dẫn và nội dung `SKILL.md` đầy đủ). Cách dựng cụm, dữ liệu gửi cho LLM, quyền, audit và lỗi giống
+         *     `runSkillTriage`. Ghi đè bản cũ của người gọi (cùng cụm, cùng locale).
+         *
+         *     Web cho tải `SKILL.md` về; agent (Claude Code, Codex) có thể đọc lại bằng tool MCP `get_my_ai_results`
+         *     (subjectType `skill_cluster`) rồi ghi vào `.claude/skills/<tên>/SKILL.md`. Server **không** ghi file nào.
+         */
+        post: operations["runSkillContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skill-catalog-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Các nguồn catalog skill cộng đồng của server
+         * @description Danh sách nguồn mà S3 (`runCatalogPicks`) đọc skill từ đó. Mọi người đã đăng nhập đều xem được. Server tự thêm hai
+         *     nguồn mặc định ở lần đọc đầu tiên: `https://github.com/anthropics/skills` và
+         *     `https://github.com/github/awesome-copilot`; leader xóa hoặc thêm bớt thoải mái (xóa rồi không tự thêm lại).
+         */
+        get: operations["listSkillCatalogSources"];
+        put?: never;
+        /**
+         * Thêm một nguồn catalog (leader)
+         * @description Chỉ nhận URL repo GitHub công khai dạng `https://github.com/{owner}/{repo}` (chấp nhận thêm `.git`, dấu `/` ở cuối,
+         *     `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}` và luôn đọc nhánh mặc định, nhánh trong URL bị bỏ). Server **không** gọi URL nào khác ngoài
+         *     `api.github.com` và `raw.githubusercontent.com`, nên không dùng được để dò mạng nội bộ. Không kiểm repo có tồn tại
+         *     lúc thêm; repo không đọc được chỉ bị bỏ qua khi chọn skill. Thêm URL đã có trả `409 source_exists`.
+         */
+        post: operations["createSkillCatalogSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skill-catalog-sources/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Xóa một nguồn catalog (leader) */
+        delete: operations["deleteSkillCatalogSource"];
+        options?: never;
+        head?: never;
+        /** Bật hoặc tắt một nguồn catalog (leader) */
+        patch: operations["updateSkillCatalogSource"];
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/ai/catalog-picks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * S3 · kết quả chọn skill đã lưu của người gọi
+         * @description Chỉ trả kết quả của chính người gọi (kind `catalog_picks`, subjectType `project`, theo `locale`), hoặc `null`.
+         */
+        get: operations["getCatalogPicks"];
+        put?: never;
+        /**
+         * S3 · AI chọn tối đa 5 skill trong catalog hợp với workflow thật
+         * @description Trả `AiResult` kind `catalog_picks`, subjectType `project` (subjectId là `projectId`), `result` theo
+         *     `SkillCatalogPicksResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale).
+         *
+         *     Các bước ở server: (1) dựng cụm prompt lặp lại của người gọi như `listSkillClusters` (cùng `userId`, `from`, `to`;
+         *     lấy tối đa 8 cụm lặp nhiều nhất); (2) đọc catalog từ các nguồn đang bật (tên và mô tả trong front matter của
+         *     `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) xếp theo độ trùng từ khóa với các cụm rồi lấy tối đa 100 ứng viên (điểm 0 không bị loại vì catalog thường bằng tiếng Anh còn prompt có thể bằng tiếng Việt); (4) gửi cụm (nhãn, số lần, số
+         *     người) và ứng viên cho LLM bằng **key của người gọi**. Nhãn cụm là nội dung prompt nên quyền và audit như
+         *     `runSkillTriage` (leader dùng prompt của người khác ghi `skill_clusters.ai`).
+         *
+         *     **Server chỉ giữ gợi ý hợp lệ:** LLM chọn theo mã ứng viên; mã không có trong danh sách bị bỏ, tên, mô tả và đường dẫn
+         *     lấy từ catalog chứ không từ LLM. Lý do (`reason`) phải trích số liệu của cụm (số lần, số người).
+         *
+         *     Lỗi riêng: `409 no_clusters` (chưa có cụm lặp nào để đối chiếu), `502 catalog_unavailable` (không đọc được nguồn
+         *     nào, hoặc không có nguồn nào đang bật). Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+         */
+        post: operations["runCatalogPicks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/ai/prompt-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * C2 · kết quả tìm prompt mẫu đã lưu của leader
+         * @description Chỉ trả kết quả của chính người gọi (kind `prompt_candidates`, subjectType `project`, theo `locale`), hoặc `null`. Chỉ leader.
+         */
+        get: operations["getPromptCandidates"];
+        put?: never;
+        /**
+         * C2 · tìm prompt mẫu để đưa vào thư viện (leader)
+         * @description Trả `AiResult` kind `prompt_candidates`, subjectType `project` (subjectId là `projectId`), `result` theo
+         *     `PromptCandidatesResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale). **Chỉ leader.**
+         *
+         *     **Chọn ứng viên (heuristic, không tốn tiền):** trong khoảng `from`/`to` (mặc định 30 ngày, tối đa 90), lấy các
+         *     session gốc (không phải session con) có điểm trung bình các nhóm kỹ năng từ 70 trở lên, không có finding mức
+         *     `high`, chưa nằm trong thư viện, và có prompt đầu tiên dài 30 đến 1500 ký tự (không phải prompt rác). Xếp theo điểm
+         *     rồi theo độ mới, lấy tối đa 10. Ứng viên là **prompt đầu tiên** của session.
+         *
+         *     **AI** (key của người gọi) viết tiêu đề ngắn và lý do vì sao prompt tốt cho từng ứng viên, và có thể bỏ ứng viên
+         *     không đáng đưa vào. Server chỉ giữ ứng viên có mã hợp lệ; id session, người gõ, điểm lấy từ dữ liệu của server chứ
+         *     không từ AI. Leader dùng prompt của người khác nên ghi audit `prompt_library.candidates`. Chưa có key thì
+         *     `409 llm_key_missing` trước khi đụng dữ liệu; không có session nào đạt thì `409 no_candidates`.
+         */
+        post: operations["runPromptCandidates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/prompt-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Các prompt mẫu đã được leader duyệt của project
+         * @description Mọi thành viên của project (và leader) xem được. Mới nhất trước.
+         *
+         *     **Quyền riêng tư:** đây là chỗ duy nhất prompt của người này tới tay người khác, và chỉ sau khi leader duyệt từng
+         *     mục. Mục có `hideAuthor` thì thành viên không thấy tên (`author` là `null`), cũng không thấy `sessionId` và
+         *     `turnSeq` (hai trường này chỉ trả cho leader). Leader luôn thấy tác giả. Nội dung prompt đã được che secret ở
+         *     máy thành viên. Mục bị xóa khi session gốc bị xóa (hết retention hoặc leader xóa dữ liệu).
+         */
+        get: operations["listPromptLibrary"];
+        put?: never;
+        /**
+         * Duyệt một prompt vào thư viện (leader)
+         * @description Chỉ leader. `sessionId` phải là session gốc của project. `turnSeq` là `seq` của một prompt của người dùng trong
+         *     session đó; bỏ qua thì dùng prompt đầu tiên của session (server luôn lưu `turnSeq` cụ thể). Sai turn trả
+         *     `400 invalid_turn`; đã có trong thư viện trả `409 already_in_library`. Ghi audit `prompt_library.add`.
+         */
+        post: operations["addPromptLibraryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/prompt-library/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Gỡ một mục khỏi thư viện (leader)
+         * @description Chỉ leader. Ghi audit `prompt_library.remove`.
+         */
+        delete: operations["deletePromptLibraryItem"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2360,6 +2669,234 @@ export interface components {
                 data?: unknown;
             };
         };
+        SkillClusterList: {
+            /** @description Khoảng thời gian thực tế đã dùng. */
+            range: {
+                /** Format: date-time */
+                from: string;
+                /** Format: date-time */
+                to: string;
+            };
+            stats: components["schemas"]["SkillClusterStats"];
+            clusters: components["schemas"]["SkillCluster"][];
+        };
+        SkillClusterStats: {
+            /** @description Số prompt đã được xét (sau khi lọc session gốc, độ dài, prompt rác). */
+            promptsAnalyzed: number;
+            /** @description Số prompt nằm trong các cụm đủ 3 lần lặp (kể cả cụm vượt `limit`). */
+            promptsClustered: number;
+            /** @description Số cụm đủ 3 lần lặp (có thể nhiều hơn số cụm trả về khi vượt `limit`). */
+            clusterCount: number;
+            /** @description true khi có hơn 20000 prompt trong khoảng và chỉ các prompt mới nhất được xét. */
+            truncated: boolean;
+        };
+        SkillCluster: {
+            /**
+             * @description Mã ổn định của cụm (UUID sinh từ project và dấu vân tay), dùng làm `subjectId` cho nút AI ở M6.12.
+             *     Không phụ thuộc bộ lọc người hay khoảng thời gian.
+             */
+            id: components["schemas"]["Id"];
+            /** @description Prompt tiêu biểu của cụm (độ dài vừa), tối đa 200 ký tự, đã che secret. */
+            label: string;
+            /** @description Số lần prompt lặp lại trong khoảng và bộ lọc đã chọn. */
+            count: number;
+            /** @description Số thành viên đã gõ prompt thuộc cụm. */
+            userCount: number;
+            /** Format: date-time */
+            firstSeenAt: string;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** @description Tối đa 5 người gõ nhiều nhất, theo số lần giảm dần. */
+            users: components["schemas"]["SkillClusterUser"][];
+            /** @description Tối đa 3 lần xuất hiện gần nhất. */
+            examples: components["schemas"]["SkillClusterExample"][];
+        };
+        SkillClusterUser: {
+            userId: components["schemas"]["Id"];
+            name: string;
+            count: number;
+        };
+        SkillClusterExample: {
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của prompt trong session (để nhảy tới đúng turn). */
+            turnSeq: number;
+            /** Format: date-time */
+            ts: string;
+            userId: components["schemas"]["Id"];
+            /** @description Đoạn trích prompt, tối đa 160 ký tự, đã che secret, khoảng trắng đã gộp. */
+            excerpt: string;
+        };
+        RunSkillAiRequest: {
+            locale: components["schemas"]["AiLocale"];
+            /** @description Giống `userId` của `listSkillClusters` (leader; member chỉ được đặt chính mình). */
+            userId?: components["schemas"]["Id"];
+            /**
+             * Format: date-time
+             * @description Giống `from` của `listSkillClusters`. Mặc định 30 ngày trước `to`.
+             */
+            from?: string;
+            /**
+             * Format: date-time
+             * @description Giống `to` của `listSkillClusters`. Mặc định bây giờ.
+             */
+            to?: string;
+        };
+        SkillClusterAiResults: {
+            /** @description Kết quả `skill_triage` của người gọi, hoặc null. */
+            triage: components["schemas"]["AiResult"] | null;
+            /** @description Kết quả `skill_content` của người gọi, hoặc null. */
+            skill: components["schemas"]["AiResult"] | null;
+        };
+        /** @description `result` của `AiResult` kind `skill_triage`. */
+        SkillTriageResult: {
+            /**
+             * @description `strong`: quy trình lặp lại rõ ràng, làm skill tiết kiệm công thật. `maybe`: có thể có ích nhưng việc hay thay đổi
+             *     hoặc nhỏ. `skip`: quá vặt, chỉ dùng một lần, hoặc là thông tin riêng của project (nên đưa vào AGENTS.md),
+             *     hoặc các prompt không thật sự cùng một việc.
+             * @enum {string}
+             */
+            verdict: "strong" | "maybe" | "skip";
+            /** @description Lý do, 2 đến 3 câu, theo ngôn ngữ của `locale`. */
+            reason: string;
+            /** @description Tên skill gợi ý, kebab-case (server chuẩn hóa nếu model trả sai dạng). */
+            suggestedName: string;
+            /** @description Một câu mô tả việc lặp lại. */
+            summary: string;
+        };
+        /** @description `result` của `AiResult` kind `skill_content`. */
+        SkillContentResult: {
+            /** @description Tên skill, kebab-case (server chuẩn hóa). */
+            name: string;
+            /** @description Skill làm gì và khi nào agent nên dùng; đây là câu agent đọc để quyết định nạp skill. */
+            description: string;
+            /** @description Hướng dẫn dạng Markdown, không gồm frontmatter. */
+            body: string;
+            /**
+             * @description Nội dung `SKILL.md` đầy đủ: frontmatter YAML (`name`, `description`) rồi `body`. **Do server ghép** từ ba trường
+             *     trên (không phải model viết), nên frontmatter luôn hợp lệ.
+             */
+            markdown: string;
+        };
+        SkillCatalogSource: {
+            id: components["schemas"]["Id"];
+            /**
+             * @description URL chuẩn hóa, `https://github.com/{owner}/{repo}`.
+             * @example https://github.com/anthropics/skills
+             */
+            url: string;
+            /** @enum {string} */
+            kind: "github";
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SkillCatalogSourceList: {
+            sources: components["schemas"]["SkillCatalogSource"][];
+        };
+        CreateSkillCatalogSourceRequest: {
+            /** @description URL repo GitHub công khai (xem `createSkillCatalogSource`). */
+            url: string;
+        };
+        UpdateSkillCatalogSourceRequest: {
+            enabled: boolean;
+        };
+        CatalogPicksSaved: {
+            /** @description Kết quả `catalog_picks` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
+        SkillCatalogPick: {
+            /** @description Tên skill trong catalog (lấy từ catalog, không từ LLM). */
+            name: string;
+            /** @description Mô tả trong front matter của SKILL.md, đã cắt gọn. */
+            description: string;
+            /** @description URL repo nguồn. */
+            sourceUrl: string;
+            /** @description Link GitHub tới `SKILL.md`. */
+            skillUrl: string;
+            /** @description Vì sao hợp với workflow, có trích số liệu của cụm (số lần, số người). */
+            reason: string;
+        };
+        /** @description `result` của `AiResult` kind `catalog_picks`. Tối đa 5 gợi ý, có thể rỗng. */
+        SkillCatalogPicksResult: {
+            picks: components["schemas"]["SkillCatalogPick"][];
+            /** @description Số skill trong catalog đã đưa vào xét sau bước lọc sơ. */
+            candidatesConsidered: number;
+        };
+        RunPromptCandidatesRequest: {
+            locale: components["schemas"]["AiLocale"];
+            /**
+             * Format: date-time
+             * @description Chỉ session bắt đầu từ mốc này. Mặc định 30 ngày trước `to`.
+             */
+            from?: string;
+            /**
+             * Format: date-time
+             * @description Chỉ session bắt đầu trước mốc này. Mặc định bây giờ.
+             */
+            to?: string;
+        };
+        PromptCandidate: {
+            sessionId: components["schemas"]["Id"];
+            /** @description `seq` của prompt (prompt đầu tiên của session). */
+            turnSeq: number;
+            userId: components["schemas"]["Id"];
+            userName: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** @description Điểm trung bình các nhóm kỹ năng của session. */
+            score: number;
+            workType: components["schemas"]["SessionWorkType"] | null;
+            /** @description Nội dung prompt, cắt tối đa 600 ký tự (đã che secret ở máy thành viên). */
+            prompt: string;
+            /** @description Tiêu đề ngắn do AI viết (không phải dữ liệu của server). */
+            title: string;
+            /** @description Lý do vì sao prompt tốt, do AI viết. */
+            why: string;
+        };
+        /** @description `result` của `AiResult` kind `prompt_candidates`. Có thể rỗng khi AI thấy không có ứng viên đáng đưa vào. */
+        PromptCandidatesResult: {
+            candidates: components["schemas"]["PromptCandidate"][];
+            /** @description Số ứng viên heuristic đã đưa cho AI xét. */
+            considered: number;
+        };
+        PromptCandidatesSaved: {
+            /** @description Kết quả `prompt_candidates` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
+        AddPromptLibraryItemRequest: {
+            sessionId: components["schemas"]["Id"];
+            /** @description Bỏ qua thì dùng prompt đầu tiên của session. */
+            turnSeq?: number;
+            /** @description Ghi chú vì sao prompt này tốt (hiện cho cả thành viên). Có thể chép từ `why` của ứng viên. */
+            note?: string;
+            /**
+             * @description Ẩn tên tác giả với thành viên.
+             * @default false
+             */
+            hideAuthor: boolean;
+        };
+        PromptLibraryItem: {
+            id: components["schemas"]["Id"];
+            /** @description Nội dung prompt (đã che secret ở máy thành viên), tối đa 4000 ký tự. */
+            prompt: string;
+            note: string | null;
+            workType: components["schemas"]["SessionWorkType"] | null;
+            /** @description Tác giả. `null` khi `hideAuthor` và người gọi không phải leader. */
+            author: {
+                userId: components["schemas"]["Id"];
+                name: string;
+            } | null;
+            hideAuthor: boolean;
+            /** @description Chỉ trả cho leader (để mở session gốc); thành viên nhận `null`. */
+            sessionId: components["schemas"]["Id"] | null;
+            /** @description Chỉ trả cho leader; thành viên nhận `null`. */
+            turnSeq: number | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PromptLibraryList: {
+            items: components["schemas"]["PromptLibraryItem"][];
+        };
         SourceId: string;
         Session: {
             /** @description `<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id). */
@@ -2684,6 +3221,39 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Không tìm thấy project (`error`: `not_found`) hoặc cụm không còn trong khoảng thời gian đã chọn
+         *     (`error`: `cluster_not_found`; thử mở rộng khoảng).
+         */
+        ClusterNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "cluster_not_found",
+                 *       "message": "Không tìm thấy cụm trong khoảng thời gian này, hãy thử mở rộng khoảng."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Nguồn này đã có (`error`: `source_exists`). */
+        SourceExists: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "source_exists",
+                 *       "message": "Nguồn catalog này đã có."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         ProjectId: components["schemas"]["Id"];
@@ -2697,8 +3267,12 @@ export interface components {
         AiLocaleQuery: components["schemas"]["AiLocale"];
         FindingId: components["schemas"]["Id"];
         TokenId: components["schemas"]["Id"];
-        /** @description Mã phiên MCP do server cấp ở `initialize`. */
+        /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
         McpSessionId: string;
+        /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+        ClusterId: components["schemas"]["Id"];
+        SourceId: components["schemas"]["Id"];
+        ItemId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -5099,24 +5673,12 @@ export interface operations {
     mcpGet: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
-                "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Luồng SSE chứa các message JSON-RPC 2.0. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
             401: components["responses"]["McpInvalidToken"];
             /** @description Server không mở luồng SSE riêng. */
             405: {
@@ -5131,7 +5693,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
                 "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
             };
             path?: never;
@@ -5162,14 +5724,13 @@ export interface operations {
             };
             400: components["responses"]["ValidationError"];
             401: components["responses"]["McpInvalidToken"];
-            404: components["responses"]["NotFound"];
         };
     };
     mcpDelete: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Mã phiên MCP do server cấp ở `initialize`. */
+                /** @description Server không giữ phiên MCP (stateless) nên không cấp và bỏ qua header này. */
                 "Mcp-Session-Id"?: components["parameters"]["McpSessionId"];
             };
             path?: never;
@@ -5177,7 +5738,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Đã kết thúc phiên. */
+            /** @description Đã nhận (không làm gì). */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -5185,6 +5746,513 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["McpInvalidToken"];
+        };
+    };
+    listSkillClusters: {
+        parameters: {
+            query?: {
+                /** @description Chỉ prompt của người này (leader; member chỉ được đặt chính mình). */
+                userId?: components["schemas"]["Id"];
+                /** @description Chỉ prompt từ mốc này (ISO 8601). */
+                from?: string;
+                /** @description Chỉ prompt trước mốc này (ISO 8601). */
+                to?: string;
+                /** @description Số cụm tối đa trả về (cụm nhiều lần lặp nhất trước). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Các cụm, nhiều lần lặp nhất trước. `clusters` rỗng khi chưa có prompt nào lặp đủ 3 lần. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "range": {
+                     *         "from": "2026-10-29T00:00:00.000Z",
+                     *         "to": "2026-11-28T00:00:00.000Z"
+                     *       },
+                     *       "stats": {
+                     *         "promptsAnalyzed": 412,
+                     *         "promptsClustered": 31,
+                     *         "clusterCount": 2,
+                     *         "truncated": false
+                     *       },
+                     *       "clusters": [
+                     *         {
+                     *           "id": "4f6c2d7e-1b3a-4c8e-9d5f-0a1b2c3d4e5f",
+                     *           "label": "Chạy pnpm test rồi sửa lỗi lint trong file này",
+                     *           "count": 9,
+                     *           "userCount": 2,
+                     *           "firstSeenAt": "2026-11-03T08:12:00.000Z",
+                     *           "lastSeenAt": "2026-11-27T15:40:00.000Z",
+                     *           "users": [
+                     *             {
+                     *               "userId": "0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f",
+                     *               "name": "Thành viên 1",
+                     *               "count": 6
+                     *             },
+                     *             {
+                     *               "userId": "7a1c3d4e-5f60-4b9d-8f9e-0b9d8f9e7c1a",
+                     *               "name": "Thành viên 2",
+                     *               "count": 3
+                     *             }
+                     *           ],
+                     *           "examples": [
+                     *             {
+                     *               "sessionId": "2356eb16-0734-42a0-9c8a-892a394bcaf2",
+                     *               "turnSeq": 4,
+                     *               "ts": "2026-11-27T15:40:00.000Z",
+                     *               "userId": "0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f",
+                     *               "excerpt": "Chạy pnpm test rồi sửa lỗi lint trong file src/cart.ts"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["SkillClusterList"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSkillClusterAi: {
+        parameters: {
+            query?: {
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu (có thể cả hai đều `null`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillClusterAiResults"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runSkillTriage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunSkillAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["ClusterNotFound"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    runSkillContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
+                clusterId: components["parameters"]["ClusterId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunSkillAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["ClusterNotFound"];
+            409: components["responses"]["LlmKeyMissing"];
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    listSkillCatalogSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách nguồn, cũ nhất trước. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSourceList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    createSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSkillCatalogSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Nguồn vừa thêm. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSource"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["SourceExists"];
+        };
+    };
+    deleteSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSkillCatalogSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Nguồn sau khi cập nhật. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSource"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCatalogPicks: {
+        parameters: {
+            query?: {
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPicksSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runCatalogPicks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunSkillAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc chưa có cụm lặp nào để đối chiếu (`no_clusters`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            /** @description Không đọc được catalog (`catalog_unavailable`) hoặc nhà cung cấp AI lỗi (`llm_provider_error`, `llm_bad_output`). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "catalog_unavailable",
+                     *       "message": "Không đọc được skill từ nguồn catalog nào. Kiểm tra nguồn đang bật và kết nối tới GitHub."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    getPromptCandidates: {
+        parameters: {
+            query?: {
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptCandidatesSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runPromptCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunPromptCandidatesRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc chưa có session nào đủ tốt để đề xuất (`no_candidates`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    listPromptLibrary: {
+        parameters: {
+            query?: {
+                /** @description Số mục tối đa (mặc định 50). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Các mục đã duyệt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLibraryList"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addPromptLibraryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddPromptLibraryItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Mục vừa thêm (góc nhìn của leader). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLibraryItem"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Prompt này đã có trong thư viện (`error`: `already_in_library`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "already_in_library",
+                     *       "message": "Prompt này đã có trong thư viện."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deletePromptLibraryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã gỡ. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

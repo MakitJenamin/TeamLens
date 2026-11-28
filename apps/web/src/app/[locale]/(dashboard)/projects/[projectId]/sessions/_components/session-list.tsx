@@ -163,7 +163,6 @@ export function SessionList({ projectId, members }: { projectId: string; members
           <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
             <SearchXIcon className="size-6" />
             <span className="text-foreground font-medium">{t("list.noResultsTitle")}</span>
-            <span className="max-w-md">{t("list.noResultsDescription", { q })}</span>
           </CardContent>
         </Card>
       ) : sessions.length === 0 ? (
@@ -171,7 +170,6 @@ export function SessionList({ projectId, members }: { projectId: string; members
           <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
             <InboxIcon className="size-6" />
             <span className="text-foreground font-medium">{t("list.emptyTitle")}</span>
-            <span className="max-w-md">{t("list.emptyDescription")}</span>
           </CardContent>
         </Card>
       ) : (

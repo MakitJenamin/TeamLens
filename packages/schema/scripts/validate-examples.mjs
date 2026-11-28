@@ -128,6 +128,37 @@ for (const file of mcpFiles) {
   }
 }
 
+// 5. MCP prompts (mcp/prompts/*.json): `name` trùng tên file, có mô tả, `arguments` đúng dạng,
+//    mọi `{{tên}}` trong `template` phải là một argument.
+const promptDir = join(mcpDir, 'prompts');
+const promptFiles = readdirSync(promptDir).filter((f) => f.endsWith('.json')).sort();
+for (const file of promptFiles) {
+  const prompt = JSON.parse(readFileSync(join(promptDir, file), 'utf8'));
+  const problems = [];
+  if (`${prompt.name}.json` !== file) problems.push('`name` phải trùng tên file');
+  if (typeof prompt.description !== 'string' || prompt.description.length === 0) problems.push('thiếu `description`');
+  if (typeof prompt.template !== 'string' || prompt.template.length === 0) problems.push('thiếu `template`');
+  if (!Array.isArray(prompt.arguments)) {
+    problems.push('`arguments` phải là mảng');
+  } else {
+    for (const arg of prompt.arguments) {
+      if (typeof arg.name !== 'string' || typeof arg.description !== 'string' || typeof arg.required !== 'boolean') {
+        problems.push('mỗi argument cần `name`, `description` (chuỗi) và `required` (boolean)');
+      }
+    }
+    const names = new Set(prompt.arguments.map((arg) => arg.name));
+    for (const m of String(prompt.template).matchAll(/\{\{(\w+)\}\}/g)) {
+      if (!names.has(m[1])) problems.push(`template dùng {{${m[1]}}} nhưng không có argument cùng tên`);
+    }
+  }
+  if (problems.length > 0) {
+    failed++;
+    console.error(`✗ mcp/prompts/${file}: ${problems.join('; ')}`);
+  } else {
+    console.log(`✓ mcp/prompts/${file}`);
+  }
+}
+
 if (failed > 0) {
   console.error(`\n${failed} kiểm tra thất bại.`);
   process.exit(1);

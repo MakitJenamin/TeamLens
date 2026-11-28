@@ -16,27 +16,25 @@
     "generic": "Something went wrong. Please try again.",
     "network": "Could not reach the server.",
     "dashboardTitle": "Could not load data",
-    "dashboardDescription": "The API server did not respond or returned an error. Make sure the API is running and try again."
+    "dashboardDescription": "The API server did not respond or returned an error."
   },
   "notFound": {
-    "title": "Page not found",
-    "description": "The page you are looking for does not exist or has moved."
+    "title": "Page not found"
   },
   "home": {
     "noProjectsTitle": "No projects yet",
-    "noProjectsDescription": "You are not a member of any project. Ask a leader or an admin to add you.",
-    "noProjectsAdmin": "Go to Administration to create the first project."
+    "noProjectsDescription": "Ask a leader to add you to a project.",
+    "noProjectsAdmin": "Create project"
   },
   "copy": "Copy",
   "copied": "Copied",
-  "copyFailed": "Could not copy, please select and copy manually.",
+  "copyFailed": "Could not copy. Select and copy it manually.",
   "installSteps": {
-    "installTitle": "Step 1: Install tl",
-    "installHint": "Skip if this machine already has tl. Open PowerShell and run the first command; if you use CMD, run the second one.",
+    "installTitle": "1. Install tl",
     "powershell": "PowerShell",
-    "cmd": "CMD (Command Prompt)",
-    "joinTitle": "Step 2: Join the project",
-    "joinHint": "Open a new terminal and run the command below. tl asks for your name and your consent before sending any data.",
+    "cmd": "CMD",
+    "joinTitle": "2. Join",
+    "joinHint": "Run in a new terminal. tl asks for consent before sending any data.",
     "joinCommand": "Join command"
   }
 }

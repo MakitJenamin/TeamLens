@@ -5,7 +5,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/copy-field";
-import { InstallSteps } from "@/components/install-steps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,12 +68,9 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
 
   return (
     <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-5" aria-labelledby="invites-title">
-      <div>
-        <h2 id="invites-title" className="text-lg font-semibold">
-          {t("title")}
-        </h2>
-        <p className="text-sm text-muted-foreground">{t("hint")}</p>
-      </div>
+      <h2 id="invites-title" className="text-lg font-semibold">
+        {t("title")}
+      </h2>
 
       <form onSubmit={onCreate}>
         <fieldset disabled={create.isPending} className="flex flex-wrap items-end gap-2">
@@ -84,7 +80,7 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
           </label>
           <label className="grid min-w-0 flex-[1_1_9rem] gap-1 text-sm font-medium">
             {t("maxUses")}
-            <Input name="maxUses" type="number" min={1} max={1000} />
+            <Input name="maxUses" type="number" min={1} max={1000} placeholder={t("maxUsesPlaceholder")} />
           </label>
           <Button type="submit">{t("create")}</Button>
         </fieldset>
@@ -102,7 +98,6 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
             <AlertDescription>{t("onlyOnce")}</AlertDescription>
           </Alert>
           <CopyField label={t("url")} value={created.url} />
-          <InstallSteps inviteUrl={created.url} headingLevel="h4" />
           <Button variant="outline" size="sm" onClick={() => setCreated(null)}>
             {t("dismiss")}
           </Button>
@@ -114,7 +109,6 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
           {t("loadError")}
         </p>
       )}
-      {invites.data?.length === 0 && <p className="text-sm text-muted-foreground">{t("empty")}</p>}
       {revoke.error && (
         <p role="alert" className="text-sm text-destructive">
           {revoke.error.message}
@@ -134,10 +128,6 @@ export function InvitesPanel({ projectId }: { projectId: string }) {
                 {invite.maxUses === null
                   ? t("usesUnlimited", { used: invite.usedCount })
                   : t("uses", { used: invite.usedCount, max: invite.maxUses })}
-                {" · "}
-                {invite.createdBy
-                  ? t("createdBy", { name: invite.createdBy.name })
-                  : t("createdByUnknown")}
               </p>
             </div>
             {invite.status === "active" && (
