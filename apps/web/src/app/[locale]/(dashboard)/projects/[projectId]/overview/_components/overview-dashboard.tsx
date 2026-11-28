@@ -144,6 +144,43 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
+            <Card data-testid="work-types">
+              <CardHeader>
+                <CardTitle>{t("distribution.workTypeTitle")}</CardTitle>
+                <CardDescription>{t("distribution.workTypeHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {data.workTypes.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">{t("distribution.empty")}</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {data.workTypes.map((row) => (
+                      <li key={row.workType ?? "unclassified"} className="flex flex-col gap-1">
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="font-medium">
+                            {row.workType ? tSessions(`workTypes.${row.workType}`) : t("distribution.workTypeUnclassified")}
+                          </span>
+                          <span className="text-muted-foreground tabular-nums">
+                            {format.number(row.sessions)} ·{" "}
+                            {format.number(row.sessions / data.workTypes.reduce((sum, r) => sum + r.sessions, 0), {
+                              style: "percent",
+                              maximumFractionDigits: 0,
+                            })}
+                          </span>
+                        </div>
+                        <div className="bg-muted h-2 overflow-hidden rounded-full">
+                          <div
+                            className="h-full rounded-full bg-(--viz-2)"
+                            style={{ width: `${barPercent(row.sessions, data.workTypes[0].sessions)}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>{t("distribution.agentTitle")}</CardTitle>

@@ -39,6 +39,11 @@ const overview: ProjectOverview = {
     { model: "model-la", turns: 20, tokens: 100_000, estimatedCostUsd: null },
     { model: null, turns: 12, tokens: 90_000, estimatedCostUsd: null },
   ],
+  workTypes: [
+    { workType: "bugfix", sessions: 20 },
+    { workType: "feature", sessions: 10 },
+    { workType: null, sessions: 6 },
+  ],
   usageStats: { cacheHitRate: 0.62, premiumModelRate: 0.8, highReasoningRate: null, avgOutputTokensPerTurn: 540 },
   topFindings: [
     { ruleKey: "no-test-after-edit", category: "verification", severity: "high", count: 15, memberCount: 2 },
@@ -86,6 +91,23 @@ describe("OverviewDashboard", () => {
     expect(screen.getByText("Cao")).toBeInTheDocument();
     expect(screen.getByText("15 lần")).toBeInTheDocument();
     expect(screen.getByText("2 thành viên")).toBeInTheDocument();
+  });
+
+  it("thẻ theo loại việc: nhãn, số session, phần trăm, chưa phân loại; rỗng thì báo chưa có dữ liệu", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(overview));
+    const first = renderWithProviders(<OverviewDashboard projectId="p-1" />);
+    const card = await screen.findByTestId("work-types");
+    expect(within(card).getByText("Sửa lỗi")).toBeInTheDocument();
+    expect(within(card).getByText(/20 · 56%/)).toBeInTheDocument();
+    expect(within(card).getByText("Tính năng")).toBeInTheDocument();
+    expect(within(card).getByText("Chưa phân loại")).toBeInTheDocument();
+    expect(within(card).getByText(/6 · 17%/)).toBeInTheDocument();
+    first.unmount();
+
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ ...overview, workTypes: [] }));
+    renderWithProviders(<OverviewDashboard projectId="p-1" />);
+    expect(within(await screen.findByTestId("work-types")).getByText("Chưa có dữ liệu")).toBeInTheDocument();
   });
 
   it("đổi số tuần thì gọi lại API với mốc from khác", async () => {

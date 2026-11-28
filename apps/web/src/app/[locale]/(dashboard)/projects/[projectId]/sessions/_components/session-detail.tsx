@@ -170,6 +170,9 @@ function SessionMeta({ session }: { session: SessionDetail }) {
             {t(`agents.${session.agent}`)}
             {session.agentVersion && <span className="text-muted-foreground"> {session.agentVersion}</span>}
           </MetaRow>
+          <MetaRow label={t("detail.meta.workType")}>
+            {session.workType ? t(`workTypes.${session.workType}`) : <span className="text-muted-foreground">—</span>}
+          </MetaRow>
           <MetaRow label={t("detail.meta.model")}>
             <span className="font-mono text-xs">{session.model ?? "—"}</span>
           </MetaRow>

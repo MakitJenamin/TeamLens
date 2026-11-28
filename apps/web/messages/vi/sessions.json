@@ -7,7 +7,9 @@
       "allAgents": "Mọi agent",
       "allUsers": "Mọi thành viên",
       "search": "Tìm trong nội dung",
-      "searchPlaceholder": "Từ khóa, \"cụm từ\", -loại trừ"
+      "searchPlaceholder": "Từ khóa, \"cụm từ\", -loại trừ",
+      "workType": "Loại việc",
+      "allWorkTypes": "Mọi loại việc"
     },
     "columns": {
       "user": "Người",
@@ -17,7 +19,8 @@
       "startedAt": "Bắt đầu",
       "duration": "Thời lượng",
       "turns": "Turn",
-      "tokens": "Token"
+      "tokens": "Token",
+      "workType": "Loại việc"
     },
     "untitled": "(chưa có prompt)",
     "running": "Đang chạy",
@@ -70,7 +73,8 @@
       "noInstructionFiles": "Không có",
       "bytes": "{bytes} byte",
       "parent": "Session cha",
-      "children": "Session con (subagent)"
+      "children": "Session con (subagent)",
+      "workType": "Loại việc"
     },
     "openParent": "Mở session cha",
     "openChild": "Session con {index}",
@@ -188,5 +192,15 @@
       "network_error": "Không kết nối được tới máy chủ.",
       "unknown": "Có lỗi khi chạy AI. Thử lại sau."
     }
+  },
+  "workTypes": {
+    "bugfix": "Sửa lỗi",
+    "feature": "Tính năng",
+    "refactor": "Refactor",
+    "question": "Hỏi đáp",
+    "ops": "Vận hành",
+    "docs": "Tài liệu",
+    "test": "Kiểm thử",
+    "other": "Khác"
   }
 }

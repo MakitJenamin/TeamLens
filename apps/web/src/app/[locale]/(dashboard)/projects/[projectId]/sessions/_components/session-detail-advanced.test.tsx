@@ -64,6 +64,7 @@ function detail(overrides: Partial<SessionDetail>): SessionDetail {
     parentSessionId: null,
     childCount: 0,
     permissionMode: null,
+    workType: null,
     sourceId: "claude_code:s-1",
     device: null,
     instructionFiles: null,

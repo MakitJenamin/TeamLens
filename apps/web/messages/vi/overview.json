@@ -46,7 +46,10 @@
     },
     "unknownModel": "Không rõ model",
     "noPrice": "Chưa có giá",
-    "empty": "Chưa có dữ liệu"
+    "empty": "Chưa có dữ liệu",
+    "workTypeTitle": "Theo loại việc",
+    "workTypeHint": "Phân loại tự động bằng từ khóa trong prompt và file bị sửa, chỉ là gần đúng.",
+    "workTypeUnclassified": "Chưa phân loại"
   },
   "usage": {
     "title": "Số liệu tham khảo",

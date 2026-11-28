@@ -11,7 +11,7 @@ import {
 import { z } from 'zod';
 import { type AuthUser, CurrentUser } from '../../common/auth-context.js';
 import { ProjectAccess } from '../access/access.guards.js';
-import { AGENT_KINDS } from './session-mappers.js';
+import { AGENT_KINDS, WORK_TYPES } from './session-mappers.js';
 import { SessionNotesService } from './session-notes.service.js';
 import { SessionsService } from './sessions.service.js';
 
@@ -22,6 +22,7 @@ const isoDateTime = z.iso
 export const listSessionsQuerySchema = z.object({
   userId: z.uuid('userId phải là UUID').optional(),
   agent: z.enum(AGENT_KINDS, 'agent không hợp lệ').optional(),
+  workType: z.enum(WORK_TYPES, 'workType không hợp lệ').optional(),
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
   includeSubagents: z

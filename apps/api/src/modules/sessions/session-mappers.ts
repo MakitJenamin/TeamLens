@@ -1,4 +1,9 @@
-import type { AgentKind, PermissionMode, SessionTurn } from '@teamlens/schema';
+import type {
+  AgentKind,
+  PermissionMode,
+  SessionTurn,
+  SessionWorkType,
+} from '@teamlens/schema';
 import { ApiError } from '../../common/api-error.js';
 
 /** Vị trí trong danh sách đã sắp `startedAt` giảm dần, `id` giảm dần. */
@@ -42,6 +47,24 @@ export const AGENT_KINDS = [
   'copilot_vscode',
   'antigravity',
 ] as const satisfies readonly AgentKind[];
+
+export const WORK_TYPES = [
+  'bugfix',
+  'feature',
+  'refactor',
+  'question',
+  'ops',
+  'docs',
+  'test',
+  'other',
+] as const satisfies readonly SessionWorkType[];
+
+/** Giá trị không nằm trong enum của contract coi như chưa phân loại. */
+export function toWorkType(value: string | null): SessionWorkType | null {
+  return value !== null && (WORK_TYPES as readonly string[]).includes(value)
+    ? (value as SessionWorkType)
+    : null;
+}
 
 const PERMISSION_MODES: readonly PermissionMode[] = [
   'default',

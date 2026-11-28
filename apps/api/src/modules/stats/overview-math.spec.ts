@@ -4,6 +4,7 @@ import {
   listWeeks,
   mergeWeeklyScores,
   normalizeRange,
+  sortWorkTypes,
   type TurnRow,
 } from './overview-math.js';
 
@@ -91,6 +92,7 @@ describe('buildOverview', () => {
       agents: [],
       turns: [],
       findings: [],
+      workTypes: [],
     });
     expect(o.weeks).toEqual([
       {
@@ -172,6 +174,7 @@ describe('buildOverview', () => {
         turn({ week: '2026-11-09', model: 'model-la', turns: 10 }),
       ],
       findings: [],
+      workTypes: [],
     });
 
     expect(o.totals.sessions).toBe(7);
@@ -200,5 +203,30 @@ describe('buildOverview', () => {
     expect(o.usageStats.highReasoningRate).toBeCloseTo(0.25);
     // output 3e5 trên 60 turn
     expect(o.usageStats.avgOutputTokensPerTurn).toBeCloseTo(5000);
+  });
+});
+
+describe('sortWorkTypes', () => {
+  it('nhiều session nhất trước, hòa thì theo tên loại, chưa phân loại (null) cuối cùng, bỏ loại 0 session', () => {
+    expect(
+      sortWorkTypes([
+        { workType: null, sessions: 9 },
+        { workType: 'test', sessions: 2 },
+        { workType: 'bugfix', sessions: 5 },
+        { workType: 'docs', sessions: 2 },
+        { workType: 'ops', sessions: 0 },
+        { workType: 'feature', sessions: 9 },
+      ]),
+    ).toEqual([
+      { workType: 'feature', sessions: 9 },
+      { workType: null, sessions: 9 },
+      { workType: 'bugfix', sessions: 5 },
+      { workType: 'docs', sessions: 2 },
+      { workType: 'test', sessions: 2 },
+    ]);
+  });
+
+  it('không có dữ liệu thì mảng rỗng', () => {
+    expect(sortWorkTypes([])).toEqual([]);
   });
 });

@@ -7,7 +7,9 @@
       "allAgents": "All agents",
       "allUsers": "All members",
       "search": "Search content",
-      "searchPlaceholder": "Keywords, \"phrase\", -exclude"
+      "searchPlaceholder": "Keywords, \"phrase\", -exclude",
+      "workType": "Type of work",
+      "allWorkTypes": "All types of work"
     },
     "columns": {
       "user": "User",
@@ -17,7 +19,8 @@
       "startedAt": "Started",
       "duration": "Duration",
       "turns": "Turns",
-      "tokens": "Tokens"
+      "tokens": "Tokens",
+      "workType": "Type of work"
     },
     "untitled": "(no prompt yet)",
     "running": "Running",
@@ -70,7 +73,8 @@
       "noInstructionFiles": "None",
       "bytes": "{bytes} bytes",
       "parent": "Parent session",
-      "children": "Child sessions (subagents)"
+      "children": "Child sessions (subagents)",
+      "workType": "Type of work"
     },
     "openParent": "Open parent session",
     "openChild": "Child session {index}",
@@ -188,5 +192,15 @@
       "network_error": "Could not connect to the server.",
       "unknown": "Something went wrong while running AI. Try again later."
     }
+  },
+  "workTypes": {
+    "bugfix": "Bug fix",
+    "feature": "Feature",
+    "refactor": "Refactor",
+    "question": "Question",
+    "ops": "Ops",
+    "docs": "Docs",
+    "test": "Testing",
+    "other": "Other"
   }
 }

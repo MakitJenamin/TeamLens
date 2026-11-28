@@ -57,3 +57,16 @@ Sau mỗi lần chấm một session (kể cả session con, vì token của nó
   - Session: `vague-followup`, `instruction-bloat`, `pasted-long-log` (`additional-rules.ts`).
   - Tuần: `no-spec-first`, `low-constraint-usage`, `no-file-context`, `high-interruption`, `premium-for-trivial` (`weekly-rules.ts`).
   - `high-interruption` đếm prompt bị ngắt: prompt có cờ `interrupted` ở chính nó hoặc ở turn bất kỳ trước prompt kế tiếp. Adapter CLI gắn cờ cho turn assistant đang trả lời (Claude Code: turn assistant gần nhất trước `[Request interrupted by user]`; Codex: turn assistant cuối của lượt, hoặc chính prompt khi lượt chưa có turn assistant).
+
+## Phân loại việc B4 (M6.7)
+
+`work-type.ts` (`classifyWorkType`, thuần, test ở `work-type.spec.ts`) gán nhãn `sessions.work_type` bằng heuristic, **không gọi LLM**. `scoreSession` gọi nó cho **session gốc**, ngay sau kiểm tra thiếu turn do retention, nên mỗi lần nhận thêm turn hay "Chạy lại" đều tính lại và chấm lại project cũng gán nhãn cho session cũ. Session con và session không có prompt của người dùng thì `null`; session đã mất turn do retention giữ nhãn cũ (không chấm lại trên dữ liệu thiếu).
+
+Thứ tự tín hiệu:
+
+1. **Đường dẫn file bị sửa** (diff, tính theo số dòng đổi, hoặc số file nếu diff không có số dòng): từ 70% là file test (`*.test.*`, `*.spec.*`, `__tests__/`, `test/`, `*_test.go`, `test_*.py`...) thì `test`; từ 90% là tài liệu (`.md`, `docs/`...) thì `docs`; từ 70% là hạ tầng (Dockerfile, compose, `.github/workflows`, `*.tf`, `k8s/`, `deploy/`, `.env`...) thì `ops`.
+2. **Từ khóa tiếng Việt và tiếng Anh** trong các prompt của người dùng (khớp nguyên từ, hiểu chữ có dấu, NFC). Prompt đầu nặng gấp 3 các prompt sau, mỗi prompt đếm tối đa 3 lần cho mỗi loại để một từ lặp lại không lấn át. Hòa điểm thì theo thứ tự `bugfix` > `refactor` > `feature` > `ops` > `test` > `docs`.
+3. **Hỏi đáp:** session không sửa file nào mà prompt đầu có dấu hỏi hoặc từ để hỏi thì `question`. Có sửa file thì không bao giờ là `question`.
+4. Không có tín hiệu nào thì `other`.
+
+**Giới hạn đã biết:** đây là heuristic nên chỉ gần đúng (ví dụ prompt kiểu "làm như hôm qua" thành `other`, prompt dài có nhiều ý có thể về loại có từ khóa nhiều nhất). Nhãn B4 độc lập với loại việc LLM tự nêu trong tóm tắt A1. Muốn đổi từ khóa hay ngưỡng thì sửa `work-type.ts` rồi bấm "Chạy lại" để gán lại cho session cũ.

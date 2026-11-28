@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionPage, SessionSummary } from "@/lib/api/types";
@@ -28,6 +28,7 @@ function summary(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     parentSessionId: null,
     childCount: 0,
     permissionMode: null,
+    workType: null,
     ...overrides,
   };
 }
@@ -78,6 +79,26 @@ describe("SessionList", () => {
       expect(url).toContain("agent=codex");
       expect(url).toContain("userId=u-2");
     });
+  });
+
+  it("lọc theo loại việc gửi workType lên API; bảng hiện nhãn, dấu gạch khi chưa phân loại", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () =>
+        jsonResponse(page([summary("s-1", { workType: "bugfix" }), summary("s-2", { workType: null })], null)),
+      );
+    renderWithProviders(<SessionList projectId="p-1" members={null} />);
+
+    const rows = await screen.findAllByRole("row");
+    expect(within(rows[1]).getByText("Sửa lỗi")).toBeInTheDocument();
+    expect(within(rows[2]).queryByText("Sửa lỗi")).not.toBeInTheDocument();
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("workType");
+
+    await userEvent.selectOptions(screen.getByLabelText("Loại việc"), "refactor");
+    await waitFor(() => expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("workType=refactor"));
+    // Bỏ lọc thì không còn tham số.
+    await userEvent.selectOptions(screen.getByLabelText("Loại việc"), "");
+    await waitFor(() => expect(String(fetchMock.mock.calls.at(-1)?.[0])).not.toContain("workType"));
   });
 
   it("Enter gửi q lên API, hiện đoạn trích có <mark> và link tới turn khớp", async () => {

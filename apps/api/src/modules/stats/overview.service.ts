@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { notFound } from '../../common/api-error.js';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
@@ -11,6 +11,7 @@ import {
   turns,
   userWeeklyStats,
 } from '../../db/schema/index.js';
+import { toWorkType } from '../sessions/session-mappers.js';
 import {
   type AgentRow,
   buildOverview,
@@ -19,6 +20,7 @@ import {
   type ProjectOverview,
   type StatsRow,
   type TurnRow,
+  type WorkTypeRow,
 } from './overview-math.js';
 
 const TOP_FINDINGS = 10;
@@ -77,6 +79,13 @@ export class OverviewService {
       .where(inRange)
       .groupBy(sessions.agent);
 
+    // Nhãn loại việc B4 của các session gốc (session con không có nhãn).
+    const workTypes = await this.db
+      .select({ workType: sessions.workType, sessions: sql<number>`count(*)::int` })
+      .from(sessions)
+      .where(and(inRange, isNull(sessions.parentSourceId), isNull(sessions.parentSessionId)))
+      .groupBy(sessions.workType);
+
     const week = sql<string>`to_char(date_trunc('week', ${sessions.startedAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`;
     const usage = (key: string) =>
       sql<number>`coalesce(sum((${turns.usage}->>${sql.raw(`'${key}'`)})::numeric), 0)::float8`;
@@ -121,6 +130,7 @@ export class OverviewService {
       agents: agents as AgentRow[],
       turns: turnRows as TurnRow[],
       findings: topFindings as FindingRow[],
+      workTypes: workTypes.map((row): WorkTypeRow => ({ workType: toWorkType(row.workType), sessions: row.sessions })),
     });
   }
 }

@@ -46,6 +46,7 @@ const session: SessionDetail = {
   title: "Thêm endpoint /health",
   parentSessionId: null,
   permissionMode: "bypass",
+  workType: "bugfix",
   sourceId: "claude_code:x",
   device: { id: "d-1", name: "PC" },
   instructionFiles: [{ path: "CLAUDE.md", bytes: 120 }],
@@ -86,6 +87,8 @@ describe("SessionDetailView", () => {
     expect(screen.getByRole("heading", { name: "Thêm endpoint /health" })).toBeInTheDocument();
     expect(screen.getByText("Bỏ qua mọi xác nhận")).toBeInTheDocument();
     expect(screen.getByText("CLAUDE.md")).toBeInTheDocument();
+    expect(screen.getByText("Loại việc")).toBeInTheDocument();
+    expect(screen.getByText("Sửa lỗi")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Session con 1" })).toHaveAttribute(
       "href",
       "/projects/p-1/sessions/s-child",
