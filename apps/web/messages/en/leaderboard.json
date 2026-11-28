@@ -1,3 +1,10 @@
 {
-  "title": "Leaderboard"
+  "title": "Leaderboard",
+  "description": "Weekly or monthly ranking. Only people with at least five root sessions in the period appear.",
+  "period": "Period", "week": "Week", "month": "Month", "at": "Date in period", "categoryLabel": "Score category",
+  "categories": { "overall": "Overall", "prompt_quality": "Prompt quality", "context": "Context", "correction_loop": "Correction loop", "session_management": "Session management", "verification": "Verification" },
+  "enabled": "Enable leaderboard", "public": "Show anonymous board to members", "memberVisible": "Members can see the anonymous board.", "memberHidden": "Members cannot see the board.",
+  "loading": "Loading leaderboard...", "error": "Could not save settings.", "private": "The leaderboard is not public.", "disabled": "The leaderboard is disabled.",
+  "range": "From {from} to before {to} (UTC)", "progress": "You have {count}/5 root sessions; {needed} more to qualify.", "empty": "No one qualifies for this period yet.",
+  "rank": "Rank", "member": "Member", "sessions": "Root sessions", "score": "Score", "anonymous": "Anonymous member", "you": "you"
 }

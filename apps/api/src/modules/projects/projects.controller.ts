@@ -24,9 +24,17 @@ export const createProjectSchema = z.object({
     ),
 });
 
-const updateProjectSchema = z.object({
+const projectSettingsSchema = z.record(z.string(), z.unknown()).superRefine((settings, ctx) => {
+  for (const key of ['leaderboardEnabled', 'leaderboardPublic'] as const) {
+    if (key in settings && typeof settings[key] !== 'boolean') {
+      ctx.addIssue({ code: 'custom', path: [key], message: `${key} phải là boolean` });
+    }
+  }
+});
+
+export const updateProjectSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
-  settings: z.record(z.string(), z.unknown()).optional(),
+  settings: projectSettingsSchema.optional(),
 });
 
 const addMemberSchema = z.object({ userId: z.uuid('userId phải là UUID') });
