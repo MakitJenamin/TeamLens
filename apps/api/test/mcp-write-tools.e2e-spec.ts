@@ -153,13 +153,13 @@ describe('Tool MCP ghi cho leader và prompt (M6.16, e2e)', () => {
         expect(names).toContain(name);
       }
     });
-    it('prompts/list: leader thấy cả hai, member chỉ coach-me', async () => {
+    it('prompts/list: leader thấy cả ba, member không thấy weekly-review', async () => {
       const list = (token: string) =>
         rpc(token, { jsonrpc: '2.0', id: 1, method: 'prompts/list' }).expect(200);
       const leader = await list(leaderToken);
-      expect((leader.body.result.prompts as { name: string }[]).map((p) => p.name)).toEqual(['coach-me', 'weekly-review']);
+      expect((leader.body.result.prompts as { name: string }[]).map((p) => p.name)).toEqual(['coach-me', 'find-skills', 'weekly-review']);
       const member = await list(memberToken);
-      expect((member.body.result.prompts as { name: string }[]).map((p) => p.name)).toEqual(['coach-me']);
+      expect((member.body.result.prompts as { name: string }[]).map((p) => p.name)).toEqual(['coach-me', 'find-skills']);
     });
     it('prompts/get trả lời nhắc; weekly-review cần projectId UUID; member không lấy được weekly-review', async () => {
       const get = (token: string, name: string, args?: object) =>

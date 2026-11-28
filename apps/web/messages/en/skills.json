@@ -23,5 +23,37 @@
   "userCount": "{count} people",
   "emptyTitle": "No prompt has been repeated 3 times yet",
   "emptyHint": "Try a wider time range.",
-  "errorTitle": "Could not load Skill Finder"
+  "errorTitle": "Could not load Skill Finder",
+  "ai": {
+    "triage": "Assess this cluster",
+    "generate": "Draft SKILL.md",
+    "running": "Running AI…",
+    "redo": "Redo: {action}",
+    "privateNote": "Uses your own API key. AI results are visible only to you.",
+    "addKey": "Add an AI API key to assess clusters and draft SKILL.md",
+    "openSettings": "Open AI settings",
+    "verdict": {
+      "strong": "Worth a skill",
+      "maybe": "Maybe",
+      "skip": "Skip"
+    },
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download SKILL.md",
+    "skillHint": "Review and edit before use. Put the file in your agent's skills folder, e.g. .claude/skills/<name>/SKILL.md.",
+    "errors": {
+      "llm_key_missing": "No API key yet.",
+      "llm_key_invalid": "The AI provider rejected the API key.",
+      "llm_model_not_found": "The selected model does not exist.",
+      "llm_quota_exceeded": "Quota exhausted or rate limited at the AI provider. Try again later.",
+      "llm_timeout": "The AI took too long to respond (over 60 seconds). Try again later.",
+      "llm_provider_error": "Could not reach the AI provider. Try again later.",
+      "llm_bad_output": "The AI returned a badly formatted result. Retry or pick a stronger model.",
+      "cluster_not_found": "The cluster is no longer in this time range. Reload the page.",
+      "forbidden": "You are not allowed to use AI on this cluster.",
+      "not_found": "Data not found.",
+      "network_error": "Could not reach the server.",
+      "unknown": "Something went wrong running AI. Try again later."
+    }
+  }
 }

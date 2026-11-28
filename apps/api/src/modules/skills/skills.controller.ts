@@ -1,11 +1,8 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser, type AuthUser } from '../../common/auth-context.js';
+import { isoDateTime } from './skills.schemas.js';
 import { DEFAULT_LIMIT, SkillsService } from './skills.service.js';
-
-const isoDateTime = z.iso
-  .datetime({ offset: true, message: 'Phải là thời điểm ISO 8601' })
-  .transform((value) => new Date(value));
 
 export const listSkillClustersQuerySchema = z.object({
   userId: z.uuid('userId phải là UUID').optional(),

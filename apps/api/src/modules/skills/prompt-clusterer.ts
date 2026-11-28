@@ -221,3 +221,43 @@ export function clusterPrompts(
     clusters: clusters.slice(0, maxClusters),
   };
 }
+
+export interface FullOccurrence {
+  userId: string;
+  sessionId: string;
+  turnSeq: number;
+  ts: Date;
+  /** Nguyên văn prompt (đã NFC), dùng cho nút AI; KHÔNG đưa ra danh sách cụm. */
+  text: string;
+}
+
+/**
+ * Các lần xuất hiện gần nhất của một cụm (theo dấu vân tay), kèm nguyên văn prompt, để gửi cho AI (S1, S2).
+ * Cùng bộ lọc và cùng cách chuẩn hóa với {@link clusterPrompts} nên ra đúng các prompt của cụm đó.
+ */
+export function occurrencesOf(
+  inputs: readonly PromptInput[],
+  fingerprint: string,
+  limit: number,
+): FullOccurrence[] {
+  const matched: FullOccurrence[] = [];
+  for (const input of inputs) {
+    const keywords = keywordsOf(input.text);
+    if (!keywords || fingerprintOf(keywords) !== fingerprint) continue;
+    matched.push({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      turnSeq: input.turnSeq,
+      ts: input.ts,
+      text: input.text.normalize('NFC'),
+    });
+  }
+  return matched
+    .sort(
+      (a, b) =>
+        b.ts.getTime() - a.ts.getTime() ||
+        a.turnSeq - b.turnSeq ||
+        compareStrings(a.sessionId, b.sessionId),
+    )
+    .slice(0, limit);
+}

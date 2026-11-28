@@ -12,7 +12,7 @@ export interface McpPromptDefinition {
   template: string;
 }
 
-const NAMES = ['coach-me', 'weekly-review'] as const;
+const NAMES = ['coach-me', 'find-skills', 'weekly-review'] as const;
 
 /** Prompt chỉ dành cho leader (chỉ leader mới có dữ liệu cả team để dùng). */
 const LEADER_ONLY: ReadonlySet<string> = new Set(['weekly-review']);

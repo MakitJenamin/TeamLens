@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Link } from "@/i18n/navigation";
 import { api } from "@/lib/api/client";
 import type { SkillCluster, SkillClusterList } from "@/lib/api/types";
+import { ClusterAi, type ClusterFilters } from "./skill-ai";
 
 export const RANGE_DAYS = [7, 30, 90] as const;
 export const DEFAULT_DAYS = 30;
@@ -123,7 +124,12 @@ export function SkillFinder({ projectId, members }: { projectId: string; members
               </CardContent>
             </Card>
           ) : (
-            <ClusterTable projectId={projectId} clusters={query.data.clusters} showUsers={members !== null} />
+            <ClusterTable
+              projectId={projectId}
+              clusters={query.data.clusters}
+              showUsers={members !== null}
+              filters={{ days, userId }}
+            />
           )}
         </>
       )}
@@ -135,10 +141,12 @@ function ClusterTable({
   projectId,
   clusters,
   showUsers,
+  filters,
 }: {
   projectId: string;
   clusters: SkillCluster[];
   showUsers: boolean;
+  filters: ClusterFilters;
 }) {
   const t = useTranslations("skills");
   const format = useFormatter();
@@ -219,6 +227,7 @@ function ClusterTable({
                         </li>
                       ))}
                     </ul>
+                    <ClusterAi projectId={projectId} clusterId={cluster.id} filters={filters} />
                   </TableCell>
                 </TableRow>
               )}
