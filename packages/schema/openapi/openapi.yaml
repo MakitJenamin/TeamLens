@@ -184,6 +184,8 @@ paths:
     $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1profile'
   /api/v1/users/{userId}/ai/weekly-report:
     $ref: './stats.yaml#/paths/~1api~1v1~1users~1{userId}~1ai~1weekly-report'
+  /api/v1/projects/{projectId}/ai/weekly-report:
+    $ref: './stats.yaml#/paths/~1api~1v1~1projects~1{projectId}~1ai~1weekly-report'
 
   # consent.yaml
   /agent/v1/consent:
@@ -435,6 +437,16 @@ components:
       $ref: './stats.yaml#/components/schemas/WeeklyReportResult'
     WeeklyReportSaved:
       $ref: './stats.yaml#/components/schemas/WeeklyReportSaved'
+    RunTeamReportRequest:
+      $ref: './stats.yaml#/components/schemas/RunTeamReportRequest'
+    TeamReportIssue:
+      $ref: './stats.yaml#/components/schemas/TeamReportIssue'
+    TeamReportImproved:
+      $ref: './stats.yaml#/components/schemas/TeamReportImproved'
+    TeamReportResult:
+      $ref: './stats.yaml#/components/schemas/TeamReportResult'
+    TeamReportSaved:
+      $ref: './stats.yaml#/components/schemas/TeamReportSaved'
     ProfileUser:
       $ref: './stats.yaml#/components/schemas/ProfileUser'
     ProfileTotals:

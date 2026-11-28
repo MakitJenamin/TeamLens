@@ -2,6 +2,7 @@
 # - GET /api/v1/projects/{projectId}/overview: tổng quan project cho leader (M2.9).
 # - GET /api/v1/users/{userId}/profile?project=: hồ sơ thành viên (M2.10).
 # - GET|POST /api/v1/users/{userId}/ai/weekly-report: báo cáo tuần theo người do AI viết (B1, M6.8).
+# - GET|POST /api/v1/projects/{projectId}/ai/weekly-report: báo cáo tuần của team do AI viết, chỉ leader (B2, M6.9).
 # Còn để sau:
 # - GET /api/v1/projects/{projectId}/leaderboard (M4.3)
 #
@@ -60,6 +61,115 @@ paths:
                 $ref: './common.yaml#/components/schemas/Error'
         '404':
           $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/ai/weekly-report:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getTeamReport
+      tags: [stats]
+      summary: B2 · báo cáo tuần của team đã lưu của leader
+      description: |
+        Chỉ trả kết quả của chính người gọi (kind `weekly_team`, subjectType `project_week`, theo `week` và `locale`),
+        hoặc `null`. **Chỉ leader** (member nhận `403`). Không đụng dữ liệu nên không ghi audit.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: week
+          in: query
+          required: false
+          description: |
+            Thứ Hai (UTC) của tuần, `YYYY-MM-DD`. Bỏ trống thì dùng tuần gần nhất mà project có session (tính cả tuần
+            hiện tại).
+          schema:
+            type: string
+            format: date
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+      responses:
+        '200':
+          description: Kết quả đã lưu hoặc `null`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamReportSaved'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: runTeamReport
+      tags: [stats]
+      summary: B2 · AI viết báo cáo tuần của team (leader)
+      description: |
+        Trả `AiResult` kind `weekly_team`, subjectType `project_week`, `result` theo `TeamReportResult`. Ghi đè bản cũ của
+        người gọi (cùng project, tuần và locale). **Chỉ leader.** Kết quả chỉ người bấm đọc được.
+
+        **Dữ liệu gửi cho LLM** (key của người gọi) chỉ là số liệu tổng hợp, **không có prompt và không có tên người**:
+        số session, token, điểm 5 nhóm của tuần này, tuần trước; các rule bị vi phạm nhiều nhất trong team (khóa, nhóm,
+        mức, số lần, số người mắc, lời khuyên); số session theo loại việc B4; và với từng thành viên có session trong
+        tuần (tối đa 20) một mã ẩn danh (`m1`, `m2`...) kèm số session, điểm tổng, điểm tuần trước và mức thay đổi. Vì
+        vậy không ghi audit.
+
+        **Server giữ quyền quyết định số liệu:** AI chỉ viết lời nhận xét và chọn mục theo mã (`r1`... cho rule, `m1`...
+        cho thành viên); `ruleKey`, `category`, `count`, `memberCount`, `userId`, `name`, `change` lấy từ dữ liệu của
+        server, mã không hợp lệ hoặc trùng bị bỏ.
+
+        **Xóa dữ liệu một người (M5.6):** kết quả nêu tên thành viên nên khi leader xóa dữ liệu của người đó, các kết quả
+        `weekly_team` có nhắc tới họ cũng bị xóa.
+
+        Lỗi riêng: `409 no_week_data` (project chưa có session nào trong tuần đó); `400 validation_error` khi `week`
+        không phải thứ Hai hoặc ở tương lai. Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunTeamReportRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: |
+            Chưa có API key (`llm_key_missing`) hoặc project chưa có session nào trong tuần đó (`no_week_data`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              examples:
+                noKey:
+                  value:
+                    error: llm_key_missing
+                    message: Bạn chưa cấu hình API key AI.
+                noData:
+                  value:
+                    error: no_week_data
+                    message: Project này chưa có session nào trong tuần đó.
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: './ai.yaml#/components/responses/LlmProviderError'
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
 
   /api/v1/projects/{projectId}/overview:
     parameters:
@@ -859,6 +969,107 @@ components:
       properties:
         result:
           description: Kết quả `weekly_user` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+
+    RunTeamReportRequest:
+      type: object
+      required: [locale]
+      additionalProperties: false
+      properties:
+        locale:
+          $ref: './ai.yaml#/components/schemas/AiLocale'
+        week:
+          type: string
+          format: date
+          description: Thứ Hai (UTC) của tuần. Bỏ trống thì dùng tuần gần nhất mà project có session.
+
+    TeamReportIssue:
+      type: object
+      required: [ruleKey, category, severity, count, memberCount, comment]
+      additionalProperties: false
+      properties:
+        ruleKey:
+          type: string
+        category:
+          $ref: '#/components/schemas/ScoreCategory'
+        severity:
+          type: string
+          enum: [low, medium, high]
+        count:
+          type: integer
+          minimum: 1
+          description: Số lần rule bị vi phạm trong tuần (từ dữ liệu của server).
+        memberCount:
+          type: integer
+          minimum: 1
+          description: Số thành viên mắc (từ dữ liệu của server).
+        comment:
+          type: string
+          description: Nhận xét về vấn đề này, do AI viết.
+
+    TeamReportImproved:
+      type: object
+      required: [userId, name, change, comment]
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        name:
+          type: string
+        change:
+          type: [number, 'null']
+          description: Thay đổi điểm tổng so với tuần trước (từ dữ liệu của server); null khi không có tuần trước.
+        comment:
+          type: string
+          description: Nhận xét do AI viết.
+
+    TeamReportResult:
+      type: object
+      description: '`result` của `AiResult` kind `weekly_team` (B2).'
+      required: [week, headline, vsLastWeek, topIssues, improved, sharingSession]
+      additionalProperties: false
+      properties:
+        week:
+          type: string
+          format: date
+          description: Thứ Hai (UTC) của tuần được báo cáo (do server điền).
+        headline:
+          type: string
+        vsLastWeek:
+          type: string
+          description: So với tuần trước (hoặc nói chưa có dữ liệu tuần trước).
+        topIssues:
+          type: array
+          maxItems: 3
+          description: Lỗi phổ biến nhất của team.
+          items:
+            $ref: '#/components/schemas/TeamReportIssue'
+        improved:
+          type: array
+          maxItems: 3
+          description: Thành viên tiến bộ trong tuần.
+          items:
+            $ref: '#/components/schemas/TeamReportImproved'
+        sharingSession:
+          type: object
+          description: Gợi ý một buổi chia sẻ trong team.
+          required: [topic, detail]
+          additionalProperties: false
+          properties:
+            topic:
+              type: string
+            detail:
+              type: string
+
+    TeamReportSaved:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          description: Kết quả `weekly_team` của người gọi, hoặc null.
           oneOf:
             - $ref: './ai.yaml#/components/schemas/AiResult'
             - type: 'null'
