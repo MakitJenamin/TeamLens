@@ -1,3 +1,9 @@
 {
-  "title": "Rule"
+  "title": "Quản lý rule",
+  "description": "Bật hoặc tắt, chỉnh ngưỡng và mức độ riêng cho project. Sau khi sửa, chạy lại để cập nhật điểm cũ.",
+  "loading": "Đang tải rule...", "error": "Đã có lỗi xảy ra.", "on": "Bật", "off": "Tắt", "enabled": "Bật rule", "severity": "Mức độ", "thresholds": "Ngưỡng (JSON)",
+  "invalidJson": "JSON ngưỡng không hợp lệ.", "saving": "Đang lưu...", "save": "Lưu rule", "viewJson": "Xem JSON đầy đủ", "serverDefault": "Mặc định server", "projectOverride": "Bản riêng của project", "needsRerun": "Cần chạy lại", "try50": "Thử trên 50 session", "restore": "Khôi phục mặc định",
+  "rescoreTitle": "Chấm lại điểm", "rerun": "Chạy lại", "neverRun": "Chưa có lần chạy nào", "queued": "Đã xếp hàng. Điểm sẽ cập nhật khi job hoàn tất.", "restoredQueued": "Đã khôi phục và xếp chấm lại.", "alreadyRunning": "Project đang được chấm lại.", "finished": "Đã chấm xong. Tải lại các trang điểm để xem kết quả.",
+  "trialResult": "Khớp {matched} trong {total} session mẫu.", "approximate": "Rule theo tuần chỉ được thử trên nhóm session mẫu; kết quả có thể khác toàn tuần.",
+  "statuses": { "queued": "Đang chờ", "running": "Đang chấm", "succeeded": "Hoàn tất", "failed": "Thất bại" }
 }

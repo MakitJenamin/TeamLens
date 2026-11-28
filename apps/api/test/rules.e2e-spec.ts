@@ -134,7 +134,7 @@ describe('Chấm session và đọc findings', () => {
     ]);
     const weekly = () =>
       querySql(
-        "SELECT session_id, evidence->>'count' AS n FROM findings WHERE evidence->>'scope'='user_week' AND session_id IN ($1,$2)",
+        "SELECT f.session_id, f.evidence->>'count' AS n FROM findings f JOIN rules r ON r.id=f.rule_id WHERE f.evidence->>'scope'='user_week' AND r.key='lazy-prompting' AND f.session_id IN ($1,$2)",
         [id, peer.id],
       );
     expect(await weekly()).toEqual([{ session_id: peer.id, n: '10' }]);

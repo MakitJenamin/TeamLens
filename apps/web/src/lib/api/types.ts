@@ -35,6 +35,10 @@ export type User = Schemas["User"];
 export type Membership = Schemas["Membership"];
 export type ProjectSettings = Schemas["ProjectSettings"];
 export type Leaderboard = ResponseBody<"getProjectLeaderboard", 200>;
+export type ProjectRule = Schemas["ProjectRule"];
+export type RuleTestResult = Schemas["RuleTestResult"];
+export type RuleRerunStatus = Schemas["RuleRerunStatus"];
+export type RuleRerunAccepted = Schemas["RuleRerunAccepted"];
 /** Một dòng của `GET /projects` (`role` = null khi admin không là thành viên). */
 export type ProjectSummary = Schemas["ProjectListItem"];
 /** Trả về từ POST/PATCH project (không kèm repos). */

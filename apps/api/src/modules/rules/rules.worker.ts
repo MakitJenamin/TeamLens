@@ -12,12 +12,14 @@ import {
   rescoreProject,
   scoreSession,
 } from './score-session.js';
+import { RescoreService } from './rescore.service.js';
 
 @Injectable()
 export class RulesWorker implements OnApplicationBootstrap {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(QueueService) private readonly queue: QueueService,
+    @Inject(RescoreService) private readonly rescore: RescoreService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -26,7 +28,10 @@ export class RulesWorker implements OnApplicationBootstrap {
       for (const job of jobs) await scoreSession(this.db, job.data.sessionId);
     });
     await this.queue.work(JOBS.projectRescore, async (jobs) => {
-      for (const job of jobs) await rescoreProject(this.db, job.data.projectId);
+      for (const job of jobs) {
+        if (job.data.runId) await this.rescore.execute(job.data.projectId, job.data.runId);
+        else await rescoreProject(this.db, job.data.projectId);
+      }
     });
   }
 }

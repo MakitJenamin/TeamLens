@@ -10,5 +10,6 @@ export type JobName = (typeof JOBS)[keyof typeof JOBS];
 
 export interface JobPayloads {
   'session.ingested': { sessionId: string };
-  'project.rescore': { projectId: string };
+  /** `runId` có khi leader yêu cầu qua dashboard; tool MCP M6.16 vẫn phát job trực tiếp. */
+  'project.rescore': { projectId: string; runId?: string };
 }

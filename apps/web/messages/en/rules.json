@@ -1,3 +1,9 @@
 {
-  "title": "Rules"
+  "title": "Rule management",
+  "description": "Enable rules and adjust thresholds and severity for this project. Rerun scoring to update past scores.",
+  "loading": "Loading rules...", "error": "Something went wrong.", "on": "On", "off": "Off", "enabled": "Enable rule", "severity": "Severity", "thresholds": "Thresholds (JSON)",
+  "invalidJson": "Invalid thresholds JSON.", "saving": "Saving...", "save": "Save rule", "viewJson": "View full JSON", "serverDefault": "Server default", "projectOverride": "Project override", "needsRerun": "Rerun needed", "try50": "Try on 50 sessions", "restore": "Restore default",
+  "rescoreTitle": "Rescore project", "rerun": "Rerun", "neverRun": "No runs yet", "queued": "Queued. Scores will update when the job finishes.", "restoredQueued": "Default restored and rescore queued.", "alreadyRunning": "This project is being rescored.", "finished": "Rescore complete. Reload score pages to see the result.",
+  "trialResult": "Matched {matched} of {total} sampled sessions.", "approximate": "Weekly rules run only on sampled sessions here; full week results may differ.",
+  "statuses": { "queued": "Queued", "running": "Running", "succeeded": "Complete", "failed": "Failed" }
 }

@@ -6,6 +6,8 @@ import { measureSignal, type Signal } from './session-signals.js';
 export type RuleTurn = Pick<IngestTurn, 'seq' | 'role' | 'kind'> & {
   text?: string | null;
   ts?: string;
+  model?: string | null;
+  interrupted?: boolean | null;
   diff?: {
     added: number;
     removed: number;
