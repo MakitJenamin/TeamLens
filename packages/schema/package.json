@@ -11,6 +11,7 @@
       "default": "./src/index.ts"
     },
     "./session.v1.schema.json": "./session.v1.schema.json",
+    "./mcp/*.json": "./mcp/*.json",
     "./openapi.yaml": "./dist/openapi.yaml"
   },
   "types": "./src/index.ts",
