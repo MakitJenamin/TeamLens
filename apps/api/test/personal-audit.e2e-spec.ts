@@ -56,4 +56,49 @@ describe('Của tôi và audit M4.5', () => {
     const byActor = await leader.get(`/api/v1/audit?action=session.view&actorId=${leaderId}&from=2026-11-20T12:00:00Z&to=2026-11-20T12:03:00Z`).expect(200);
     expect(byActor.body.items.every((item: { actorId: string }) => item.actorId === leaderId)).toBe(true);
   });
+
+  it('cursor giữ đủ micro giây: các dòng cùng mili giây không bị mất khi chuyển trang', async () => {
+    const server = app.getHttpServer();
+    const leader = request.agent(server);
+    await leader.post('/api/v1/auth/login').send({ email: 'leader@example.test', password: 'teamlens123' }).expect(200);
+    // 45 dòng trong cùng một mili giây, mỗi dòng khác micro giây (như ghi nhiều dòng cùng transaction).
+    await querySql(`INSERT INTO audit_log (actor_id,action,target_type,target_id,at)
+      SELECT NULL,'micro.test','user','x', '2026-11-21T09:00:00.123Z'::timestamptz + make_interval(secs => n / 1000000.0)
+      FROM generate_series(0,44) n`);
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const res: request.Response = await leader.get(`/api/v1/audit?action=micro.test&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`).expect(200);
+      seen.push(...res.body.items.map((item: { id: string }) => item.id));
+      cursor = res.body.nextCursor;
+    } while (cursor);
+    expect(seen).toHaveLength(45);
+    expect(new Set(seen).size).toBe(45);
+  });
+
+  it('lượt xem của tôi gồm session.ai, profile.view và session đã xóa', async () => {
+    const server = app.getHttpServer();
+    const [{ id: ownerId }] = await querySql<{ id: string }>(`SELECT id FROM users WHERE email='owner@example.test'`);
+    const [{ id: leaderId }] = await querySql<{ id: string }>(`SELECT id FROM users WHERE email='leader@example.test'`);
+    const [{ id: projectId }] = await querySql<{ id: string }>(`SELECT id FROM projects WHERE slug='demo'`);
+    const [gone] = await querySql<{ id: string }>(`INSERT INTO sessions (user_id,project_id,source_id,agent,repo_remote,started_at)
+      VALUES ($1,$2,'gone','codex','example.org/demo','2026-11-19T10:00Z') RETURNING id`, [ownerId, projectId]);
+    const leader = request.agent(server);
+    await leader.post('/api/v1/auth/login').send({ email: 'leader@example.test', password: 'teamlens123' }).expect(200);
+    // Mở session thật để audit ghi kèm ownerId, rồi xóa session (như retention).
+    await leader.get(`/api/v1/sessions/${gone.id}`).expect(200);
+    await querySql(`DELETE FROM sessions WHERE id=$1`, [gone.id]);
+    await querySql(`INSERT INTO audit_log (actor_id,action,target_type,target_id,at) VALUES
+      ($1,'session.ai','session',(SELECT id::text FROM sessions WHERE source_id='own'),'2026-11-25T10:00Z'),
+      ($1,'profile.view','user',$2,'2026-11-25T11:00Z'),
+      ($1,'profile.view','user',(SELECT id::text FROM users WHERE email='other@example.test'),'2026-11-25T12:00Z')`, [leaderId, ownerId]);
+    const owner = request.agent(server);
+    await owner.post('/api/v1/auth/login').send({ email: 'owner@example.test', password: 'teamlens123' }).expect(200);
+    const res = await owner.get('/api/v1/me/session-views?limit=20').expect(200);
+    const items = res.body.items as { action: string; sessionId: string | null; sessionStartedAt: string | null }[];
+    expect(items[0]).toMatchObject({ action: 'session.view', sessionId: gone.id, sessionStartedAt: null });
+    expect(items[1]).toMatchObject({ action: 'profile.view', sessionId: null, sessionStartedAt: null });
+    expect(items[2]).toMatchObject({ action: 'session.ai', sessionStartedAt: '2026-11-20T10:00:00.000Z' });
+    expect(items.filter((item) => item.action === 'profile.view')).toHaveLength(1);
+  });
 });

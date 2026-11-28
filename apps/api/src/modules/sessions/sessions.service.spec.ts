@@ -146,6 +146,9 @@ describe('SessionsService', () => {
         'session.view',
         'session',
         SESSION,
+        undefined,
+        undefined,
+        { ownerId: OWNER },
       );
       expect(detail.childSessionIds).toEqual(['child']);
       expect(detail.childCount).toBe(1);

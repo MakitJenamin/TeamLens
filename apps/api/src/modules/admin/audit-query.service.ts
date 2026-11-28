@@ -4,7 +4,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import type { Database } from '../../db/client.js';
 import { DB } from '../../db/db.module.js';
 import { auditLog, users } from '../../db/schema/index.js';
-import { auditCursorCondition, auditPage } from './audit-cursor.js';
+import { auditCursorAt, auditCursorCondition, auditPage } from './audit-cursor.js';
 
 const actors = alias(users, 'audit_actors');
 
@@ -16,7 +16,7 @@ export class AuditQueryService {
     targetType?: string; targetId?: string; from?: Date; to?: Date }) {
     const rows = await this.db.select({ id: auditLog.id, actorId: auditLog.actorId,
       actorName: actors.name, action: auditLog.action, targetType: auditLog.targetType,
-      targetId: auditLog.targetId, at: auditLog.at })
+      targetId: auditLog.targetId, at: auditLog.at, cursorAt: auditCursorAt })
       .from(auditLog).leftJoin(actors, eq(actors.id, auditLog.actorId))
       .where(and(
         query.action ? eq(auditLog.action, query.action) : undefined,
