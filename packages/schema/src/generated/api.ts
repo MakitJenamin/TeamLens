@@ -1021,6 +1021,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/ai/weekly-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * B2 · báo cáo tuần của team đã lưu của leader
+         * @description Chỉ trả kết quả của chính người gọi (kind `weekly_team`, subjectType `project_week`, theo `week` và `locale`),
+         *     hoặc `null`. **Chỉ leader** (member nhận `403`). Không đụng dữ liệu nên không ghi audit.
+         */
+        get: operations["getTeamReport"];
+        put?: never;
+        /**
+         * B2 · AI viết báo cáo tuần của team (leader)
+         * @description Trả `AiResult` kind `weekly_team`, subjectType `project_week`, `result` theo `TeamReportResult`. Ghi đè bản cũ của
+         *     người gọi (cùng project, tuần và locale). **Chỉ leader.** Kết quả chỉ người bấm đọc được.
+         *
+         *     **Dữ liệu gửi cho LLM** (key của người gọi) chỉ là số liệu tổng hợp, **không có prompt và không có tên người**:
+         *     số session, token, điểm 5 nhóm của tuần này, tuần trước; các rule bị vi phạm nhiều nhất trong team (khóa, nhóm,
+         *     mức, số lần, số người mắc, lời khuyên); số session theo loại việc B4; và với từng thành viên có session trong
+         *     tuần (tối đa 20) một mã ẩn danh (`m1`, `m2`...) kèm số session, điểm tổng, điểm tuần trước và mức thay đổi. Vì
+         *     vậy không ghi audit.
+         *
+         *     **Server giữ quyền quyết định số liệu:** AI chỉ viết lời nhận xét và chọn mục theo mã (`r1`... cho rule, `m1`...
+         *     cho thành viên); `ruleKey`, `category`, `count`, `memberCount`, `userId`, `name`, `change` lấy từ dữ liệu của
+         *     server, mã không hợp lệ hoặc trùng bị bỏ.
+         *
+         *     **Xóa dữ liệu một người (M5.6):** kết quả nêu tên thành viên nên khi leader xóa dữ liệu của người đó, các kết quả
+         *     `weekly_team` có nhắc tới họ cũng bị xóa.
+         *
+         *     Lỗi riêng: `409 no_week_data` (project chưa có session nào trong tuần đó); `400 validation_error` khi `week`
+         *     không phải thứ Hai hoặc ở tương lai. Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+         */
+        post: operations["runTeamReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/v1/consent": {
         parameters: {
             query?: never;
@@ -2510,6 +2554,58 @@ export interface components {
         };
         WeeklyReportSaved: {
             /** @description Kết quả `weekly_user` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
+        RunTeamReportRequest: {
+            locale: components["schemas"]["AiLocale"];
+            /**
+             * Format: date
+             * @description Thứ Hai (UTC) của tuần. Bỏ trống thì dùng tuần gần nhất mà project có session.
+             */
+            week?: string;
+        };
+        TeamReportIssue: {
+            ruleKey: string;
+            category: components["schemas"]["ScoreCategory"];
+            /** @enum {string} */
+            severity: "low" | "medium" | "high";
+            /** @description Số lần rule bị vi phạm trong tuần (từ dữ liệu của server). */
+            count: number;
+            /** @description Số thành viên mắc (từ dữ liệu của server). */
+            memberCount: number;
+            /** @description Nhận xét về vấn đề này, do AI viết. */
+            comment: string;
+        };
+        TeamReportImproved: {
+            userId: components["schemas"]["Id"];
+            name: string;
+            /** @description Thay đổi điểm tổng so với tuần trước (từ dữ liệu của server); null khi không có tuần trước. */
+            change: number | null;
+            /** @description Nhận xét do AI viết. */
+            comment: string;
+        };
+        /** @description `result` của `AiResult` kind `weekly_team` (B2). */
+        TeamReportResult: {
+            /**
+             * Format: date
+             * @description Thứ Hai (UTC) của tuần được báo cáo (do server điền).
+             */
+            week: string;
+            headline: string;
+            /** @description So với tuần trước (hoặc nói chưa có dữ liệu tuần trước). */
+            vsLastWeek: string;
+            /** @description Lỗi phổ biến nhất của team. */
+            topIssues: components["schemas"]["TeamReportIssue"][];
+            /** @description Thành viên tiến bộ trong tuần. */
+            improved: components["schemas"]["TeamReportImproved"][];
+            /** @description Gợi ý một buổi chia sẻ trong team. */
+            sharingSession: {
+                topic: string;
+                detail: string;
+            };
+        };
+        TeamReportSaved: {
+            /** @description Kết quả `weekly_team` của người gọi, hoặc null. */
             result: components["schemas"]["AiResult"] | null;
         };
         ProfileUser: {
@@ -5670,6 +5766,74 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description Chưa có API key (`llm_key_missing`) hoặc thành viên chưa có session nào trong tuần đó (`no_week_data`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    getTeamReport: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Thứ Hai (UTC) của tuần, `YYYY-MM-DD`. Bỏ trống thì dùng tuần gần nhất mà project có session (tính cả tuần
+                 *     hiện tại).
+                 */
+                week?: string;
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamReportSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runTeamReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunTeamReportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc project chưa có session nào trong tuần đó (`no_week_data`). */
             409: {
                 headers: {
                     [name: string]: unknown;
