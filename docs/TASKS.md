@@ -17,53 +17,39 @@ Mỗi người **sở hữu trọn một nhóm tính năng từ CLI tới DB t�
 | Mốc 1.5 · Tối giản tham gia | ✅ xong | PR #29–#37 |
 | Mốc 2 · Bảo vệ dữ liệu và chấm điểm đầy đủ | ✅ xong | Người 1 xong M2.1–M2.5 (PR #39–#44). Người 2 xong M2.6–M2.10 (PR #27, #28, #55–#64) |
 | Mốc 3 · Tự chạy nền | ✅ xong | Người 1 xong M3.1–M3.4 (PR #46–#53). Người 2 xong M3.5 (#65), M3.6 (#73, #74, #75), M3.7 (API #66, api_client #67, CLI #69, văn bản đồng ý #70) và M3.8 (#68); phần mời thành viên đã xong ở Mốc 1.5 |
-| Mốc 4 · Báo cáo và minh bạch | ✅ xong (còn lỗi cần sửa, xem dưới) | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 xong M4.3 (#137–#139), M4.4 (#140–#142), M4.5 (#143, #144), M4.6 (#145–#149) |
+| Mốc 4 · Báo cáo và minh bạch | ✅ xong | Người 1 xong M4.1 (#77, #78) và M4.2 (#76, #79). Người 2 xong M4.3 (#137–#139), M4.4 (#140–#142), M4.5 (#143, #144), M4.6 (#145–#149). Lỗi sau review đã sửa (#155–#164, xem dưới) |
 | Mốc 5 · Cài đặt và phát hành | ✅ xong | Người 1 xong M5.1 (#81), M5.2 (#83, #85), M5.3 (#82, #84); đã phát hành `tl` 0.2.0 (#87) đến 0.3.0 (#111), bản mới nhất 0.4.0 có `tl mcp`. M5.4 do Người 1 làm thay (#106). M5.5 (#152) và M5.6 (#153) leader làm thay Người 2, contract #151 |
 | Mốc 6 · Tính năng AI và MCP | 🚧 đang làm | Người 1 xong M6.0 (#97, #98), M6.1 (#99, #101), M6.2 (#103, #104), M6.5 + M6.6 (#102). Người 3 xong M6.3 (#112, #113), M6.4 (#115), M6.15 (#117, #118), M6.16 (#120, #121, #122), M6.11 (#124, #125), M6.12 (#127, #128), M6.13 (#130, #131), M6.14 (#133, #134), xong hết phần của Người 3 ở Mốc 6. Người 2 chưa bắt đầu (M6.7–M6.10). Thiết kế: [AI_PLAN.md](AI_PLAN.md) |
 
 **Việc nên làm tiếp theo (theo thứ tự ưu tiên):**
-1. **Người 2: sửa các lỗi review Mốc 4** (danh sách ngay dưới), ít nhất 4 lỗi mức cao, trước khi làm tiếp.
-2. Người 2: Mốc 5 đã xong (M5.5, M5.6 do leader làm thay). Làm phần Mốc 6: M6.7 → M6.8 → M6.9 → M6.10. Lưu ý từ M5.5:
+1. Người 2: lỗi review Mốc 4 đã sửa hết (#155–#164). Làm phần Mốc 6: M6.7 → M6.8 → M6.9 → M6.10. Lưu ý từ M5.5:
    - Số ngày retention đọc bằng `readRetentionDays` (`retention/retention-settings.ts`): không có dòng là 90, jsonb `null` là vô hạn. Đừng tự đọc `settings`.
    - Turn của session cũ có thể đã bị xóa. Code nào chấm hay tóm tắt trên turn phải bỏ qua session có `turns.length < turn_count` (như `scoreSession`, `RuleConfigService.test`).
    - E2e luôn tắt job hằng đêm (`TEAMLENS_RETENTION_JOB=off` trong `test/setup-env.ts`). Thử retention bằng `pnpm --filter @teamlens/api retention:run --days N`.
-3. Người 3: phần Mốc 6 đã xong. Còn **`get_leaderboard`**, giờ làm được vì M4.3 đã có (`LeaderboardService` ở `stats/`, cùng quyền với `GET /projects/{id}/leaderboard`).
-4. Người 1: hết việc Mốc 4, 5, 6. Bản `tl` mới nhất là 0.4.0 (GitHub Release `v0.4.0`, có `tl mcp`). Còn lại: nghiệm thu chung (SPEC 12.3) và M6.17 khi Người 2, 3 xong.
+2. Người 3: phần Mốc 6 đã xong. Còn **`get_leaderboard`**, giờ làm được vì M4.3 đã có (`LeaderboardService` ở `stats/`, cùng quyền với `GET /projects/{id}/leaderboard`).
+3. Người 1: hết việc Mốc 4, 5, 6. Bản `tl` mới nhất là 0.4.0 (GitHub Release `v0.4.0`, có `tl mcp`). Còn lại: nghiệm thu chung (SPEC 12.3) và M6.17 khi Người 2, 3 xong.
 
 Nhắc chung:
 - Job retention (M5.5) chạy mỗi đêm lúc 02:15 UTC và **xóa thật** prompt cũ hơn số ngày cài đặt (mặc định 90). DB dev có dữ liệu mẫu cũ muốn giữ thì đặt `TEAMLENS_RETENTION_JOB=off` trong `apps/api/.env`. DB dev cũ nhớ chạy `db:migrate`: thiếu cột `audit_log.details` (migration 0008) thì job lỗi và rollback.
 - Văn bản đồng ý giờ nằm ở bảng `settings` (khóa `consent_text`) và leader sửa trên trang Quản trị (M4.6). Mỗi lần lưu, phiên bản tự tăng và **mọi thiết bị phải chạy `tl consent` một lần**. Phiên bản hiện tại là `2026-11-28.1`.
 - Lưu pattern redaction cần helper Rust `apps/api/tools/regex-validator`. Dev build bằng `pnpm --filter @teamlens/api build:regex-validator`. Image Docker **chưa có helper này** (lỗi 1 bên dưới).
 
-### Lỗi cần sửa sau review Mốc 4 (Người 2, review ngày 2026-11-28)
+### Lỗi sau review Mốc 4: đã sửa (2026-11-28)
 
-Mức cao:
-1. `apps/api/Dockerfile` không build `tools/regex-validator`, nên trên production lưu pattern redaction trả 503 `regex_validator_unavailable`. CI cũng không build helper này.
-2. Rule `high-interruption` (`weekly-rules.ts`) đếm `interrupted` trên prompt, nhưng adapter CLI gắn cờ này cho turn assistant, nên rule không bao giờ bắn trên dữ liệu thật.
-3. "Khôi phục mặc định" (`rule-config.service.ts` `restore`) xóa dòng `rules`, và `findings.rule_id` có `ON DELETE CASCADE` nên finding cũ bị xóa theo. Tuần đã bị retention xóa turn không chấm lại được, nên điểm tuần cũ và leaderboard đổi sai.
-4. Cursor audit (`admin/audit-cursor.ts`) chỉ chính xác tới mili giây, còn `audit_log.at` chính xác tới micro giây. Khi chuyển trang, các dòng ghi cùng transaction bị mất.
+| PR | Lỗi |
+| --- | --- |
+| #158 | Image Docker build `regex-validator` (`/usr/local/bin/regex-validator`); CI có job `api-e2e` (Postgres 16 + helper) chạy toàn bộ e2e API |
+| #159 | `high-interruption` tính prompt bị ngắt khi nó hoặc turn nào trước prompt kế tiếp có cờ `interrupted` |
+| #157, #160, #164 | Khôi phục mặc định chuyển finding sang rule mặc định rồi mới xóa bản riêng; rescore không cập nhật 5 phút thì `failed` (`rescore_stale`); `needsRerun` so với `startedAt`; dashboard và MCP dùng chung `RulesWriteService.update` (khóa dòng, test nội tuyến trên bản sau khi sửa, cùng cách đánh phiên bản, audit vào `details`, MCP cũng tạo `project_rescore_runs`); rule đổi giữa lúc chạy thì tự xếp thêm một lần chấm; contract `rerun/status` dùng `oneOf` |
+| #155, #162 | Cursor audit giữ micro giây; "Ai đã xem" tính `session.view`, `session.ai`, `profile.view` và session đã xóa (audit mới lưu `metadata.ownerId`); mở session chỉ ghi 1 dòng |
+| #161 | Điểm tháng trừ phạt từng tuần rồi mới gộp; chỉ xếp thành viên còn trong project; web hiện đúng ngày cuối kỳ |
+| #156, #163 | Id pattern theo quy tắc CLI; chặn pattern quá rộng (`pattern_too_broad`: che ≥ 20% byte hoặc khớp dày hơn 1/40 byte trên bộ văn bản mẫu); "Thử" che giống CLI; PATCH cài đặt gửi phiên bản đã đọc, lệch thì 409 |
 
-Mức trung bình:
-- Điểm tháng của leaderboard trừ phạt `user_week` của mọi tuần trong tháng vào một lần (`leaderboard-math.ts` `monthScores`).
-- Lần chạy lại kẹt ở `running` nếu tiến trình chết giữa chừng, và UI khóa nút nên không gỡ được (`rescore.service.ts`).
-- `needsRerun` so với `finishedAt` thay vì `startedAt` của lần chạy.
-- Sửa rule trên dashboard và qua MCP (`RulesWriteService`) lệch nhau:
-  - Dashboard chạy test nội tuyến trên bản mặc định, nên không chặn được gì; rule sửa xong có thể làm `save_rule` của MCP trả 422.
-  - Hai đường đánh phiên bản khác nhau và ghi audit khác cột (`metadata` so với `details`).
-  - Lần chạy lại do MCP phát không có dòng `project_rescore_runs`.
-  - PATCH không khóa dòng: hai request đồng thời có thể trả 500 hoặc ghi đè mất dữ liệu.
-- Pattern có id `_` vẫn lưu được nhưng CLI bỏ qua, nên secret không bị che. Pattern khớp mọi thứ (`.+`) không bị chặn, lưu vào là mọi máy che trắng toàn bộ nội dung.
-- "Ai đã xem session của tôi" chỉ tính `session.view`, bỏ sót `session.ai` và `profile.view`.
-
-Mức thấp:
-- Leaderboard hiện khoảng ngày lệch 1 ngày.
-- Mỗi lần mở session ghi 2 dòng `session.view`.
-- Lượt xem của session đã bị xóa biến mất (dùng `innerJoin`).
-- Leaderboard vẫn xếp hạng người đã rời project.
-- ~~"Thử trên 50 session" không bỏ session mất turn~~ (đã sửa ở #152).
-- Kết quả "Thử" pattern khác cách CLI che thật (khớp rỗng, group `secret` không tham gia khớp).
-- Lưu pattern và retention theo kiểu người lưu sau thắng.
-- Contract `rules/rerun/status` dùng `allOf` với `null`.
+Còn lại, cần biết:
+- Quy tắc che và id trong `apps/api/tools/regex-validator/src/main.rs` là bản chép từ CLI. Đổi `Redactor` của CLI thì sửa cả file này.
+- Pattern đã lưu trước #163 mà sai quy tắc mới làm lần lưu pattern sau trả 400 tới khi leader sửa.
+- Dòng audit cũ của session đã xóa không có `ownerId` nên không hiện ở "Ai đã xem". Sau khi gộp user (J.8), `ownerId` và `profile.view` vẫn trỏ user cũ.
+- DB dev cũ nhớ chạy `db:migrate` (tới 0009).
 
 Quy trình (nhắc cho các PR sau):
 - AGENTS.md quy định squash merge.
