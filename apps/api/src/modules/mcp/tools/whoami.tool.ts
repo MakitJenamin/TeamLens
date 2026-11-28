@@ -1,9 +1,8 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ProjectsService } from '../../projects/projects.service.js';
-import { loadToolDefinition, McpToolRegistry } from '../mcp-tool-registry.js';
-import type { McpCaller, McpTool } from '../mcp.types.js';
-
-const definition = loadToolDefinition('whoami');
+import { McpToolRegistry } from '../mcp-tool-registry.js';
+import type { McpCaller } from '../mcp.types.js';
+import { BaseMcpTool } from './base-tool.js';
 
 /**
  * `whoami`: token đang dùng thuộc về ai, vai trò gì, xem được project nào. Agent gọi đầu tiên.
@@ -11,19 +10,12 @@ const definition = loadToolDefinition('whoami');
  * leader thấy mọi project (cùng quy tắc với `GET /api/v1/projects`).
  */
 @Injectable()
-export class WhoamiTool implements McpTool, OnModuleInit {
-  readonly name = definition.name;
-  readonly description = definition.description;
-  readonly inputSchema = definition.inputSchema;
-  readonly outputSchema = definition.outputSchema;
-
+export class WhoamiTool extends BaseMcpTool {
   constructor(
-    private readonly registry: McpToolRegistry,
+    registry: McpToolRegistry,
     private readonly projects: ProjectsService,
-  ) {}
-
-  onModuleInit(): void {
-    this.registry.register(this);
+  ) {
+    super('whoami', registry);
   }
 
   async run(caller: McpCaller): Promise<Record<string, unknown>> {

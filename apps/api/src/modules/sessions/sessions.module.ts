@@ -14,5 +14,7 @@ import { SessionsService } from './sessions.service.js';
   imports: [LlmModule],
   controllers: [SessionsController, SessionsAiController],
   providers: [SessionsService, SessionNotesService, SessionsAiService],
+  // Tool MCP (M6.15) import dịch vụ xem session, không sửa code module này.
+  exports: [SessionsService],
 })
 export class SessionsModule {}
