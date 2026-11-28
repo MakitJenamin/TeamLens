@@ -341,6 +341,21 @@ const tools = {
     ),
     outputSchema: obj({ results: { type: 'array', items: aiResult } }, ['results']),
   },
+  get_skill_clusters: {
+    description:
+      'Các cụm prompt lặp lại trong project (Skill Finder S0, heuristic, không gọi LLM): prompt tiêu biểu, số lần lặp, ai gõ, ví dụ gần nhất. Gợi ý để biến việc lặp đi lặp lại thành skill hoặc chỉ dẫn dùng chung. Member chỉ thấy prompt của chính mình; leader thấy cả team và lọc được theo người (có audit). Mặc định 30 ngày gần nhất, tối đa 90 ngày.',
+    inputSchema: obj(
+      {
+        projectId: uuid('Project cần xem (từ `list_projects`).'),
+        userId: uuid('Chỉ prompt của người này (member chỉ được đặt chính mình).'),
+        from: dateTime('Chỉ prompt từ mốc này (ISO 8601).'),
+        to: dateTime('Chỉ prompt trước mốc này.'),
+        limit: { type: 'integer', minimum: 1, maximum: 50, default: 20, description: 'Số cụm tối đa (lặp nhiều nhất trước).' },
+      },
+      ['projectId'],
+    ),
+    outputSchema: clean(S.SkillClusterList),
+  },
   // --- Tool ghi cho leader (M6.16) ---
   draft_rule: {
     description:

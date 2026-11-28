@@ -6,7 +6,8 @@
 #
 # members.yaml có member-status (M4.2).
 # File nhóm còn là khung (`paths: {}`), chưa có path nào để tham chiếu:
-#   admin.yaml, skills.yaml (M6.11–M6.13), prompt-library.yaml (M6.14)
+#   admin.yaml, prompt-library.yaml (M6.14)
+# skills.yaml có skill-clusters (M6.11, Skill Finder S0); S1 đến S3 (M6.12, M6.13) thêm sau.
 # Mốc 6 (M6.0): ai.yaml (key AI của tôi, kết quả AI A1/A4/A5), agent-tokens.yaml (token `tlp_`),
 # mcp.yaml (endpoint `/api/v1/mcp`, chi tiết tool ở packages/schema/mcp/).
 # consent.yaml có GET/POST /agent/v1/consent (M3.5).
@@ -68,6 +69,8 @@ tags:
     description: Token cá nhân `tlp_` cho agent gọi MCP.
   - name: mcp
     description: Endpoint MCP (Streamable HTTP, JSON-RPC 2.0) cho agent.
+  - name: skills
+    description: Skill Finder (cụm prompt lặp lại, gợi ý skill).
 
 paths:
   # health.yaml
@@ -197,7 +200,11 @@ paths:
   /api/v1/mcp:
     $ref: './mcp.yaml#/paths/~1api~1v1~1mcp'
 
-  # admin.yaml, skills.yaml, prompt-library.yaml:
+  # skills.yaml
+  /api/v1/projects/{projectId}/skill-clusters:
+    $ref: './skills.yaml#/paths/~1api~1v1~1projects~1{projectId}~1skill-clusters'
+
+  # admin.yaml, prompt-library.yaml:
   # thêm `$ref` ở đây khi file đó có path.
 
 components:
@@ -444,3 +451,15 @@ components:
     # mcp.yaml
     JsonRpcMessage:
       $ref: './mcp.yaml#/components/schemas/JsonRpcMessage'
+
+    # skills.yaml
+    SkillClusterList:
+      $ref: './skills.yaml#/components/schemas/SkillClusterList'
+    SkillClusterStats:
+      $ref: './skills.yaml#/components/schemas/SkillClusterStats'
+    SkillCluster:
+      $ref: './skills.yaml#/components/schemas/SkillCluster'
+    SkillClusterUser:
+      $ref: './skills.yaml#/components/schemas/SkillClusterUser'
+    SkillClusterExample:
+      $ref: './skills.yaml#/components/schemas/SkillClusterExample'

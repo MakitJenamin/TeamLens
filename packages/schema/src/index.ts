@@ -50,6 +50,13 @@ export type AiKind = Schemas['AiKind'];
 export type AiSubjectType = Schemas['AiSubjectType'];
 export type AiResult = Schemas['AiResult'];
 export type SessionAiResults = Schemas['SessionAiResults'];
+
+// Skill Finder (skills.yaml).
+export type SkillClusterList = Schemas['SkillClusterList'];
+export type SkillClusterStats = Schemas['SkillClusterStats'];
+export type SkillCluster = Schemas['SkillCluster'];
+export type SkillClusterUser = Schemas['SkillClusterUser'];
+export type SkillClusterExample = Schemas['SkillClusterExample'];
 export type RunAiRequest = Schemas['RunAiRequest'];
 export type AiTurnRef = Schemas['AiTurnRef'];
 export type SessionWorkType = Schemas['SessionWorkType'];
