@@ -33,6 +33,7 @@ import { llmError } from '../llm/llm-errors.js';
 import { LlmService, toAiResult } from '../llm/llm.service.js';
 import type { AiLocale, AiResultRow } from '../llm/llm.types.js';
 import { mergeWeeklyScores, type StatsRow } from './overview-math.js';
+import { parseWeekParam } from './week-param.js';
 import { weekWindow } from './refresh-weekly-stats.js';
 import {
   normalizeReport,
@@ -50,7 +51,6 @@ const DAY_MS = 86_400_000;
 const MAX_PATTERNS = 8;
 /** Số session `needs_work` lấy làm ví dụ, và số session xét khi tìm ví dụ. */
 const NEEDS_WORK_EXAMPLES = 2;
-const WEEK_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MIN_PROMPT_CHARS = 15;
 const SEVERITY_WEIGHT = { high: 3, medium: 2, low: 1 } as const;
 const GOOD_SCORE = 70;
@@ -166,16 +166,7 @@ export class WeeklyReportService {
     now = new Date(),
   ): Promise<string | null> {
     const current = weekWindow(now).start;
-    if (week !== undefined) {
-      const date = WEEK_RE.test(week) ? new Date(`${week}T00:00:00.000Z`) : null;
-      if (!date || Number.isNaN(date.getTime()) || isoDay(date) !== week)
-        throw invalidWeek('`week` phải là ngày hợp lệ dạng YYYY-MM-DD.');
-      if (date.getUTCDay() !== 1)
-        throw invalidWeek('`week` phải là thứ Hai (UTC) của tuần.');
-      if (date.getTime() > current.getTime())
-        throw invalidWeek('`week` không được ở tương lai.');
-      return week;
-    }
+    if (week !== undefined) return parseWeekParam(week, current);
     const [latest] = await this.db
       .select({ week: userWeeklyStats.week })
       .from(userWeeklyStats)
@@ -387,6 +378,3 @@ const noWeekData = () =>
     'no_week_data',
     'Thành viên này chưa có session nào trong tuần đó.',
   );
-
-const invalidWeek = (message: string) =>
-  new ApiError(400, 'validation_error', message);

@@ -20,6 +20,7 @@ import {
 import { api } from "@/lib/api/client";
 import { type OverviewWeek, type ProjectOverview, SCORE_CATEGORIES } from "./overview-types";
 import { barPercent, DEFAULT_RANGE_WEEKS, RANGE_WEEKS, rangeFrom } from "./overview-range";
+import { TeamReportCard } from "./team-report";
 import { VIZ_VARS } from "./viz-colors";
 import { ScoresChart, TokensChart } from "./weekly-charts";
 
@@ -110,6 +111,8 @@ export function OverviewDashboard({ projectId }: { projectId: string }) {
               value={usd(data.totals.estimatedCostUsd)}
             />
           </div>
+
+          <TeamReportCard projectId={projectId} weeks={data.weeks} />
 
           <section aria-labelledby="overview-weekly" className="flex flex-col gap-4">
             <h2 id="overview-weekly" className="text-lg font-semibold tracking-tight">

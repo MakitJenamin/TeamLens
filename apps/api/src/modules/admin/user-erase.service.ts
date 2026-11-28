@@ -22,7 +22,8 @@ export interface UserErasure {
  * ghi chú và mục thư viện prompt trên session đó), thiết bị, đồng ý, thống kê tuần, kết quả AI
  * (`user_id` lẫn `subject_user_id`), API key, token `tlp_`, thành viên project, phiên đăng nhập.
  * Ở đây chỉ xử lý phần cascade không tới: ghi chú họ viết trên session người khác (cột SET NULL)
- * và kết quả AI trỏ tới session/finding của họ nhưng thiếu `subject_user_id`.
+ * và kết quả AI trỏ tới session/finding của họ nhưng thiếu `subject_user_id`, cùng báo cáo tuần của team và kết quả tìm
+ * prompt mẫu của leader có nhắc tới họ trong nội dung (không có chủ dữ liệu nên xóa theo id người trong `result`).
  * Audit log giữ lại (`actor_id` thành null theo FK), kèm một dòng `user.erase`.
  *
  * Job `session.ingested` còn trong hàng đợi cho session vừa xóa không lỗi: `scoreSession`
@@ -86,6 +87,13 @@ export class UserEraseService {
            OR (r.subject_type = 'finding' AND r.subject_id IN (
                 SELECT f.id FROM findings f JOIN sessions s ON s.id = f.session_id
                 WHERE s.user_id = ${userId}))`);
+
+      // Kết quả AI của leader về cả team (subject_user_id null) nhưng có nhắc tới người này trong nội dung:
+      // `weekly_team` nêu tên và id thành viên (B2), `prompt_candidates` trích prompt kèm id người gõ (C2).
+      await tx.execute(sql`
+        DELETE FROM ai_results r
+        WHERE r.kind IN ('weekly_team', 'prompt_candidates')
+          AND r.result::text LIKE ${`%${userId}%`}`);
 
       await tx.execute(sql`DELETE FROM users WHERE id = ${userId}`);
 

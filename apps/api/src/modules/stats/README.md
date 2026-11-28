@@ -59,3 +59,15 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 - Kết quả chỉ người bấm đọc được; bấm lại thì ghi đè. Tool MCP `get_my_ai_results` (subjectType `user_week`) trả đúng kết quả của chính người gọi.
 
 Test: `weekly-report-prompts.spec.ts` (đầu vào, chuẩn hóa), `test/weekly-report.e2e-spec.ts` (quyền, dữ liệu gửi đi, audit, ghi đè, tuần sai, lỗi, injection, xóa người).
+
+## Báo cáo tuần của team do AI viết (B2, M6.9)
+
+`GET|POST /api/v1/projects/{projectId}/ai/weekly-report` (contract `stats.yaml`; code: `team-report.service.ts`, `team-report-prompts.ts` thuần có test, `team-report.controller.ts`; `week-param.ts` kiểm tham số tuần, dùng chung với B1). **Chỉ leader** (member 403, project không có 404). Key BYO của leader qua `LlmService` (kind `weekly_team`, subjectType `project_week`, `subjectId` là UUID v5 của project và tuần: `teamWeekId`).
+
+- **Dữ liệu gửi cho AI chỉ là số liệu tổng hợp ẩn danh, không có prompt và không có tên người** (nên không ghi audit): số session gốc và token của tuần, điểm 5 nhóm của team tuần này và tuần trước, rule bị vi phạm nhiều nhất (tối đa 8, mã `r1`..., số lần, số người mắc, lời khuyên), loại việc B4, và mỗi thành viên có session trong tuần (tối đa 20, nhiều session nhất trước) một dòng mã `m1`... kèm số session, điểm tổng, điểm tuần trước, mức thay đổi.
+- **AI chỉ viết lời nhận xét và chọn theo mã**; server lọc mã sai hoặc trùng (tối đa 3 mục) và tự điền `ruleKey`, `category`, `count`, `memberCount`, `userId`, `name`, `change`, `week` rồi mới lưu `ai_results`.
+- Tuần, lỗi: như B1 (thứ Hai UTC, mặc định tuần gần nhất project có session; 400 nếu sai; 409 `no_week_data`; 409 `llm_key_missing` trước khi đụng dữ liệu).
+- **Chủ dữ liệu là `null`** (kết quả của cả team) nhưng bản lưu có tên và id thành viên, nên **M5.6 xóa các kết quả `weekly_team` có nhắc tới người bị xóa** (xem README `admin`; có test e2e).
+- Web: thẻ "Báo cáo tuần của team (AI)" ở trang Tổng quan, chọn tuần có session.
+
+Test: `team-report-prompts.spec.ts` (đầu vào ẩn danh, chuẩn hóa, `parseWeekParam`), `test/team-report.e2e-spec.ts` (quyền, dữ liệu gửi đi không có tên, ghi đè, tuần sai, lỗi, xóa người).
