@@ -1046,8 +1046,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lịch sử người khác xem session của chính user đang đăng nhập
-         * @description Không nhận userId từ client. Cursor theo cặp (at,id) giảm dần; không trả nội dung prompt.
+         * Lịch sử người khác xem dữ liệu của chính user đang đăng nhập
+         * @description Không nhận userId từ client. Gồm ba loại audit: `session.view` (mở session), `session.ai`
+         *     (chạy AI trên session) và `profile.view` (xem hồ sơ thành viên). Session đã bị xóa vẫn hiện,
+         *     với `sessionStartedAt` là null. Cursor theo cặp (at,id) giảm dần, giữ đủ micro giây; không trả nội dung prompt.
          */
         get: operations["listMySessionViews"];
         put?: never;
@@ -3195,9 +3197,21 @@ export interface components {
         };
         SessionView: {
             id: components["schemas"]["Id"];
-            sessionId: components["schemas"]["Id"];
-            /** Format: date-time */
-            sessionStartedAt: string;
+            /**
+             * @description `session.view` mở session, `session.ai` chạy AI trên session, `profile.view` xem hồ sơ.
+             * @enum {string}
+             */
+            action: "session.view" | "session.ai" | "profile.view";
+            /**
+             * Format: uuid
+             * @description null với `profile.view`. Vẫn có giá trị khi session đã bị xóa.
+             */
+            sessionId: string | null;
+            /**
+             * Format: date-time
+             * @description null với `profile.view` hoặc khi session đã bị xóa.
+             */
+            sessionStartedAt: string | null;
             /** Format: uuid */
             actorId: string | null;
             /** @description null khi tài khoản người xem đã bị xóa. */

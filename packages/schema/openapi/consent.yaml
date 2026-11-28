@@ -30,8 +30,11 @@ paths:
     get:
       operationId: listMySessionViews
       tags: [consent]
-      summary: Lịch sử người khác xem session của chính user đang đăng nhập
-      description: Không nhận userId từ client. Cursor theo cặp (at,id) giảm dần; không trả nội dung prompt.
+      summary: Lịch sử người khác xem dữ liệu của chính user đang đăng nhập
+      description: |
+        Không nhận userId từ client. Gồm ba loại audit: `session.view` (mở session), `session.ai`
+        (chạy AI trên session) và `profile.view` (xem hồ sơ thành viên). Session đã bị xóa vẫn hiện,
+        với `sessionStartedAt` là null. Cursor theo cặp (at,id) giảm dần, giữ đủ micro giây; không trả nội dung prompt.
       security:
         - cookieAuth: []
       parameters:
@@ -188,15 +191,22 @@ components:
     SessionView:
       type: object
       additionalProperties: false
-      required: [id, sessionId, sessionStartedAt, actorId, actorName, at]
+      required: [id, action, sessionId, sessionStartedAt, actorId, actorName, at]
       properties:
         id:
           $ref: './common.yaml#/components/schemas/Id'
-        sessionId:
-          $ref: './common.yaml#/components/schemas/Id'
-        sessionStartedAt:
+        action:
           type: string
+          enum: [session.view, session.ai, profile.view]
+          description: '`session.view` mở session, `session.ai` chạy AI trên session, `profile.view` xem hồ sơ.'
+        sessionId:
+          type: [string, 'null']
+          format: uuid
+          description: null với `profile.view`. Vẫn có giá trị khi session đã bị xóa.
+        sessionStartedAt:
+          type: [string, 'null']
           format: date-time
+          description: null với `profile.view` hoặc khi session đã bị xóa.
         actorId:
           type: [string, 'null']
           format: uuid
