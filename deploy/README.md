@@ -63,3 +63,15 @@ Các lệnh dưới đây chạy ở gốc repo; đặt `alias tlc='docker compo
 - `caddy` không lấy được chứng chỉ: kiểm tra DNS trỏ đúng máy và cổng 80/443 mở (`tlc logs caddy`).
 - `api` không lên: `tlc logs api`; thường do thiếu/sai biến trong `deploy/.env` (API báo rõ biến nào) hoặc Postgres chưa sẵn sàng.
 - Đổi `POSTGRES_PASSWORD` sau khi đã cài không có tác dụng với DB đã tạo; đổi mật khẩu bằng `ALTER USER` trong Postgres rồi mới sửa `.env`.
+
+## Hạn chế đã biết
+
+- **Pattern redaction riêng (trang Quản trị, M4.6) chưa lưu được trên bản Docker.** Server kiểm pattern bằng helper Rust `apps/api/tools/regex-validator`, nhưng `apps/api/Dockerfile` chưa build helper này, nên lưu hoặc thử pattern trả lỗi 503 `regex_validator_unavailable`. Cài đặt khác (retention, văn bản đồng ý) vẫn dùng được. Khi sửa Dockerfile thì thêm bước build helper và đặt `REGEX_VALIDATOR_BIN` trỏ tới file đó trong image.
+
+## Khi nào phải sửa file Docker
+
+Code mới, thư viện mới (`pnpm-lock.yaml`) và migration mới tự vào image khi `up -d --build`. Chỉ phải sửa khi:
+- **Thêm biến môi trường** vào `apps/api/src/config/env.ts`: thêm vào `environment` của service trong `docker-compose.yml` và `.env.example`.
+- **Thêm workspace package** mà api hoặc web dùng: thêm dòng `COPY` trong Dockerfile.
+- **Thêm service** (Redis...) hoặc **prefix route mới** ngoài `/api`, `/agent`, `/health` mà phải đi thẳng sang API: sửa compose hoặc `Caddyfile`.
+- **Code đọc file ngoài `dist/` lúc chạy**, hoặc cần thêm binary (như `regex-validator`): đưa vào image ở bước build.

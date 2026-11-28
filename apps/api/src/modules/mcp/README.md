@@ -34,7 +34,7 @@ Mỗi tool chỉ **gọi service đã có** của module khác (nên quyền và
 - `list_rules`/`get_rule` đọc qua `RulesQueryService` (chỉ đọc): rule riêng của project ghi đè rule mặc định cùng khóa, giống `score-session.ts`. M4.4 mở rộng dịch vụ này khi làm màn quản lý rule.
 - `get_skill_clusters` (M6.11, `tools/skill-tools.ts`) gọi `SkillsService` của module `skills` (Skill Finder S0), cùng quyền và audit như REST.
 - `get_prompt_library` (M6.14, `tools/prompt-library-tools.ts`) gọi `PromptLibraryService` của module `prompt-library`, cùng quyền và cùng cách ẩn tên như REST.
-- **Chưa có:** `get_leaderboard` (chờ M4.3).
+- **Chưa có:** `get_leaderboard`. M4.3 đã xong, nên làm được bằng cách gọi `LeaderboardService` của `stats` (cùng quyền: member chỉ thấy khi project bật công khai, tên người khác là `null`).
 - Test: `test/mcp-read-tools.e2e-spec.ts` gọi từng tool bằng member và leader và **kiểm mỗi kết quả thật bằng Ajv theo `outputSchema` trong contract**, nên lệch schema là test đỏ.
 
 ## Tool ghi cho leader và prompt (M6.16)

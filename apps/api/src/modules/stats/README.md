@@ -36,3 +36,14 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 - `scores` (radar) = trung bình điểm tuần của thành viên, trọng số là số session mỗi tuần. `teamScores` = trung bình điểm tuần của **mọi thành viên project** cùng khoảng (cùng trọng số), mỗi tuần trong `weeks` cũng có `teamScores`. **`teamScores` hiện cho cả leader lẫn member, không ẩn.** Đã cân nhắc: team rất nhỏ (2 người) thì member có thể suy ra điểm người kia; quyết định chấp nhận, nếu cần giới hạn thì chỉ đổi ở `profile.service.ts`.
 - `patterns`: tối đa 10 rule thành viên vi phạm nhiều nhất trong khoảng (gộp theo rule, mức độ lấy mức nặng nhất đã gặp, gồm cả finding tuần). `advice` lấy từ `rules.definition.advice`. Mỗi rule tối đa 3 ví dụ mới nhất (`turnSeq`, nhận xét, `excerpt` tối đa 160 ký tự lấy từ turn còn lưu; `null` khi retention đã xóa turn **hoặc khi turn không có văn bản** như compaction).
 - Danh sách session gần nhất của thành viên không có endpoint riêng: web gọi `GET /projects/{id}/sessions?userId=`.
+
+## Leaderboard (M4.3)
+
+`GET /api/v1/projects/{id}/leaderboard?period=week|month&category=&at=` (`leaderboard.controller.ts`, `leaderboard.service.ts`, phần tính thuần ở `leaderboard-math.ts`).
+- **Kỳ:** tuần đọc `user_weekly_stats`; tháng là tháng dương lịch UTC, tính lại từ điểm session gốc bằng `computeWeeklyScores`.
+- **Ngưỡng:** chỉ xếp người có ít nhất 5 session gốc trong kỳ.
+- **Cài đặt theo project** (`projects.settings`): `leaderboardEnabled`, `leaderboardPublic`. Leader luôn xem được. Member chỉ xem được khi cả hai cùng bật, không thì 403 `leaderboard_disabled`.
+- **Member thấy gì:** hạng và điểm của mọi người, nhưng `userId`/`name` của người khác là `null`. Kèm `mySessions` và `sessionsNeeded` của chính mình.
+- **Lỗi đã biết:**
+  - `monthScores` trừ phạt `user_week` của mọi tuần trong tháng vào một lần.
+  - Vẫn xếp người đã rời project (không join `project_members`).

@@ -26,7 +26,7 @@ Mỗi tool một file `<tên-tool>.json`:
 | Nhóm | Tool | Ai | File |
 | --- | --- | --- | --- |
 | Định hướng | `whoami`, `list_projects`, `list_members` | Mọi người (member chỉ thấy mình) | [`whoami`](whoami.json), [`list_projects`](list_projects.json), [`list_members`](list_members.json) |
-| Số liệu | `get_overview` (chỉ leader), `get_leaderboard` (chưa có: chờ M4.3), `get_member_profile` (điểm 5 nhóm theo tuần, token) | Theo quyền | [`get_overview`](get_overview.json), [`get_member_profile`](get_member_profile.json) |
+| Số liệu | `get_overview` (chỉ leader), `get_leaderboard` (chưa có; M4.3 đã xong nên làm được), `get_member_profile` (điểm 5 nhóm theo tuần, token) | Theo quyền | [`get_overview`](get_overview.json), [`get_member_profile`](get_member_profile.json) |
 | Session | `search_sessions` (người, agent, ngày, từ khóa; lọc loại việc B4 khi B4 xong), `get_session` (phân trang turn), `get_findings` | Theo quyền | [`search_sessions`](search_sessions.json), [`get_session`](get_session.json), [`get_findings`](get_findings.json) |
 | Rule | `list_rules`, `get_rule` | Mọi người | [`list_rules`](list_rules.json), [`get_rule`](get_rule.json) |
 | Tri thức team | `get_skill_clusters` (S0), `get_prompt_library` (C2, mục đã duyệt) | Theo quyền | [`get_skill_clusters`](get_skill_clusters.json), [`get_prompt_library`](get_prompt_library.json) |
