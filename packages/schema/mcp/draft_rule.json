@@ -1,0 +1,172 @@
+{
+  "name": "draft_rule",
+  "description": "Soạn thử một thay đổi cho rule và kiểm tra, KHÔNG lưu gì. Trả rule sau khi đổi, danh sách thay đổi, và kết quả chạy các `tests` nội tuyến của rule với cấu hình mới. Chỉ LEADER. Chỉ chỉnh rule **session** có sẵn (ngưỡng, mức độ, thông điệp, lời khuyên); không đổi logic `match`, không tạo rule mới, không áp dụng cho rule tuần.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "key",
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Khóa rule (từ `list_rules`)."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project áp dụng."
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "description": "Mức độ mới của rule."
+      },
+      "thresholds": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": "Ngưỡng cần đổi (chỉ các khóa rule đã có, ví dụ `min`); khóa không nêu thì giữ nguyên. `min` phải >= 1."
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "description": "Thông điệp mới (có thể dùng `{{count}}`)."
+      },
+      "advice": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "description": "Lời khuyên mới."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "rule",
+      "changes",
+      "tests",
+      "allPassed"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "rule": {
+        "type": "object",
+        "required": [
+          "key",
+          "category",
+          "severity",
+          "thresholds",
+          "message",
+          "advice"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "thresholds": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "message": {
+            "type": "string"
+          },
+          "advice": {
+            "type": "string"
+          }
+        }
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "field",
+            "from",
+            "to"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Trường đổi: `severity`, `message`, `advice` hoặc `thresholds.<khóa>`."
+            },
+            "from": {
+              "description": "Giá trị hiện hành."
+            },
+            "to": {
+              "description": "Giá trị mới."
+            }
+          }
+        }
+      },
+      "tests": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "expect",
+            "actual",
+            "passed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "expect": {
+              "type": "string",
+              "enum": [
+                "triggered",
+                "clean"
+              ]
+            },
+            "actual": {
+              "type": "string",
+              "enum": [
+                "triggered",
+                "clean"
+              ]
+            },
+            "passed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "allPassed": {
+        "type": "boolean",
+        "description": "true khi mọi `tests` nội tuyến vẫn đúng với cấu hình mới."
+      }
+    }
+  }
+}

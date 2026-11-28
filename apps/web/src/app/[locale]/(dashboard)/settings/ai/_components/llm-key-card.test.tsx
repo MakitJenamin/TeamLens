@@ -42,14 +42,15 @@ describe("LlmKeyCard", () => {
     });
     renderWithProviders(<LlmKeyCard />);
 
-    expect(await screen.findByText(/Chưa có key/)).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /Anthropic/ })).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Xóa key" })).not.toBeInTheDocument();
     // Anthropic mặc định: không có ô base URL.
     expect(screen.queryByLabelText(/Base URL/)).not.toBeInTheDocument();
 
     await u.click(screen.getByRole("radio", { name: /OpenAI-compatible/ }));
     await u.type(screen.getByLabelText(/Base URL/), "http://localhost:11434/v1");
     await u.type(screen.getByLabelText(/^Model/), "qwen2.5:3b");
-    expect(screen.getByText(/Có thể để trống/)).toBeInTheDocument();
+    expect(screen.getByText(/Để trống nếu server không cần key/)).toBeInTheDocument();
     expect(screen.getByLabelText(/^API key/)).toHaveAttribute("type", "password");
 
     await u.click(screen.getByRole("button", { name: "Kiểm tra" }));
@@ -71,9 +72,8 @@ describe("LlmKeyCard", () => {
       model: "qwen2.5:3b",
       apiKey: "",
     });
-    // Sau khi lưu: có nút Xóa key, không còn dòng "Chưa có key".
+    // Sau khi lưu: có nút Xóa key.
     expect(await screen.findByRole("button", { name: "Xóa key" })).toBeInTheDocument();
-    expect(screen.queryByText(/Chưa có key/)).not.toBeInTheDocument();
   });
 
   it("Anthropic chưa có key mà để trống key: báo lỗi, không gọi API", async () => {
@@ -96,7 +96,8 @@ describe("LlmKeyCard", () => {
     });
     renderWithProviders(<LlmKeyCard />);
 
-    expect(await screen.findByText("Đã lưu key …a1B2. Để trống để giữ key cũ.")).toBeInTheDocument();
+    expect(await screen.findByText("Để trống để giữ key cũ.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^API key/)).toHaveAttribute("placeholder", "…a1B2");
     expect(screen.getByLabelText(/Base URL/)).toHaveValue("http://localhost:11434/v1");
     expect(screen.getByLabelText(/^API key/)).toHaveValue("");
 
@@ -141,7 +142,7 @@ describe("LlmKeyCard", () => {
       [...again.querySelectorAll("button")].find((b) => b.textContent === "Xóa key") as HTMLElement,
     );
     await waitFor(() => expect(bodies["DELETE /api/v1/me/llm-key"]).toHaveLength(1));
-    expect(await screen.findByText(/Chưa có key/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Xóa key" })).not.toBeInTheDocument());
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,115 @@
+{
+  "name": "test_rule",
+  "description": "Chạy thử cấu hình rule mới trên tối đa 50 session gốc gần nhất của project và so với cấu hình hiện hành: có bao nhiêu session sẽ bị gắn nhận xét. KHÔNG lưu gì và KHÔNG trả nội dung turn (chỉ id session, số turn, số lần); muốn đọc thì mở session bằng `get_session` (có audit). Chỉ LEADER. Chỉ chỉnh rule **session** có sẵn (ngưỡng, mức độ, thông điệp, lời khuyên); không đổi logic `match`, không tạo rule mới, không áp dụng cho rule tuần.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "key",
+      "projectId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Khóa rule."
+      },
+      "projectId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Project cần thử."
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "description": "Mức độ mới của rule."
+      },
+      "thresholds": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": "Ngưỡng cần đổi (chỉ các khóa rule đã có, ví dụ `min`); khóa không nêu thì giữ nguyên. `min` phải >= 1."
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "description": "Thông điệp mới (có thể dùng `{{count}}`)."
+      },
+      "advice": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "description": "Lời khuyên mới."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "sessionsEvaluated",
+      "baselineTriggered",
+      "candidateTriggered",
+      "samples"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "sessionsEvaluated": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Số session đã chấm thử (chỉ session còn đủ turn)."
+      },
+      "baselineTriggered": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Số session bị gắn nhận xét với cấu hình hiện hành."
+      },
+      "candidateTriggered": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Số session bị gắn nhận xét với cấu hình mới."
+      },
+      "samples": {
+        "type": "array",
+        "maxItems": 5,
+        "description": "Tối đa 5 session bị gắn nhận xét với cấu hình mới (không có nội dung).",
+        "items": {
+          "type": "object",
+          "required": [
+            "sessionId",
+            "turnSeq",
+            "count"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "turnSeq": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

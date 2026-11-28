@@ -1,12 +1,368 @@
-# KHUNG — chưa có endpoint. Task: M6.14 (C2 thư viện prompt). Người 3. Thiết kế: docs/AI_PLAN.md mục 3.2 "C2".
-#
-# Endpoint dự kiến (cookieAuth):
-# - POST /api/v1/projects/{projectId}/ai/prompt-candidates (leader; ứng viên heuristic + AI viết lý do,
-#   kind `prompt_candidates`, subjectType `project`, kết quả riêng của leader)
-# - GET /api/v1/projects/{projectId}/prompt-library (mục đã duyệt; member của project xem được)
-# - POST /api/v1/projects/{projectId}/prompt-library (leader duyệt một session/turn, tùy chọn ẩn tên)
-# - DELETE /api/v1/projects/{projectId}/prompt-library/{itemId} (leader)
+# Nhóm `prompt-library`: thư viện prompt mẫu của project (C2, docs/AI_PLAN.md mục 3.2). Người 3 (M6.14).
+# - POST /api/v1/projects/{projectId}/ai/prompt-candidates (leader): ứng viên chọn bằng heuristic, AI viết tiêu đề và lý do
+#   (kind `prompt_candidates`, subjectType `project`, kết quả riêng của leader); GET cùng đường dẫn đọc lại kết quả đã lưu.
+# - GET /api/v1/projects/{projectId}/prompt-library: mục đã duyệt, thành viên của project xem được (ngoại lệ duy nhất của
+#   nguyên tắc "kết quả AI là riêng của người bấm").
+# - POST /api/v1/projects/{projectId}/prompt-library (leader duyệt một prompt, tùy chọn ẩn tên), DELETE .../{itemId} (leader).
 # Nút AI dùng chung mã lỗi `llm_*` của ai.yaml và schema `AiResult`.
-#
-# Cách thêm endpoint: xem admin.yaml hoặc packages/schema/AGENTS.md.
-paths: {}
+paths:
+  /api/v1/projects/{projectId}/ai/prompt-candidates:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getPromptCandidates
+      tags: [prompt-library]
+      summary: C2 · kết quả tìm prompt mẫu đã lưu của leader
+      description: Chỉ trả kết quả của chính người gọi (kind `prompt_candidates`, subjectType `project`, theo `locale`), hoặc `null`. Chỉ leader.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+      responses:
+        '200':
+          description: Kết quả đã lưu hoặc `null`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptCandidatesSaved'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: runPromptCandidates
+      tags: [prompt-library]
+      summary: C2 · tìm prompt mẫu để đưa vào thư viện (leader)
+      description: |
+        Trả `AiResult` kind `prompt_candidates`, subjectType `project` (subjectId là `projectId`), `result` theo
+        `PromptCandidatesResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale). **Chỉ leader.**
+
+        **Chọn ứng viên (heuristic, không tốn tiền):** trong khoảng `from`/`to` (mặc định 30 ngày, tối đa 90), lấy các
+        session gốc (không phải session con) có điểm trung bình các nhóm kỹ năng từ 70 trở lên, không có finding mức
+        `high`, chưa nằm trong thư viện, và có prompt đầu tiên dài 30 đến 1500 ký tự (không phải prompt rác). Xếp theo điểm
+        rồi theo độ mới, lấy tối đa 10. Ứng viên là **prompt đầu tiên** của session.
+
+        **AI** (key của người gọi) viết tiêu đề ngắn và lý do vì sao prompt tốt cho từng ứng viên, và có thể bỏ ứng viên
+        không đáng đưa vào. Server chỉ giữ ứng viên có mã hợp lệ; id session, người gõ, điểm lấy từ dữ liệu của server chứ
+        không từ AI. Leader dùng prompt của người khác nên ghi audit `prompt_library.candidates`. Chưa có key thì
+        `409 llm_key_missing` trước khi đụng dữ liệu; không có session nào đạt thì `409 no_candidates`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunPromptCandidatesRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: |
+            Chưa có API key (`llm_key_missing`) hoặc chưa có session nào đủ tốt để đề xuất (`no_candidates`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              examples:
+                noKey:
+                  value:
+                    error: llm_key_missing
+                    message: Bạn chưa cấu hình API key AI.
+                noCandidates:
+                  value:
+                    error: no_candidates
+                    message: Chưa có session nào đủ tốt để đề xuất trong khoảng này. Thử mở rộng khoảng thời gian.
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: './ai.yaml#/components/responses/LlmProviderError'
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
+
+  /api/v1/projects/{projectId}/prompt-library:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listPromptLibrary
+      tags: [prompt-library]
+      summary: Các prompt mẫu đã được leader duyệt của project
+      description: |
+        Mọi thành viên của project (và leader) xem được. Mới nhất trước.
+
+        **Quyền riêng tư:** đây là chỗ duy nhất prompt của người này tới tay người khác, và chỉ sau khi leader duyệt từng
+        mục. Mục có `hideAuthor` thì thành viên không thấy tên (`author` là `null`), cũng không thấy `sessionId` và
+        `turnSeq` (hai trường này chỉ trả cho leader). Leader luôn thấy tác giả. Nội dung prompt đã được che secret ở
+        máy thành viên. Mục bị xóa khi session gốc bị xóa (hết retention hoặc leader xóa dữ liệu).
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Số mục tối đa (mặc định 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Các mục đã duyệt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptLibraryList'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: addPromptLibraryItem
+      tags: [prompt-library]
+      summary: Duyệt một prompt vào thư viện (leader)
+      description: |
+        Chỉ leader. `sessionId` phải là session gốc của project. `turnSeq` là `seq` của một prompt của người dùng trong
+        session đó; bỏ qua thì dùng prompt đầu tiên của session (server luôn lưu `turnSeq` cụ thể). Sai turn trả
+        `400 invalid_turn`; đã có trong thư viện trả `409 already_in_library`. Ghi audit `prompt_library.add`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPromptLibraryItemRequest'
+      responses:
+        '201':
+          description: Mục vừa thêm (góc nhìn của leader).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptLibraryItem'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 'Prompt này đã có trong thư viện (`error`: `already_in_library`).'
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: already_in_library
+                message: Prompt này đã có trong thư viện.
+
+  /api/v1/projects/{projectId}/prompt-library/{itemId}:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ItemId'
+    delete:
+      operationId: deletePromptLibraryItem
+      tags: [prompt-library]
+      summary: Gỡ một mục khỏi thư viện (leader)
+      description: Chỉ leader. Ghi audit `prompt_library.remove`.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã gỡ.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+
+  schemas:
+    RunPromptCandidatesRequest:
+      type: object
+      required: [locale]
+      additionalProperties: false
+      properties:
+        locale:
+          $ref: './ai.yaml#/components/schemas/AiLocale'
+        from:
+          type: string
+          format: date-time
+          description: Chỉ session bắt đầu từ mốc này. Mặc định 30 ngày trước `to`.
+        to:
+          type: string
+          format: date-time
+          description: Chỉ session bắt đầu trước mốc này. Mặc định bây giờ.
+
+    PromptCandidate:
+      type: object
+      required: [sessionId, turnSeq, userId, userName, startedAt, score, workType, prompt, title, why]
+      additionalProperties: false
+      properties:
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: integer
+          minimum: 0
+          description: '`seq` của prompt (prompt đầu tiên của session).'
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        userName:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Điểm trung bình các nhóm kỹ năng của session.
+        workType:
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/SessionWorkType'
+            - type: 'null'
+        prompt:
+          type: string
+          description: Nội dung prompt, cắt tối đa 600 ký tự (đã che secret ở máy thành viên).
+        title:
+          type: string
+          description: Tiêu đề ngắn do AI viết (không phải dữ liệu của server).
+        why:
+          type: string
+          description: Lý do vì sao prompt tốt, do AI viết.
+
+    PromptCandidatesResult:
+      type: object
+      description: '`result` của `AiResult` kind `prompt_candidates`. Có thể rỗng khi AI thấy không có ứng viên đáng đưa vào.'
+      required: [candidates, considered]
+      additionalProperties: false
+      properties:
+        candidates:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/PromptCandidate'
+        considered:
+          type: integer
+          minimum: 0
+          description: Số ứng viên heuristic đã đưa cho AI xét.
+
+    PromptCandidatesSaved:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          description: Kết quả `prompt_candidates` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+
+    AddPromptLibraryItemRequest:
+      type: object
+      required: [sessionId]
+      additionalProperties: false
+      properties:
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: integer
+          minimum: 0
+          description: Bỏ qua thì dùng prompt đầu tiên của session.
+        note:
+          type: string
+          maxLength: 1000
+          description: Ghi chú vì sao prompt này tốt (hiện cho cả thành viên). Có thể chép từ `why` của ứng viên.
+        hideAuthor:
+          type: boolean
+          default: false
+          description: Ẩn tên tác giả với thành viên.
+
+    PromptLibraryItem:
+      type: object
+      required: [id, prompt, note, workType, author, hideAuthor, sessionId, turnSeq, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        prompt:
+          type: string
+          description: Nội dung prompt (đã che secret ở máy thành viên), tối đa 4000 ký tự.
+        note:
+          type:
+            - string
+            - 'null'
+        workType:
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/SessionWorkType'
+            - type: 'null'
+        author:
+          description: Tác giả. `null` khi `hideAuthor` và người gọi không phải leader.
+          oneOf:
+            - type: object
+              required: [userId, name]
+              additionalProperties: false
+              properties:
+                userId:
+                  $ref: './common.yaml#/components/schemas/Id'
+                name:
+                  type: string
+            - type: 'null'
+        hideAuthor:
+          type: boolean
+        sessionId:
+          description: Chỉ trả cho leader (để mở session gốc); thành viên nhận `null`.
+          oneOf:
+            - $ref: './common.yaml#/components/schemas/Id'
+            - type: 'null'
+        turnSeq:
+          description: Chỉ trả cho leader; thành viên nhận `null`.
+          type:
+            - integer
+            - 'null'
+        createdAt:
+          type: string
+          format: date-time
+
+    PromptLibraryList:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptLibraryItem'

@@ -480,11 +480,8 @@ impl FlushStop {
     pub fn into_error(self) -> AppError {
         match self {
             FlushStop::Waiting { next_attempt_at } => AppError::user(
-                format!(
-                    "Hàng đợi đang chờ tới {} mới thử gửi lại.",
-                    local_time(next_attempt_at)
-                ),
-                "Chạy `tl sync` để gửi ngay.",
+                format!("Chưa gửi, sẽ thử lại lúc {}.", local_time(next_attempt_at)),
+                "Gửi ngay: `tl sync`.",
             ),
             FlushStop::Retry { error, .. }
             | FlushStop::UpgradeRequired(error)
@@ -556,8 +553,8 @@ fn head(db: &StateDb) -> rusqlite::Result<Option<Row>> {
 fn send_gate(ctx: &AppContext, server_config: &AgentConfig) -> Result<(), FlushStop> {
     if !consent_gate::may_send(ctx) {
         return Err(FlushStop::Blocked(AppError::user(
-            "Máy này chưa đồng ý chia sẻ dữ liệu với server hiện tại nên không gửi gì (hàng đợi giữ nguyên).",
-            "Chạy `tl join <link mời>` (link do leader gửi) để xem và đồng ý.",
+            "Máy này chưa đồng ý chia sẻ dữ liệu nên không gửi gì.",
+            "Chạy `tl join <link mời>` để xem và đồng ý.",
         )));
     }
     let local = ctx.load_config().map_err(FlushStop::Blocked)?;

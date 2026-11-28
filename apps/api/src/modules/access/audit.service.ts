@@ -24,13 +24,20 @@ export type AuditTargetType =
 export class AuditService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
+  /**
+   * `details` (tùy chọn, jsonb) ghi chi tiết thay đổi, vd. giá trị cũ và mới khi sửa rule (M6.16).
+   * Không đưa nội dung prompt, token hay secret vào `details`.
+   */
   async record(
     actorId: string | null,
     action: AuditAction,
     targetType: AuditTargetType,
     targetId: string,
     db: Pick<Database, 'insert'> = this.db,
+    details?: Record<string, unknown>,
   ): Promise<void> {
-    await db.insert(auditLog).values({ actorId, action, targetType, targetId });
+    await db
+      .insert(auditLog)
+      .values({ actorId, action, targetType, targetId, details });
   }
 }
