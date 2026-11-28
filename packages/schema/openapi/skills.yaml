@@ -2,8 +2,9 @@
 # - GET /api/v1/projects/{projectId}/skill-clusters: S0, gom cụm prompt lặp lại bằng heuristic, KHÔNG gọi LLM (M6.11).
 # - GET/POST .../skill-clusters/{clusterId}/ai, .../ai/triage (S1, kind `skill_triage`) và .../ai/skill (S2, kind `skill_content`,
 #   trả SKILL.md), subjectType `skill_cluster`: nút AI dùng key BYO của người bấm (M6.12). `projectId` nằm trong path để server dựng lại cụm.
-# Còn để sau (cùng file này):
-# - GET/POST/PATCH/DELETE /api/v1/skill-catalog-sources và POST /api/v1/projects/{projectId}/ai/catalog-picks (S3, M6.13)
+# - GET/POST/PATCH/DELETE /api/v1/skill-catalog-sources: nguồn catalog skill cộng đồng (GitHub), leader quản lý (M6.13).
+# - GET/POST /api/v1/projects/{projectId}/ai/catalog-picks (S3, kind `catalog_picks`, subjectType `project`): AI chọn tối đa 5
+#   skill trong catalog hợp với workflow thật của người bấm (M6.13).
 # Nút AI dùng chung mã lỗi `llm_*` của ai.yaml và schema `AiResult`.
 paths:
   /api/v1/projects/{projectId}/skill-clusters:
@@ -237,8 +238,215 @@ paths:
         '504':
           $ref: './ai.yaml#/components/responses/LlmTimeout'
 
+  /api/v1/skill-catalog-sources:
+    get:
+      operationId: listSkillCatalogSources
+      tags: [skills]
+      summary: Các nguồn catalog skill cộng đồng của server
+      description: |
+        Danh sách nguồn mà S3 (`runCatalogPicks`) đọc skill từ đó. Mọi người đã đăng nhập đều xem được. Server tự thêm hai
+        nguồn mặc định ở lần đọc đầu tiên: `https://github.com/anthropics/skills` và
+        `https://github.com/github/awesome-copilot`; leader xóa hoặc thêm bớt thoải mái (xóa rồi không tự thêm lại).
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách nguồn, cũ nhất trước.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSourceList'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    post:
+      operationId: createSkillCatalogSource
+      tags: [skills]
+      summary: Thêm một nguồn catalog (leader)
+      description: |
+        Chỉ nhận URL repo GitHub công khai dạng `https://github.com/{owner}/{repo}` (chấp nhận thêm `.git`, dấu `/` ở cuối,
+        `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}`). Server **không** gọi URL nào khác ngoài
+        `api.github.com` và `raw.githubusercontent.com`, nên không dùng được để dò mạng nội bộ. Không kiểm repo có tồn tại
+        lúc thêm; repo không đọc được chỉ bị bỏ qua khi chọn skill. Thêm URL đã có trả `409 source_exists`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkillCatalogSourceRequest'
+      responses:
+        '201':
+          description: Nguồn vừa thêm.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSource'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/SourceExists'
+
+  /api/v1/skill-catalog-sources/{sourceId}:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    patch:
+      operationId: updateSkillCatalogSource
+      tags: [skills]
+      summary: Bật hoặc tắt một nguồn catalog (leader)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkillCatalogSourceRequest'
+      responses:
+        '200':
+          description: Nguồn sau khi cập nhật.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSource'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    delete:
+      operationId: deleteSkillCatalogSource
+      tags: [skills]
+      summary: Xóa một nguồn catalog (leader)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/ai/catalog-picks:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getCatalogPicks
+      tags: [skills]
+      summary: S3 · kết quả chọn skill đã lưu của người gọi
+      description: Chỉ trả kết quả của chính người gọi (kind `catalog_picks`, subjectType `project`, theo `locale`), hoặc `null`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+      responses:
+        '200':
+          description: Kết quả đã lưu hoặc `null`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogPicksSaved'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: runCatalogPicks
+      tags: [skills]
+      summary: S3 · AI chọn tối đa 5 skill trong catalog hợp với workflow thật
+      description: |
+        Trả `AiResult` kind `catalog_picks`, subjectType `project` (subjectId là `projectId`), `result` theo
+        `SkillCatalogPicksResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale).
+
+        Các bước ở server: (1) dựng cụm prompt lặp lại của người gọi như `listSkillClusters` (cùng `userId`, `from`, `to`;
+        lấy tối đa 8 cụm lặp nhiều nhất); (2) đọc catalog từ các nguồn đang bật (tên và mô tả trong front matter của
+        `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) lọc sơ bằng từ khóa còn tối đa 40 ứng viên; (4) gửi cụm (nhãn, số lần, số
+        người) và ứng viên cho LLM bằng **key của người gọi**. Nhãn cụm là nội dung prompt nên quyền và audit như
+        `runSkillTriage` (leader dùng prompt của người khác ghi `skill_clusters.ai`).
+
+        **Server chỉ giữ gợi ý hợp lệ:** LLM chọn theo mã ứng viên; mã không có trong danh sách bị bỏ, tên, mô tả và đường dẫn
+        lấy từ catalog chứ không từ LLM. Lý do (`reason`) phải trích số liệu của cụm (số lần, số người).
+
+        Lỗi riêng: `409 no_clusters` (chưa có cụm lặp nào để đối chiếu), `502 catalog_unavailable` (không đọc được nguồn
+        nào, hoặc không có nguồn nào đang bật). Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunSkillAiRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: |
+            Chưa có API key (`llm_key_missing`) hoặc chưa có cụm lặp nào để đối chiếu (`no_clusters`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              examples:
+                noKey:
+                  value:
+                    error: llm_key_missing
+                    message: Bạn chưa cấu hình API key AI.
+                noClusters:
+                  value:
+                    error: no_clusters
+                    message: Chưa có prompt nào lặp lại đủ 3 lần trong khoảng này nên chưa có gì để đối chiếu với catalog.
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          description: |
+            Không đọc được catalog (`catalog_unavailable`) hoặc nhà cung cấp AI lỗi (`llm_provider_error`, `llm_bad_output`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: catalog_unavailable
+                message: Không đọc được skill từ nguồn catalog nào. Kiểm tra nguồn đang bật và kết nối tới GitHub.
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
+
 components:
   parameters:
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
     ClusterId:
       name: clusterId
       in: path
@@ -248,6 +456,15 @@ components:
         $ref: './common.yaml#/components/schemas/Id'
 
   responses:
+    SourceExists:
+      description: 'Nguồn này đã có (`error`: `source_exists`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: source_exists
+            message: Nguồn catalog này đã có.
     ClusterNotFound:
       description: |
         Không tìm thấy project (`error`: `not_found`) hoặc cụm không còn trong khoảng thời gian đã chọn
@@ -460,3 +677,99 @@ components:
         excerpt:
           type: string
           description: Đoạn trích prompt, tối đa 160 ký tự, đã che secret, khoảng trắng đã gộp.
+
+    SkillCatalogSource:
+      type: object
+      required: [id, url, kind, enabled, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        url:
+          type: string
+          description: URL chuẩn hóa, `https://github.com/{owner}/{repo}`.
+          examples: ['https://github.com/anthropics/skills']
+        kind:
+          type: string
+          enum: [github]
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    SkillCatalogSourceList:
+      type: object
+      required: [sources]
+      additionalProperties: false
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillCatalogSource'
+
+    CreateSkillCatalogSourceRequest:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          maxLength: 300
+          description: URL repo GitHub công khai (xem `createSkillCatalogSource`).
+
+    UpdateSkillCatalogSourceRequest:
+      type: object
+      required: [enabled]
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+
+    CatalogPicksSaved:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          description: Kết quả `catalog_picks` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+
+    SkillCatalogPick:
+      type: object
+      required: [name, description, sourceUrl, skillUrl, reason]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Tên skill trong catalog (lấy từ catalog, không từ LLM).
+        description:
+          type: string
+          description: Mô tả trong front matter của SKILL.md, đã cắt gọn.
+        sourceUrl:
+          type: string
+          description: URL repo nguồn.
+        skillUrl:
+          type: string
+          description: Link GitHub tới `SKILL.md`.
+        reason:
+          type: string
+          description: Vì sao hợp với workflow, có trích số liệu của cụm (số lần, số người).
+
+    SkillCatalogPicksResult:
+      type: object
+      description: '`result` của `AiResult` kind `catalog_picks`. Tối đa 5 gợi ý, có thể rỗng.'
+      required: [picks, candidatesConsidered]
+      additionalProperties: false
+      properties:
+        picks:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/SkillCatalogPick'
+        candidatesConsidered:
+          type: integer
+          minimum: 0
+          description: Số skill trong catalog đã đưa vào xét sau bước lọc sơ.

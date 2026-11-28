@@ -1259,6 +1259,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/skill-catalog-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Các nguồn catalog skill cộng đồng của server
+         * @description Danh sách nguồn mà S3 (`runCatalogPicks`) đọc skill từ đó. Mọi người đã đăng nhập đều xem được. Server tự thêm hai
+         *     nguồn mặc định ở lần đọc đầu tiên: `https://github.com/anthropics/skills` và
+         *     `https://github.com/github/awesome-copilot`; leader xóa hoặc thêm bớt thoải mái (xóa rồi không tự thêm lại).
+         */
+        get: operations["listSkillCatalogSources"];
+        put?: never;
+        /**
+         * Thêm một nguồn catalog (leader)
+         * @description Chỉ nhận URL repo GitHub công khai dạng `https://github.com/{owner}/{repo}` (chấp nhận thêm `.git`, dấu `/` ở cuối,
+         *     `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}`). Server **không** gọi URL nào khác ngoài
+         *     `api.github.com` và `raw.githubusercontent.com`, nên không dùng được để dò mạng nội bộ. Không kiểm repo có tồn tại
+         *     lúc thêm; repo không đọc được chỉ bị bỏ qua khi chọn skill. Thêm URL đã có trả `409 source_exists`.
+         */
+        post: operations["createSkillCatalogSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skill-catalog-sources/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Xóa một nguồn catalog (leader) */
+        delete: operations["deleteSkillCatalogSource"];
+        options?: never;
+        head?: never;
+        /** Bật hoặc tắt một nguồn catalog (leader) */
+        patch: operations["updateSkillCatalogSource"];
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/ai/catalog-picks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * S3 · kết quả chọn skill đã lưu của người gọi
+         * @description Chỉ trả kết quả của chính người gọi (kind `catalog_picks`, subjectType `project`, theo `locale`), hoặc `null`.
+         */
+        get: operations["getCatalogPicks"];
+        put?: never;
+        /**
+         * S3 · AI chọn tối đa 5 skill trong catalog hợp với workflow thật
+         * @description Trả `AiResult` kind `catalog_picks`, subjectType `project` (subjectId là `projectId`), `result` theo
+         *     `SkillCatalogPicksResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale).
+         *
+         *     Các bước ở server: (1) dựng cụm prompt lặp lại của người gọi như `listSkillClusters` (cùng `userId`, `from`, `to`;
+         *     lấy tối đa 8 cụm lặp nhiều nhất); (2) đọc catalog từ các nguồn đang bật (tên và mô tả trong front matter của
+         *     `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) lọc sơ bằng từ khóa còn tối đa 40 ứng viên; (4) gửi cụm (nhãn, số lần, số
+         *     người) và ứng viên cho LLM bằng **key của người gọi**. Nhãn cụm là nội dung prompt nên quyền và audit như
+         *     `runSkillTriage` (leader dùng prompt của người khác ghi `skill_clusters.ai`).
+         *
+         *     **Server chỉ giữ gợi ý hợp lệ:** LLM chọn theo mã ứng viên; mã không có trong danh sách bị bỏ, tên, mô tả và đường dẫn
+         *     lấy từ catalog chứ không từ LLM. Lý do (`reason`) phải trích số liệu của cụm (số lần, số người).
+         *
+         *     Lỗi riêng: `409 no_clusters` (chưa có cụm lặp nào để đối chiếu), `502 catalog_unavailable` (không đọc được nguồn
+         *     nào, hoặc không có nguồn nào đang bật). Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+         */
+        post: operations["runCatalogPicks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2382,6 +2470,51 @@ export interface components {
              */
             markdown: string;
         };
+        SkillCatalogSource: {
+            id: components["schemas"]["Id"];
+            /**
+             * @description URL chuẩn hóa, `https://github.com/{owner}/{repo}`.
+             * @example https://github.com/anthropics/skills
+             */
+            url: string;
+            /** @enum {string} */
+            kind: "github";
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SkillCatalogSourceList: {
+            sources: components["schemas"]["SkillCatalogSource"][];
+        };
+        CreateSkillCatalogSourceRequest: {
+            /** @description URL repo GitHub công khai (xem `createSkillCatalogSource`). */
+            url: string;
+        };
+        UpdateSkillCatalogSourceRequest: {
+            enabled: boolean;
+        };
+        CatalogPicksSaved: {
+            /** @description Kết quả `catalog_picks` của người gọi, hoặc null. */
+            result: components["schemas"]["AiResult"] | null;
+        };
+        SkillCatalogPick: {
+            /** @description Tên skill trong catalog (lấy từ catalog, không từ LLM). */
+            name: string;
+            /** @description Mô tả trong front matter của SKILL.md, đã cắt gọn. */
+            description: string;
+            /** @description URL repo nguồn. */
+            sourceUrl: string;
+            /** @description Link GitHub tới `SKILL.md`. */
+            skillUrl: string;
+            /** @description Vì sao hợp với workflow, có trích số liệu của cụm (số lần, số người). */
+            reason: string;
+        };
+        /** @description `result` của `AiResult` kind `catalog_picks`. Tối đa 5 gợi ý, có thể rỗng. */
+        SkillCatalogPicksResult: {
+            picks: components["schemas"]["SkillCatalogPick"][];
+            /** @description Số skill trong catalog đã đưa vào xét sau bước lọc sơ. */
+            candidatesConsidered: number;
+        };
         SourceId: string;
         Session: {
             /** @description `<agent>:<id gốc của session>`, dùng để upsert theo (user_id, source_id). */
@@ -2724,6 +2857,21 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Nguồn này đã có (`error`: `source_exists`). */
+        SourceExists: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "source_exists",
+                 *       "message": "Nguồn catalog này đã có."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         ProjectId: components["schemas"]["Id"];
@@ -2741,6 +2889,7 @@ export interface components {
         McpSessionId: string;
         /** @description `id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay). */
         ClusterId: components["schemas"]["Id"];
+        SourceId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -5166,6 +5315,185 @@ export interface operations {
             422: components["responses"]["LlmKeyRejected"];
             429: components["responses"]["LlmQuotaExceeded"];
             502: components["responses"]["LlmProviderError"];
+            504: components["responses"]["LlmTimeout"];
+        };
+    };
+    listSkillCatalogSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Danh sách nguồn, cũ nhất trước. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSourceList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    createSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSkillCatalogSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Nguồn vừa thêm. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSource"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["SourceExists"];
+        };
+    };
+    deleteSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Đã xóa. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSkillCatalogSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: components["parameters"]["SourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSkillCatalogSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Nguồn sau khi cập nhật. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalogSource"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCatalogPicks: {
+        parameters: {
+            query?: {
+                locale?: components["schemas"]["AiLocale"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kết quả đã lưu hoặc `null`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPicksSaved"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runCatalogPicks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunSkillAiRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AiResultOk"];
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Chưa có API key (`llm_key_missing`) hoặc chưa có cụm lặp nào để đối chiếu (`no_clusters`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["LlmKeyRejected"];
+            429: components["responses"]["LlmQuotaExceeded"];
+            /** @description Không đọc được catalog (`catalog_unavailable`) hoặc nhà cung cấp AI lỗi (`llm_provider_error`, `llm_bad_output`). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "catalog_unavailable",
+                     *       "message": "Không đọc được skill từ nguồn catalog nào. Kiểm tra nguồn đang bật và kết nối tới GitHub."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             504: components["responses"]["LlmTimeout"];
         };
     };
