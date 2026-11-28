@@ -9,9 +9,11 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   bigint,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { projects } from './projects.js';
 import { sessions } from './sessions.js';
 import { users } from './users.js';
@@ -91,4 +93,25 @@ export const userWeeklyStats = pgTable(
     scores: jsonb('scores').notNull().default({}),
   },
   (t) => [primaryKey({ columns: [t.userId, t.projectId, t.week] })],
+);
+
+/** Theo dõi job chấm lại; một project chỉ có một job chưa kết thúc. */
+export const projectRescoreRuns = pgTable(
+  'project_rescore_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    status: text('status').$type<'queued' | 'running' | 'succeeded' | 'failed'>().notNull().default('queued'),
+    processedSessions: integer('processed_sessions').notNull().default(0),
+    totalSessions: integer('total_sessions').notNull().default(0),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', tz).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', tz).notNull().defaultNow(),
+    startedAt: timestamp('started_at', tz),
+    finishedAt: timestamp('finished_at', tz),
+  },
+  (t) => [
+    index('project_rescore_runs_project_created_idx').on(t.projectId, t.createdAt),
+    uniqueIndex('project_rescore_runs_active_uq').on(t.projectId).where(sql`${t.status} in ('queued', 'running')`),
+  ],
 );
