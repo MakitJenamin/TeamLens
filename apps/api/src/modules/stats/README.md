@@ -17,7 +17,7 @@ Dòng bị xóa khi tuần không còn session nào. Khi retention đã xóa tur
 
 ### Tổng quan project (M2.9)
 
-`GET /api/v1/projects/{projectId}/overview?from=&to=` (chỉ leader, mọi project; contract `stats.yaml`). Code: `overview.controller.ts`, `overview.service.ts` (truy vấn), `overview-math.ts` (tính thuần, có test), `pricing.ts` (bảng giá).
+`GET /api/v1/projects/{projectId}/overview?from=&to=` (chỉ leader, mọi project; contract `stats.yaml`). `workTypes` (M6.7) đếm session gốc trong khoảng theo nhãn loại việc B4, chưa phân loại là `workType: null` (`sortWorkTypes` trong `overview-math.ts`). Code: `overview.controller.ts`, `overview.service.ts` (truy vấn), `overview-math.ts` (tính thuần, có test), `pricing.ts` (bảng giá).
 
 - Khoảng thời gian làm tròn ra tuần UTC (`from` xuống, `to` lên), mặc định 8 tuần gần nhất gồm tuần hiện tại, tối đa 53 tuần. Tuần không có dữ liệu vẫn có mặt với số 0.
 - Số session, token và điểm theo tuần lấy từ `user_weekly_stats` (M2.8). Điểm tuần của project là trung bình điểm tuần từng thành viên, trọng số là số session của họ trong tuần.

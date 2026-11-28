@@ -476,6 +476,21 @@ components:
           minimum: 0
           description: Token output trung bình mỗi turn của assistant.
 
+    OverviewWorkType:
+      type: object
+      description: Số session gốc theo nhãn loại việc B4.
+      required: [workType, sessions]
+      additionalProperties: false
+      properties:
+        workType:
+          description: Loại việc; `null` là chưa phân loại.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/SessionWorkType'
+            - type: 'null'
+        sessions:
+          type: integer
+          minimum: 1
+
     OverviewFinding:
       type: object
       description: Một anti-pattern hay gặp trong khoảng thời gian. Sắp xếp theo `count` giảm dần, tối đa 10 mục.
@@ -500,7 +515,7 @@ components:
 
     ProjectOverview:
       type: object
-      required: [range, totals, weeks, byAgent, byModel, usageStats, topFindings]
+      required: [range, totals, weeks, byAgent, byModel, usageStats, workTypes, topFindings]
       properties:
         range:
           $ref: '#/components/schemas/OverviewRange'
@@ -522,6 +537,13 @@ components:
             $ref: '#/components/schemas/OverviewModel'
         usageStats:
           $ref: '#/components/schemas/OverviewUsageStats'
+        workTypes:
+          type: array
+          description: |
+            Thống kê loại việc B4 của các session gốc trong khoảng, nhiều session nhất trước (hòa thì theo tên loại,
+            `null` cuối cùng). Chỉ có loại có ít nhất một session. Chưa phân loại là phần tử `workType: null`.
+          items:
+            $ref: '#/components/schemas/OverviewWorkType'
         topFindings:
           type: array
           items:

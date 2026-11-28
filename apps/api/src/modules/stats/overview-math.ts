@@ -1,4 +1,4 @@
-import type { Schemas } from '@teamlens/schema';
+import type { Schemas, SessionWorkType } from '@teamlens/schema';
 import { ApiError } from '../../common/api-error.js';
 import { estimateCostUsd, isPremiumModel } from './pricing.js';
 import { CATEGORIES } from './weekly-stats.js';
@@ -72,6 +72,12 @@ export interface StatsRow {
   scores: Record<string, number>;
 }
 
+/** Số session gốc theo nhãn loại việc B4 (`workType` null là chưa phân loại). */
+export interface WorkTypeRow {
+  workType: SessionWorkType | null;
+  sessions: number;
+}
+
 export interface AgentRow {
   agent: Schemas['AgentKind'];
   sessions: number;
@@ -132,14 +138,29 @@ function costOf(rows: readonly TurnRow[]): number | null {
 
 const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : null);
 
+/** Nhiều session nhất trước; hòa thì theo tên loại; chưa phân loại (null) cuối cùng. Bỏ loại không có session. */
+export function sortWorkTypes(rows: readonly WorkTypeRow[]): WorkTypeRow[] {
+  return rows
+    .filter((row) => row.sessions > 0)
+    .map((row) => ({ workType: row.workType, sessions: row.sessions }))
+    .sort((a, b) => {
+      if (a.sessions !== b.sessions) return b.sessions - a.sessions;
+      if (a.workType === b.workType) return 0;
+      if (a.workType === null) return 1;
+      if (b.workType === null) return -1;
+      return a.workType < b.workType ? -1 : 1;
+    });
+}
+
 export function buildOverview(input: {
   range: Range;
   stats: readonly StatsRow[];
   agents: readonly AgentRow[];
   turns: readonly TurnRow[];
   findings: readonly FindingRow[];
+  workTypes: readonly WorkTypeRow[];
 }): ProjectOverview {
-  const { range, stats, agents, turns, findings } = input;
+  const { range, stats, agents, turns, findings, workTypes } = input;
 
   const weeks = listWeeks(range).map((week) => {
     const rows = stats.filter((row) => row.week === week);
@@ -211,6 +232,7 @@ export function buildOverview(input: {
       ),
       avgOutputTokensPerTurn: ratio(sum((row) => row.output), totalTurns),
     },
+    workTypes: sortWorkTypes(workTypes),
     topFindings: [...findings],
   };
 }

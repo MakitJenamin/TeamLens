@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { forbidden } from '../../../common/api-error.js';
 import { AccessService } from '../../access/access.service.js';
 import { FindingsService } from '../../rules/findings.service.js';
-import { AGENT_KINDS } from '../../sessions/session-mappers.js';
+import { AGENT_KINDS, WORK_TYPES } from '../../sessions/session-mappers.js';
 import { SessionsService } from '../../sessions/sessions.service.js';
 import { McpToolRegistry } from '../mcp-tool-registry.js';
 import type { McpCaller } from '../mcp.types.js';
@@ -24,6 +24,7 @@ const searchArgs = z.strictObject({
   projectId: uuidArg('projectId'),
   userId: uuidArg('userId').optional(),
   agent: z.enum(AGENT_KINDS, 'agent không hợp lệ').optional(),
+  workType: z.enum(WORK_TYPES, 'workType không hợp lệ').optional(),
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
   q: z.string().trim().min(1, 'q không được để trống').max(200).optional(),
@@ -56,6 +57,7 @@ export class SearchSessionsTool extends BaseMcpTool {
     const page = await this.sessions.list(caller.user, query.projectId, {
       userId: query.userId,
       agent: query.agent,
+      workType: query.workType,
       from: query.from,
       to: query.to,
       q: query.q,

@@ -49,9 +49,16 @@ export interface MemberOption {
   name: string;
 }
 
-function sessionsUrl(projectId: string, filters: { agent: string; userId: string; q: string }, cursor?: string) {
+export const WORK_TYPES = ["bugfix", "feature", "refactor", "question", "ops", "docs", "test", "other"] as const;
+
+function sessionsUrl(
+  projectId: string,
+  filters: { agent: string; workType: string; userId: string; q: string },
+  cursor?: string,
+) {
   const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
   if (filters.agent) params.set("agent", filters.agent);
+  if (filters.workType) params.set("workType", filters.workType);
   if (filters.userId) params.set("userId", filters.userId);
   if (filters.q) params.set("q", filters.q);
   if (cursor) params.set("cursor", cursor);
@@ -65,10 +72,12 @@ const selectClass =
 export function SessionList({ projectId, members }: { projectId: string; members: MemberOption[] | null }) {
   const t = useTranslations("sessions");
   const [agent, setAgent] = useState("");
+  const [workType, setWorkType] = useState("");
   const [userId, setUserId] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
   const agentId = useId();
+  const workTypeId = useId();
   const userSelectId = useId();
   const searchId = useId();
 
@@ -80,8 +89,9 @@ export function SessionList({ projectId, members }: { projectId: string; members
   }, [searchInput, q]);
 
   const query = useInfiniteQuery({
-    queryKey: ["sessions", projectId, { agent, userId, q }],
-    queryFn: ({ pageParam }) => api.get<SessionPage>(sessionsUrl(projectId, { agent, userId, q }, pageParam)),
+    queryKey: ["sessions", projectId, { agent, workType, userId, q }],
+    queryFn: ({ pageParam }) =>
+      api.get<SessionPage>(sessionsUrl(projectId, { agent, workType, userId, q }, pageParam)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -125,6 +135,19 @@ export function SessionList({ projectId, members }: { projectId: string; members
             {AGENT_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {t(`agents.${kind}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={workTypeId} className="text-muted-foreground text-xs font-medium">
+            {t("list.filters.workType")}
+          </label>
+          <select id={workTypeId} className={selectClass} value={workType} onChange={(e) => setWorkType(e.target.value)}>
+            <option value="">{t("list.filters.allWorkTypes")}</option>
+            {WORK_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {t(`workTypes.${type}`)}
               </option>
             ))}
           </select>
@@ -204,6 +227,7 @@ function SessionTable({ projectId, sessions }: { projectId: string; sessions: Se
           <TableHead>{t("list.columns.startedAt")}</TableHead>
           <TableHead>{t("list.columns.user")}</TableHead>
           <TableHead className="hidden sm:table-cell">{t("list.columns.agent")}</TableHead>
+          <TableHead className="hidden md:table-cell">{t("list.columns.workType")}</TableHead>
           <TableHead className="hidden lg:table-cell">{t("list.columns.model")}</TableHead>
           <TableHead className="hidden md:table-cell">{t("list.columns.repo")}</TableHead>
           <TableHead className="hidden md:table-cell">{t("list.columns.duration")}</TableHead>
@@ -243,6 +267,9 @@ function SessionTable({ projectId, sessions }: { projectId: string; sessions: Se
               <TableCell className="align-top">{s.user.name}</TableCell>
               <TableCell className="hidden align-top sm:table-cell">
                 <Badge variant="secondary">{t(`agents.${s.agent}`)}</Badge>
+              </TableCell>
+              <TableCell className="hidden align-top md:table-cell">
+                {s.workType ? <Badge variant="outline">{t(`workTypes.${s.workType}`)}</Badge> : <span className="text-muted-foreground">—</span>}
               </TableCell>
               <TableCell className="hidden align-top font-mono text-xs lg:table-cell">{s.model ?? "—"}</TableCell>
               <TableCell className="hidden max-w-56 align-top md:table-cell">

@@ -3,6 +3,7 @@
 # - GET /api/v1/sessions/{sessionId}: chi tiết session kèm toàn bộ turn.
 # - GET/POST /api/v1/sessions/{sessionId}/notes, DELETE .../notes/{noteId}: ghi chú của leader theo turn (M3.4).
 # M4.1: tìm kiếm full-text bằng query `q` của danh sách session.
+# M6.7 (B4): nhãn loại việc `workType` (heuristic ở rule worker, không gọi LLM) trên session và bộ lọc `workType`.
 #
 # Quyền (spec 11.1): member chỉ xem session của chính mình; leader xem mọi session. Xem session của người khác đi qua `AccessService` và ghi audit.
 # Trường lấy từ bảng `sessions`/`turns` (apps/api/src/db/schema/sessions.ts), đổi sang camelCase.
@@ -52,6 +53,14 @@ paths:
           schema:
             type: string
             format: date-time
+        - name: workType
+          in: query
+          required: false
+          description: |
+            Chỉ lấy session có nhãn loại việc này (B4). Session chưa có nhãn (mới nhận, đã mất turn do retention,
+            hoặc là session con) không khớp với bất kỳ giá trị nào.
+          schema:
+            $ref: './ai.yaml#/components/schemas/SessionWorkType'
         - name: includeSubagents
           in: query
           required: false
@@ -267,6 +276,7 @@ components:
         - parentSessionId
         - childCount
         - permissionMode
+        - workType
       additionalProperties: false
       properties:
         id:
@@ -322,6 +332,14 @@ components:
           description: Chế độ quyền của agent; null khi CLI không gửi.
           oneOf:
             - $ref: '#/components/schemas/PermissionMode'
+            - type: 'null'
+        workType:
+          description: |
+            Nhãn loại việc B4: heuristic ở rule worker (từ khóa tiếng Việt và tiếng Anh trong prompt, cộng tín hiệu từ
+            tool và diff), không gọi LLM. Ai xem được session thì thấy nhãn. `null` khi chưa phân loại: session mới
+            nhận chưa được chấm, session con, hoặc turn đã bị xóa theo retention từ trước khi có nhãn.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/SessionWorkType'
             - type: 'null'
         match:
           description: |

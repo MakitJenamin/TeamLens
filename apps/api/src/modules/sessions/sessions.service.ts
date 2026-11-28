@@ -4,6 +4,7 @@ import type {
   SessionDetail,
   SessionPage,
   SessionSummary,
+  SessionWorkType,
 } from '@teamlens/schema';
 import {
   and,
@@ -36,11 +37,14 @@ import {
   mapTurn,
   toAgentKind,
   toPermissionMode,
+  toWorkType,
 } from './session-mappers.js';
 
 export interface ListSessionsQuery {
   userId?: string;
   agent?: AgentKind;
+  /** Nhãn loại việc B4. */
+  workType?: SessionWorkType;
   from?: Date;
   to?: Date;
   includeSubagents: boolean;
@@ -94,6 +98,7 @@ const summaryColumns = {
     SELECT count(*)::int FROM ${sessions} c WHERE c.parent_session_id = ${sessions.id}
   )`,
   permissionMode: sessions.permissionMode,
+  workType: sessions.workType,
   // Model xuất hiện nhiều nhất ở turn của assistant.
   model: sql<string | null>`(
     SELECT t.model FROM ${turns} t
@@ -129,6 +134,7 @@ interface SummaryRow {
   parentSessionId: string | null;
   childCount: number;
   permissionMode: string | null;
+  workType: string | null;
   model: string | null;
   title: string | null;
 }
@@ -157,6 +163,7 @@ function toSummary(row: SummaryRow): SessionSummary {
     parentSessionId: row.parentSessionId,
     childCount: Number(row.childCount ?? 0),
     permissionMode: toPermissionMode(row.permissionMode),
+    workType: toWorkType(row.workType),
   };
 }
 
@@ -196,6 +203,7 @@ export class SessionsService {
     const conditions: SQL[] = [eq(sessions.projectId, projectId)];
     if (ownerFilter) conditions.push(eq(sessions.userId, ownerFilter));
     if (query.agent) conditions.push(eq(sessions.agent, query.agent));
+    if (query.workType) conditions.push(eq(sessions.workType, query.workType));
     if (query.from) conditions.push(gte(sessions.startedAt, query.from));
     if (query.to) conditions.push(lt(sessions.startedAt, query.to));
     if (!query.includeSubagents) {

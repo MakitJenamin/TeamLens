@@ -46,7 +46,10 @@
     },
     "unknownModel": "Unknown model",
     "noPrice": "No price",
-    "empty": "No data yet"
+    "empty": "No data yet",
+    "workTypeTitle": "By type of work",
+    "workTypeHint": "Classified automatically from keywords in the prompts and the files changed, so only approximate.",
+    "workTypeUnclassified": "Unclassified"
   },
   "usage": {
     "title": "Reference figures",

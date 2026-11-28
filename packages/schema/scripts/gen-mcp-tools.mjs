@@ -247,6 +247,7 @@ const tools = {
         projectId: uuid('Project cần tìm.'),
         userId: uuid('Chỉ session của người này (member chỉ được đặt chính mình).'),
         agent: { type: 'string', enum: S.AgentKind.enum, description: 'Chỉ session của agent này.' },
+        workType: { type: 'string', enum: S.SessionWorkType.enum, description: 'Chỉ session có nhãn loại việc này (B4, heuristic).' },
         from: dateTime('Chỉ session bắt đầu từ mốc này (ISO 8601).'),
         to: dateTime('Chỉ session bắt đầu trước mốc này.'),
         q: {

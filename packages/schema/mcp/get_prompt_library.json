@@ -77,7 +77,7 @@
                     "test",
                     "other"
                   ],
-                  "description": "Loại việc theo cách hiểu của LLM (A1), độc lập với nhãn heuristic B4."
+                  "description": "Loại việc. Dùng cho hai nguồn độc lập nhau: nhãn heuristic B4 (`SessionSummary.workType`, tính ở rule worker,\nkhông gọi LLM) và loại việc LLM tự nêu trong tóm tắt A1 (`SessionSummaryResult.workType`).\n"
                 },
                 {
                   "type": "null"

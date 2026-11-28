@@ -29,6 +29,7 @@ import {
 } from '../stats/refresh-weekly-stats.js';
 import { CATEGORIES, PENALTIES } from '../stats/weekly-stats.js';
 import { sessionRules } from './session-rules.js';
+import { classifyWorkType } from './work-type.js';
 import {
   weeklyRules,
   evaluateWeek,
@@ -115,6 +116,12 @@ export function scoreSession(db: Database, sessionId: string) {
       await refreshWeeklyStats(tx, weekOwner);
       return true;
     }
+
+    // Nhãn loại việc B4 (heuristic, không gọi LLM). Tính cùng lúc với điểm nên chấm lại project cũng gán nhãn cho session cũ.
+    await tx
+      .update(sessions)
+      .set({ workType: classifyWorkType(turnRows) })
+      .where(eq(sessions.id, sessionId));
 
     const rows = await tx
       .select()

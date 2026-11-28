@@ -77,6 +77,7 @@ function summary(id: string): SessionSummary {
     parentSessionId: null,
     childCount: 0,
     permissionMode: null,
+    workType: null,
   };
 }
 
