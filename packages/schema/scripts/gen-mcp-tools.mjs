@@ -129,6 +129,51 @@ const ruleSummary = {
 };
 const ruleSummaryReq = ['key', 'category', 'severity', 'enabled', 'version', 'scope'];
 
+// --- Tool ghi (M6.16): chỉ chỉnh rule session có sẵn, KHÔNG đổi `match` (logic, regex) -------------------------
+const overrideProps = {
+  severity: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Mức độ mới của rule.' },
+  thresholds: {
+    type: 'object',
+    minProperties: 1,
+    additionalProperties: { type: 'number', minimum: 0 },
+    description:
+      'Ngưỡng cần đổi (chỉ các khóa rule đã có, ví dụ `min`); khóa không nêu thì giữ nguyên. `min` phải >= 1.',
+  },
+  message: { type: 'string', minLength: 1, maxLength: 500, description: 'Thông điệp mới (có thể dùng `{{count}}`).' },
+  advice: { type: 'string', minLength: 1, maxLength: 1000, description: 'Lời khuyên mới.' },
+};
+const overrideNote =
+  'Chỉ chỉnh rule **session** có sẵn (ngưỡng, mức độ, thông điệp, lời khuyên); không đổi logic `match`, không tạo rule mới, không áp dụng cho rule tuần.';
+const changeItem = obj(
+  {
+    field: { type: 'string', description: 'Trường đổi: `severity`, `message`, `advice` hoặc `thresholds.<khóa>`.' },
+    from: { description: 'Giá trị hiện hành.' },
+    to: { description: 'Giá trị mới.' },
+  },
+  ['field', 'from', 'to'],
+);
+const ruleTestItem = obj(
+  {
+    name: { type: 'string' },
+    expect: { type: 'string', enum: ['triggered', 'clean'] },
+    actual: { type: 'string', enum: ['triggered', 'clean'] },
+    passed: { type: 'boolean' },
+  },
+  ['name', 'expect', 'actual', 'passed'],
+);
+const candidateRule = obj(
+  {
+    key: { type: 'string' },
+    category: { type: 'string' },
+    severity: { type: 'string', enum: ['low', 'medium', 'high'] },
+    thresholds: { type: 'object', additionalProperties: { type: 'number' } },
+    message: { type: 'string' },
+    advice: { type: 'string' },
+  },
+  ['key', 'category', 'severity', 'thresholds', 'message', 'advice'],
+);
+const sessionNote = clean(S.SessionNote);
+
 const tools = {
   list_projects: {
     description:
@@ -295,6 +340,112 @@ const tools = {
       ['subjectType', 'subjectId'],
     ),
     outputSchema: obj({ results: { type: 'array', items: aiResult } }, ['results']),
+  },
+  // --- Tool ghi cho leader (M6.16) ---
+  draft_rule: {
+    description:
+      'Soạn thử một thay đổi cho rule và kiểm tra, KHÔNG lưu gì. Trả rule sau khi đổi, danh sách thay đổi, và kết quả chạy các `tests` nội tuyến của rule với cấu hình mới. Chỉ LEADER. ' +
+      overrideNote,
+    inputSchema: obj(
+      { key: { type: 'string', minLength: 1, maxLength: 100, description: 'Khóa rule (từ `list_rules`).' }, projectId: uuid('Project áp dụng.'), ...overrideProps },
+      ['key', 'projectId'],
+    ),
+    outputSchema: obj(
+      {
+        rule: candidateRule,
+        changes: { type: 'array', items: changeItem },
+        tests: { type: 'array', items: ruleTestItem },
+        allPassed: { type: 'boolean', description: 'true khi mọi `tests` nội tuyến vẫn đúng với cấu hình mới.' },
+      },
+      ['rule', 'changes', 'tests', 'allPassed'],
+    ),
+  },
+  test_rule: {
+    description:
+      'Chạy thử cấu hình rule mới trên tối đa 50 session gốc gần nhất của project và so với cấu hình hiện hành: có bao nhiêu session sẽ bị gắn nhận xét. KHÔNG lưu gì và KHÔNG trả nội dung turn (chỉ id session, số turn, số lần); muốn đọc thì mở session bằng `get_session` (có audit). Chỉ LEADER. ' +
+      overrideNote,
+    inputSchema: obj(
+      { key: { type: 'string', minLength: 1, maxLength: 100, description: 'Khóa rule.' }, projectId: uuid('Project cần thử.'), ...overrideProps },
+      ['key', 'projectId'],
+    ),
+    outputSchema: obj(
+      {
+        sessionsEvaluated: { type: 'integer', minimum: 0, description: 'Số session đã chấm thử (chỉ session còn đủ turn).' },
+        baselineTriggered: { type: 'integer', minimum: 0, description: 'Số session bị gắn nhận xét với cấu hình hiện hành.' },
+        candidateTriggered: { type: 'integer', minimum: 0, description: 'Số session bị gắn nhận xét với cấu hình mới.' },
+        samples: {
+          type: 'array',
+          maxItems: 5,
+          description: 'Tối đa 5 session bị gắn nhận xét với cấu hình mới (không có nội dung).',
+          items: obj(
+            {
+              sessionId: uuid(),
+              turnSeq: { type: ['integer', 'null'], minimum: 0 },
+              count: { type: 'integer', minimum: 0 },
+            },
+            ['sessionId', 'turnSeq', 'count'],
+          ),
+        },
+      },
+      ['sessionsEvaluated', 'baselineTriggered', 'candidateTriggered', 'samples'],
+    ),
+  },
+  save_rule: {
+    description:
+      'Lưu thay đổi cho rule thành bản riêng của project rồi chấm lại điểm (chạy nền). Từ chối khi các `tests` nội tuyến không còn đúng. Ghi audit giá trị cũ và mới. Chỉ LEADER. ' +
+      overrideNote,
+    inputSchema: obj(
+      { key: { type: 'string', minLength: 1, maxLength: 100, description: 'Khóa rule.' }, projectId: uuid('Project áp dụng.'), ...overrideProps },
+      ['key', 'projectId'],
+    ),
+    outputSchema: obj(
+      {
+        rule: obj(
+          {
+            ...ruleSummary,
+            definition: { type: 'object', additionalProperties: true, description: 'Định nghĩa rule sau khi lưu.' },
+            updatedAt: dateTime('Lần sửa gần nhất.'),
+          },
+          [...ruleSummaryReq, 'definition', 'updatedAt'],
+        ),
+        changes: { type: 'array', items: changeItem },
+        rescore: { type: 'string', enum: ['queued'], description: 'Đã xếp job chấm lại điểm cho project.' },
+      },
+      ['rule', 'changes', 'rescore'],
+    ),
+  },
+  set_rule_enabled: {
+    description:
+      'Bật hoặc tắt một rule (cả rule session lẫn rule tuần) cho một project, rồi chấm lại điểm (chạy nền). Làm đổi điểm của cả team nên chỉ LEADER; ghi audit giá trị cũ và mới, đảo lại được bằng cách gọi lại hoặc trên dashboard.',
+    inputSchema: obj(
+      {
+        key: { type: 'string', minLength: 1, maxLength: 100, description: 'Khóa rule.' },
+        projectId: uuid('Project áp dụng.'),
+        enabled: { type: 'boolean', description: 'true để bật, false để tắt.' },
+      },
+      ['key', 'projectId', 'enabled'],
+    ),
+    outputSchema: obj(
+      {
+        rule: obj(ruleSummary, ruleSummaryReq),
+        previousEnabled: { type: 'boolean', description: 'Trạng thái trước khi đổi.' },
+        rescore: { type: 'string', enum: ['queued'], description: 'Đã xếp job chấm lại điểm cho project.' },
+      },
+      ['rule', 'previousEnabled', 'rescore'],
+    ),
+  },
+  add_session_note: {
+    description:
+      'Thêm ghi chú của leader vào một session, gắn vào một turn hoặc cả session. Ghi chú hiện trên trang session cho người xem được session đó. Chỉ LEADER; có audit.',
+    inputSchema: obj(
+      {
+        sessionId: uuid('Session cần ghi chú.'),
+        turnSeq: { type: ['integer', 'null'], minimum: 0, description: '`seq` của turn; bỏ trống hoặc null là ghi chú chung.' },
+        body: { type: 'string', minLength: 1, maxLength: 4000, description: 'Nội dung ghi chú.' },
+      },
+      ['sessionId', 'body'],
+    ),
+    outputSchema: obj({ note: sessionNote }, ['note']),
   },
 };
 
