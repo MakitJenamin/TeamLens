@@ -1093,7 +1093,11 @@ export interface paths {
         head?: never;
         /**
          * Cập nhật cài đặt server (leader)
-         * @description Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Job retention hằng đêm (M5.5) đọc retentionDays ở lần chạy kế tiếp.
+         * @description Mỗi phần kèm phiên bản đã đọc từ GET; phiên bản lệch (người khác vừa lưu) thì 409, không ghi gì.
+         *     - redactionPatterns cần expectedRedactionPatternsVersion. Pattern khớp phần lớn văn bản thường
+         *       (vd. `.+`, `\w+`) bị từ chối (`pattern_too_broad`).
+         *     - retentionDays cần expectedRetentionVersion. Job retention hằng đêm (M5.5) đọc giá trị mới ở lần chạy kế tiếp.
+         *     - consentText cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent.
          */
         patch: operations["updateServerSettings"];
         trace?: never;
@@ -1107,7 +1111,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader) */
+        /**
+         * Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader)
+         * @description Che theo đúng quy tắc của CLI (bỏ khớp rỗng, group `secret` không tham gia thì che cả chuỗi khớp, gộp vùng chồng nhau). Chỉ áp pattern này, không gồm rule có sẵn của CLI.
+         */
         post: operations["testRedactionPattern"];
         delete?: never;
         options?: never;
@@ -2226,7 +2233,11 @@ export interface components {
         };
         ServerSettings: {
             redactionPatterns: components["schemas"]["RedactionPattern"][];
+            /** @description Phiên bản mờ của redactionPatterns, gửi lại ở expectedRedactionPatternsVersion khi lưu. */
+            redactionPatternsVersion: string;
             retentionDays: number | null;
+            /** @description Phiên bản mờ của retentionDays, gửi lại ở expectedRetentionVersion khi lưu. */
+            retentionVersion: string;
             consentText: {
                 version: string;
                 text: string;
@@ -2237,7 +2248,7 @@ export interface components {
             retentionLastRun: components["schemas"]["RetentionRun"] | null;
         };
         RedactionPattern: {
-            id: string;
+            id: components["schemas"]["RedactionPatternId"];
             name: string;
             description?: string;
             /** @description Cú pháp crate regex của Rust; tối đa 4096 byte UTF-8. */
@@ -3230,6 +3241,8 @@ export interface components {
             /** Format: date-time */
             at: string;
         };
+        /** @description Hiện trong `[REDACTED:<id>]`. Không bắt đầu hay kết thúc bằng `_`, vì CLI bỏ `_` ở hai đầu (id `_` bị CLI bỏ qua). */
+        RedactionPatternId: string;
     };
     responses: {
         /** @description Body hoặc tham số không hợp lệ (`error`: `validation_error`). */
@@ -5684,6 +5697,10 @@ export interface operations {
                     redactionPatterns?: components["schemas"]["RedactionPattern"][];
                     /** @description null là lưu vô hạn. Job retention hằng đêm xóa nội dung thô cũ hơn số ngày này. */
                     retentionDays?: number | null;
+                    /** @description redactionPatternsVersion đã đọc; bắt buộc khi gửi redactionPatterns. */
+                    expectedRedactionPatternsVersion?: string;
+                    /** @description retentionVersion đã đọc; bắt buộc khi gửi retentionDays. */
+                    expectedRetentionVersion?: string;
                     consentText?: string;
                     expectedConsentVersion?: string;
                 };
@@ -5699,7 +5716,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServerSettings"];
                 };
             };
-            /** @description Cấu hình hoặc regex không hợp lệ (`pattern_invalid`). */
+            /** @description Cấu hình không hợp lệ (`validation_error`), regex sai cú pháp Rust (`pattern_invalid`) hoặc khớp quá rộng (`pattern_too_broad`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5710,7 +5727,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
-            /** @description Phiên bản văn bản đã đổi (`consent_version_conflict`). */
+            /** @description Phiên bản đã đổi (`redaction_patterns_conflict`, `retention_conflict`, `consent_version_conflict`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5731,7 +5748,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    id: string;
+                    id: components["schemas"]["RedactionPatternId"];
                     regex: string;
                     sample: string;
                 };
@@ -5750,7 +5767,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Pattern không hợp lệ (`pattern_invalid`). */
+            /** @description Pattern không hợp lệ (`pattern_invalid`) hoặc khớp quá rộng (`pattern_too_broad`). */
             400: {
                 headers: {
                     [name: string]: unknown;

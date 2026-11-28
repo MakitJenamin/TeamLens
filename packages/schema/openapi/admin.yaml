@@ -34,7 +34,12 @@ paths:
       operationId: updateServerSettings
       tags: [admin]
       summary: Cập nhật cài đặt server (leader)
-      description: Sửa văn bản đồng ý cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent. Job retention hằng đêm (M5.5) đọc retentionDays ở lần chạy kế tiếp.
+      description: |
+        Mỗi phần kèm phiên bản đã đọc từ GET; phiên bản lệch (người khác vừa lưu) thì 409, không ghi gì.
+        - redactionPatterns cần expectedRedactionPatternsVersion. Pattern khớp phần lớn văn bản thường
+          (vd. `.+`, `\w+`) bị từ chối (`pattern_too_broad`).
+        - retentionDays cần expectedRetentionVersion. Job retention hằng đêm (M5.5) đọc giá trị mới ở lần chạy kế tiếp.
+        - consentText cần expectedConsentVersion; nếu đổi nội dung sẽ tăng version và thiết bị phải chạy tl consent.
       security:
         - cookieAuth: []
       requestBody:
@@ -55,6 +60,12 @@ paths:
                   minimum: 7
                   maximum: 730
                   description: null là lưu vô hạn. Job retention hằng đêm xóa nội dung thô cũ hơn số ngày này.
+                expectedRedactionPatternsVersion:
+                  type: string
+                  description: redactionPatternsVersion đã đọc; bắt buộc khi gửi redactionPatterns.
+                expectedRetentionVersion:
+                  type: string
+                  description: retentionVersion đã đọc; bắt buộc khi gửi retentionDays.
                 consentText:
                   type: string
                   minLength: 1
@@ -68,7 +79,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerSettings'
         '400':
-          description: Cấu hình hoặc regex không hợp lệ (`pattern_invalid`).
+          description: Cấu hình không hợp lệ (`validation_error`), regex sai cú pháp Rust (`pattern_invalid`) hoặc khớp quá rộng (`pattern_too_broad`).
           content:
             application/json:
               schema:
@@ -78,7 +89,7 @@ paths:
         '403':
           $ref: './common.yaml#/components/responses/Forbidden'
         '409':
-          description: Phiên bản văn bản đã đổi (`consent_version_conflict`).
+          description: Phiên bản đã đổi (`redaction_patterns_conflict`, `retention_conflict`, `consent_version_conflict`).
           content:
             application/json:
               schema:
@@ -89,6 +100,7 @@ paths:
       operationId: testRedactionPattern
       tags: [admin]
       summary: Thử regex Rust trên đoạn mẫu trong bộ nhớ, không lưu hoặc log (leader)
+      description: Che theo đúng quy tắc của CLI (bỏ khớp rỗng, group `secret` không tham gia thì che cả chuỗi khớp, gộp vùng chồng nhau). Chỉ áp pattern này, không gồm rule có sẵn của CLI.
       security:
         - cookieAuth: []
       requestBody:
@@ -101,7 +113,7 @@ paths:
               required: [id, regex, sample]
               properties:
                 id:
-                  type: string
+                  $ref: '#/components/schemas/RedactionPatternId'
                 regex:
                   type: string
                   minLength: 1
@@ -123,7 +135,7 @@ paths:
                   redacted:
                     type: string
         '400':
-          description: Pattern không hợp lệ (`pattern_invalid`).
+          description: Pattern không hợp lệ (`pattern_invalid`) hoặc khớp quá rộng (`pattern_too_broad`).
           content:
             application/json:
               schema:
@@ -249,8 +261,7 @@ components:
       required: [id, name, regex]
       properties:
         id:
-          type: string
-          pattern: '^[a-z0-9_]+$'
+          $ref: '#/components/schemas/RedactionPatternId'
         name:
           type: string
           minLength: 1
@@ -262,17 +273,29 @@ components:
           minLength: 1
           description: Cú pháp crate regex của Rust; tối đa 4096 byte UTF-8.
 
+    RedactionPatternId:
+      type: string
+      maxLength: 64
+      pattern: '^[a-z0-9](?:[a-z0-9_]*[a-z0-9])?$'
+      description: Hiện trong `[REDACTED:<id>]`. Không bắt đầu hay kết thúc bằng `_`, vì CLI bỏ `_` ở hai đầu (id `_` bị CLI bỏ qua).
+
     ServerSettings:
       type: object
       additionalProperties: false
-      required: [redactionPatterns, retentionDays, consentText, affectedDevices, retentionLastRun]
+      required: [redactionPatterns, redactionPatternsVersion, retentionDays, retentionVersion, consentText, affectedDevices, retentionLastRun]
       properties:
         redactionPatterns:
           type: array
           items:
             $ref: '#/components/schemas/RedactionPattern'
+        redactionPatternsVersion:
+          type: string
+          description: Phiên bản mờ của redactionPatterns, gửi lại ở expectedRedactionPatternsVersion khi lưu.
         retentionDays:
           type: [integer, 'null']
+        retentionVersion:
+          type: string
+          description: Phiên bản mờ của retentionDays, gửi lại ở expectedRetentionVersion khi lưu.
         consentText:
           type: object
           additionalProperties: false
