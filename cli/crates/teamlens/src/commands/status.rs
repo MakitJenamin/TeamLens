@@ -49,9 +49,7 @@ pub fn daemon_status(ctx: &AppContext) -> DaemonStatus {
 fn daemon_text(d: &DaemonStatus) -> String {
     let mut text = match d.running {
         Some(true) => "đang chạy".to_owned(),
-        Some(false) => {
-            "chưa chạy (chạy `tl daemon`, hoặc đăng xuất rồi đăng nhập lại Windows)".to_owned()
-        }
+        Some(false) => "chưa chạy. Chạy: `tl daemon`".to_owned(),
         None => "không kiểm tra được".to_owned(),
     };
     if let Some(t) = d.last_cycle_at {
@@ -220,7 +218,7 @@ pub async fn collect(ctx: &AppContext) -> Result<StatusReport, AppError> {
             ) {
                 report.logged_in = false;
                 report.account_error = Some(
-                    "Token của máy này không còn hiệu lực (đã bị thu hồi?). Chạy lại `tl join <link mời>` để tham gia lại."
+                    "Token của máy này không còn hiệu lực. Chạy lại `tl join <link mời>`."
                         .to_owned(),
                 );
             } else {
@@ -243,15 +241,15 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     };
     w("Phiên bản:", &version_text(r.cli_version, &r.update));
     if let Some(err) = &r.update.last_error {
-        w("", &format!("lần kiểm bản mới gần nhất lỗi: {err}"));
+        w("", &format!("kiểm bản mới lỗi: {err}"));
     }
     w("Server:", r.server.as_deref().unwrap_or("chưa cấu hình"));
 
     let login = match (&r.server, r.logged_in, &r.account) {
-        (None, _, _) => "chưa — chạy `tl join <link mời>`".to_owned(),
+        (None, _, _) => "chưa, chạy `tl join <link mời>`".to_owned(),
         (Some(_), true, Some(me)) => format!("rồi ({})", me.user.display()),
         (Some(_), true, None) => "rồi (chưa kiểm tra được với server)".to_owned(),
-        (Some(_), false, _) => "chưa — chạy `tl join <link mời>`".to_owned(),
+        (Some(_), false, _) => "chưa, chạy `tl join <link mời>`".to_owned(),
     };
     w("Đăng nhập:", &login);
     if let Some(err) = &r.account_error {
@@ -284,7 +282,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
         None => {
             let _ = writeln!(
                 out,
-                "{:<12}chưa — chạy `tl join <link mời>` (chưa đồng ý thì không gửi gì)",
+                "{:<12}chưa, không gửi gì. Chạy `tl join <link mời>`",
                 "Đồng ý:"
             );
         }
@@ -299,7 +297,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
                     p.text_version,
                     local_time(p.accepted_at),
                     if p.backfill {
-                        "gửi cả lịch sử cũ"
+                        "gửi cả session cũ"
                     } else {
                         "chỉ gửi session từ lúc đồng ý"
                     }
@@ -313,11 +311,8 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     };
     let state = match (r.paused, r.paused_since) {
         (false, _) => "đang thu thập".to_owned(),
-        (true, Some(t)) => format!(
-            "tạm dừng từ {} — không quét, không gửi; `tl resume` để tiếp tục",
-            local_time(t)
-        ),
-        (true, None) => "tạm dừng — không quét, không gửi; `tl resume` để tiếp tục".to_owned(),
+        (true, Some(t)) => format!("tạm dừng từ {}. Tiếp tục: `tl resume`", local_time(t)),
+        (true, None) => "tạm dừng. Tiếp tục: `tl resume`".to_owned(),
     };
     w("Trạng thái:", &state);
     w("Daemon:", &daemon_text(&r.daemon));
@@ -333,10 +328,7 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
         w("", &format!("lần gửi gần nhất lỗi: {err}"));
     }
     if r.agents.is_empty() {
-        w(
-            "Agent:",
-            "chưa thấy log của Claude Code hay Codex trên máy này",
-        );
+        w("Agent:", "chưa thấy log Claude Code hay Codex");
     } else {
         let list: Vec<String> = r
             .agents
@@ -350,21 +342,13 @@ fn print_text(out: &mut dyn Write, r: &StatusReport) {
     }
     match r.waiting_files {
         Some(0) => w("Chờ gửi:", "không có"),
-        Some(n) => w(
-            "Chờ gửi:",
-            &format!("{n} file log đang được ghi, `tl sync` gửi khi không đổi đủ 2 phút"),
-        ),
+        Some(n) => w("Chờ gửi:", &format!("{n} file log đang được ghi")),
         None => w("Chờ gửi:", "không đọc được state.db"),
     }
     w("Hàng đợi:", &queue_text(r.queue.as_ref()));
     match r.parse_errors {
         Some(0) => w("Lỗi parse:", "không có"),
-        Some(n) => w(
-            "Lỗi parse:",
-            &format!(
-                "{n} (bản ghi log không nhận ra hoặc file đọc lỗi, đã bỏ qua; định dạng log của agent có thể đã đổi)"
-            ),
-        ),
+        Some(n) => w("Lỗi parse:", &n.to_string()),
         None => w("Lỗi parse:", "không đọc được state.db"),
     }
 }
@@ -377,10 +361,10 @@ fn version_text(current: &str, u: &UpdateInfo) -> String {
         .unwrap_or_default();
     match (&u.latest_version, u.update_available) {
         (Some(latest), true) => {
-            format!("tl {current} — có bản mới {latest}{checked}; chạy `tl update` để cập nhật")
+            format!("tl {current}, có bản mới {latest}{checked}. Chạy `tl update`")
         }
         (Some(_), false) => format!("tl {current} (bản mới nhất{checked})"),
-        (None, _) => format!("tl {current} (chưa kiểm bản mới; `tl update --check`)"),
+        (None, _) => format!("tl {current} (chưa kiểm bản mới, chạy `tl update --check`)"),
     }
 }
 

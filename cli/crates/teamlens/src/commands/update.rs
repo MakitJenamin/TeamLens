@@ -25,7 +25,7 @@ Biến môi trường (thử nghiệm offline với server tĩnh local):
 #[derive(Debug, Args)]
 #[command(after_help = AFTER_HELP)]
 pub struct UpdateArgs {
-    /// Chỉ kiểm tra có bản mới hay không, không tải, không cài
+    /// Chỉ kiểm tra bản mới, không cài
     #[arg(long)]
     pub check: bool,
 }
@@ -62,7 +62,7 @@ pub fn report_check(check: &Check, only_check: bool, out: &mut dyn Write) -> boo
         } else {
             writeln!(
                 out,
-                "tl {current} đã là bản mới nhất (bản phát hành mới nhất: {latest})."
+                "tl {current} đã là bản mới nhất (bản phát hành: {latest})."
             )
         };
         return false;
@@ -70,7 +70,7 @@ pub fn report_check(check: &Check, only_check: bool, out: &mut dyn Write) -> boo
     if only_check {
         let _ = writeln!(
             out,
-            "Có bản mới: tl {latest} (đang dùng {current}). Chạy `tl update` để cập nhật."
+            "Có bản mới: tl {latest} (đang dùng {current}). Chạy `tl update`."
         );
         return false;
     }
@@ -100,17 +100,8 @@ async fn install(
         .download_verified(release, dir.path())
         .await
         .map_err(UpdateError::into_app_error)?;
-    let _ = writeln!(out, "Đã kiểm SHA-256 khớp với SHA256SUMS.");
     update::verify_binary(&new_exe, &release.version).map_err(UpdateError::into_app_error)?;
     update::install(&new_exe).map_err(UpdateError::into_app_error)?;
-    let _ = writeln!(out, "Đã cập nhật tl {current} → {}.", release.version);
-    let daemon_running =
-        crate::daemon::instance::is_running(tl_platform::current().as_ref(), &data_dir);
-    if daemon_running == Some(true) {
-        let _ = writeln!(
-            out,
-            "Daemon đang chạy sẽ tự chuyển sang bản mới trong vòng 10 phút."
-        );
-    }
+    let _ = writeln!(out, "Đã cập nhật tl từ {current} lên {}.", release.version);
     Ok(())
 }

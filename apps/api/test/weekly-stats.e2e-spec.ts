@@ -152,6 +152,7 @@ describe('user_weekly_stats và chạy lại rule (M2.8)', () => {
     await querySql('DELETE FROM user_weekly_stats');
     expect((await admin.post(url).expect(202)).body).toEqual({
       status: 'queued',
+      runId: expect.any(String),
     });
     await vi.waitFor(
       async () => {

@@ -104,7 +104,7 @@ export class RuleConfigService {
       const [saved] = current.projectId
         ? await tx.update(rules).set(values).where(eq(rules.id, current.id)).returning()
         : await tx.insert(rules).values(values).returning();
-      await this.audit.record(user.id, 'rules.update', 'project', projectId, tx, { key, old, next });
+      await this.audit.record(user.id, 'rules.update', 'project', projectId, tx, undefined, { key, old, next });
       return saved;
     });
     return this.toDto(row, true);
@@ -120,7 +120,7 @@ export class RuleConfigService {
       run = await this.db.transaction(async (tx: Tx) => {
         const [created] = await tx.insert(projectRescoreRuns).values({ projectId }).returning();
         await tx.delete(rules).where(eq(rules.id, override.id));
-        await this.audit.record(user.id, 'rules.restore', 'project', projectId, tx, { key });
+        await this.audit.record(user.id, 'rules.restore', 'project', projectId, tx, undefined, { key });
         return created;
       });
     } catch (error) {
@@ -189,7 +189,7 @@ export class RuleConfigService {
         }
       }
     }
-    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, { key, sampledSessions: roots.length, matchedSessions });
+    await this.audit.record(user.id, 'rules.test', 'project', projectId, this.db, undefined, { key, sampledSessions: roots.length, matchedSessions });
     return { sampledSessions: roots.length, matchedSessions, approximate: definition.scope === 'user_week', examples };
   }
 }

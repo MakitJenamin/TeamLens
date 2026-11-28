@@ -1,10 +1,9 @@
 {
   "title": "AI settings",
-  "description": "Your AI API key (Anthropic or OpenAI-compatible) and tokens for agents calling MCP.",
   "cancel": "Cancel",
   "llmKey": {
     "title": "My API key",
-    "hint": "AI buttons on the dashboard call the model with your own key. The key is encrypted on the server and never shown again; nobody else (not even the leader) can see it.",
+    "hint": "The key is encrypted and never shown again. The leader cannot see it either.",
     "loadError": "Could not load your key settings.",
     "provider": "Provider",
     "providers": {
@@ -12,20 +11,17 @@
       "openai_compatible": "OpenAI-compatible"
     },
     "providerHint": {
-      "anthropic": "Calls the Anthropic API (Claude) directly.",
-      "openai_compatible": "Any OpenAI-style server: OpenAI, OpenRouter, Ollama, LM Studio, vLLM..."
+      "openai_compatible": "OpenAI, OpenRouter, Ollama, LM Studio, vLLM..."
     },
     "baseUrl": "Base URL",
-    "baseUrlHint": "For example: http://localhost:11434/v1 (Ollama), https://api.openai.com/v1 (OpenAI), https://openrouter.ai/api/v1 (OpenRouter).",
     "model": "Model",
     "modelPlaceholder": {
       "anthropic": "e.g. claude-sonnet-4-5",
       "openai_compatible": "e.g. qwen2.5:3b or gpt-4o-mini"
     },
     "apiKey": "API key",
-    "apiKeySaved": "Key {hint} is saved. Leave empty to keep it.",
-    "apiKeySavedNoHint": "A key is saved. Leave empty to keep it.",
-    "apiKeyOptional": "May be left empty if the server needs no key (e.g. Ollama).",
+    "apiKeySaved": "Leave empty to keep the saved key.",
+    "apiKeyOptional": "Leave empty if the server needs no key (e.g. Ollama).",
     "apiKeyRequired": "Enter an API key.",
     "test": "Test",
     "testing": "Testing...",
@@ -33,31 +29,28 @@
     "save": "Save",
     "saving": "Saving...",
     "saved": "Key settings saved.",
-    "notSaved": "No key yet. Enter a key and press Save to use AI features.",
     "savedAt": "Last updated {date}.",
     "delete": "Delete key",
     "deleted": "Key deleted.",
     "confirmDeleteTitle": "Delete API key?",
-    "confirmDeleteBody": "AI buttons will stop working until you enter a new key. AI results already created are kept.",
+    "confirmDeleteBody": "AI buttons stop working until you enter a new key.",
     "confirmDelete": "Delete key"
   },
   "tokens": {
     "title": "Agent tokens",
-    "hint": "Personal tokens (tlp_...) that let agents such as Claude Code or Codex call TeamLens MCP with exactly your permissions.",
+    "hint": "A token has the full permissions of your account.",
     "name": "Token name",
     "namePlaceholder": "e.g. Claude Code on laptop",
     "create": "Create token",
     "creating": "Creating...",
     "createdTitle": "Token \"{name}\" created",
-    "onlyOnce": "The token is shown only once. Copy it now; if you lose it, revoke it and create a new one.",
+    "onlyOnce": "The token is shown only once.",
     "secret": "Token",
     "command": "Add to Claude Code",
     "dismiss": "I have copied it",
     "loadError": "Could not load tokens.",
-    "empty": "No tokens yet.",
-    "createdAt": "Created {date}",
-    "lastUsedAt": "last used {date}",
-    "neverUsed": "never used",
+    "lastUsedAt": "Last used {date}",
+    "neverUsed": "Never used",
     "revoke": "Revoke",
     "revoked": "Token revoked.",
     "confirmRevokeTitle": "Revoke token \"{name}\"?",
@@ -66,14 +59,14 @@
   },
   "errors": {
     "llm_key_missing": "No API key yet. Enter a key.",
-    "llm_key_invalid": "The provider rejected the API key (wrong key or no permission).",
+    "llm_key_invalid": "The provider rejected the API key. Check the key and its permissions.",
     "llm_quota_exceeded": "The provider reports quota exceeded or rate limiting. Try again later.",
     "llm_model_not_found": "The provider has no such model. Check the model name.",
     "llm_timeout": "The provider did not answer in time (over 60 seconds).",
     "llm_provider_error": "Could not reach the provider. Check the base URL and network.",
     "llm_bad_output": "The model did not return the required JSON format. Try another model.",
     "validation_error": "Invalid input: {message}",
-    "not_found": "Not found (it may have been revoked).",
+    "not_found": "Not found. It may have been revoked.",
     "unknown": "Something went wrong: {message}"
   }
 }

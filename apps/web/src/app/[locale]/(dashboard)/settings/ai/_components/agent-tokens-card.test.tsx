@@ -47,7 +47,7 @@ describe("AgentTokensCard", () => {
     renderWithProviders(<AgentTokensCard />);
 
     expect(await screen.findByText("Codex")).toBeInTheDocument();
-    expect(screen.getByText(/dùng lần cuối/)).toBeInTheDocument();
+    expect(screen.getByText(/Dùng lần cuối/)).toBeInTheDocument();
 
     await u.type(screen.getByLabelText("Tên token"), "  Claude Code trên laptop ");
     await u.click(screen.getByRole("button", { name: "Tạo token" }));
@@ -60,7 +60,7 @@ describe("AgentTokensCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Tên token")).toHaveValue("");
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
-    expect(screen.getByText(/chưa dùng/)).toBeInTheDocument();
+    expect(screen.getByText("Chưa dùng")).toBeInTheDocument();
 
     await u.click(screen.getByRole("button", { name: "Tôi đã sao chép" }));
     expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
@@ -88,13 +88,15 @@ describe("AgentTokensCard", () => {
     await u.click(within(dialog).getByRole("button", { name: "Thu hồi" }));
 
     await waitFor(() => expect(deleted).toEqual([`DELETE /api/v1/me/agent-tokens/${tokenB.id}`]));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Không tìm thấy (có thể đã bị thu hồi).");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không tìm thấy. Có thể đã bị thu hồi.");
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it("chưa có token", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ tokens: [] }));
+  it("chưa có token: không hiện danh sách", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ tokens: [] }));
     renderWithProviders(<AgentTokensCard />);
-    expect(await screen.findByText("Chưa có token nào.")).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("list")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Tạo token" })).toBeInTheDocument();
   });
 });

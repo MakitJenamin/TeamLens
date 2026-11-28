@@ -1,0 +1,641 @@
+{
+  "name": "get_session",
+  "description": "Chi tiết một session kèm các turn theo thứ tự `seq`, phân trang để không tràn ngữ cảnh: mặc định 20 turn, tối đa 50. Mỗi đoạn văn dài bị cắt ở 2000 ký tự (có cờ `truncated`); diff chỉ có đường dẫn và số dòng. Muốn trang kế, đặt `fromSeq` bằng `page.nextFromSeq`. Xem session của người khác (leader) được ghi audit.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Session cần xem (từ `search_sessions`)."
+      },
+      "fromSeq": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 0,
+        "description": "Lấy turn có `seq` >= giá trị này."
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 20,
+        "description": "Số turn tối đa."
+      }
+    }
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "session",
+      "turns",
+      "page"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "session": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Định danh (UUID)."
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Định danh (UUID)."
+          },
+          "user": {
+            "type": "object",
+            "description": "Thông tin rút gọn của user (dùng cho CLI).",
+            "required": [
+              "id",
+              "email",
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Định danh (UUID)."
+              },
+              "email": {
+                "description": "`null` với member (không có email).",
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "claude_code",
+              "codex",
+              "copilot_vscode",
+              "antigravity"
+            ],
+            "description": "Agent sinh ra session."
+          },
+          "agentVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "examples": [
+              "2.1.4"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Model chính của session (model xuất hiện nhiều nhất ở turn của assistant); null nếu không có.",
+            "examples": [
+              "claude-opus-5-5"
+            ]
+          },
+          "repoRemote": {
+            "type": "string",
+            "description": "Remote git đã chuẩn hóa (host/org/repo).",
+            "examples": [
+              "github.com/acme/shop-api"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwdRelative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Thư mục làm việc tương đối với gốc repo; chuỗi rỗng là gốc repo."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "null khi session còn đang chạy."
+          },
+          "turnCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "usage": {
+            "type": "object",
+            "description": "Tổng token của session (cộng từ `usage` của các turn).",
+            "required": [
+              "input",
+              "output",
+              "cacheRead",
+              "cacheWrite"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheRead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheWrite": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prompt đầu tiên của user (đã che secret), cắt còn tối đa 200 ký tự; null nếu chưa có prompt.",
+            "maxLength": 200
+          },
+          "parentSessionId": {
+            "description": "Id session cha khi đây là session con (subagent); null với session gốc hoặc khi cha chưa tới.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "Định danh (UUID)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "childCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Số session con (subagent) đã gắn vào session này."
+          },
+          "permissionMode": {
+            "description": "Chế độ quyền của agent; null khi CLI không gửi.",
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "accept_edits",
+                  "plan",
+                  "bypass",
+                  "unknown"
+                ],
+                "description": "Chế độ quyền của agent trong session: `default` (hỏi trước khi sửa file/chạy lệnh), `accept_edits` (tự chấp nhận sửa file), `plan` (chỉ lập kế hoạch), `bypass` (bỏ qua mọi xác nhận), `unknown` (không xác định được). Claude Code: `permissionMode`; Codex: `approval_policy` + `sandbox_policy`. Dùng cho rule `yolo-mode`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "match": {
+            "description": "Chỉ có khi danh sách được gọi với `q`. Turn khớp đầu tiên (theo `seq`) trong chính session này;\nnull khi session chỉ khớp qua session con. Không có trong chi tiết session.\n",
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "Turn khớp từ khóa tìm kiếm và đoạn trích quanh từ khóa.",
+                "required": [
+                  "turnSeq",
+                  "snippet"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "turnSeq": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "`seq` của turn khớp; trang chi tiết có anchor `#turn-<seq>`."
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "description": "Đoạn trích (văn bản đã che secret trong DB) quanh từ khóa, khoảng 8–20 từ. Từ khớp được bao bởi\n`«` và `»`; client hiển thị dạng văn bản thuần (đánh dấu phần trong «…»), không render HTML.\n",
+                    "examples": [
+                      "sửa lỗi «đăng» «nhập» khi token hết hạn"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "description": "`<agent>:<id gốc>` do CLI gửi.",
+            "examples": [
+              "claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60"
+            ]
+          },
+          "device": {
+            "description": "Thiết bị đã gửi session; null khi thiết bị đã bị xóa.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Định danh (UUID)."
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructionFiles": {
+            "description": "File hướng dẫn cho agent ở gốc repo (chỉ đường dẫn và kích thước); null khi CLI không gửi.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "bytes"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Đường dẫn tương đối với gốc repo, dùng `/`.",
+                      "not": {
+                        "pattern": "^(/|\\\\|[A-Za-z]:|~)"
+                      },
+                      "examples": [
+                        "CLAUDE.md"
+                      ]
+                    },
+                    "bytes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Kích thước file (byte)."
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "childSessionIds": {
+            "type": "array",
+            "description": "Id các session con (subagent), theo `startedAt` tăng dần.",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Định danh (UUID)."
+            }
+          },
+          "children": {
+            "type": "array",
+            "description": "Thông tin rút gọn các session con, cùng thứ tự với `childSessionIds`.",
+            "items": {
+              "type": "object",
+              "description": "Session con (subagent) rút gọn, đủ để dashboard ghép vào turn tool `Task`/`Agent` của session cha\n(Claude Code: `sourceId` là `claude_code:<sessionId>:<agentId>`).\n",
+              "required": [
+                "id",
+                "sourceId",
+                "agent",
+                "title",
+                "startedAt",
+                "endedAt",
+                "turnCount"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Định danh (UUID)."
+                },
+                "sourceId": {
+                  "type": "string",
+                  "examples": [
+                    "claude_code:5e1c2d3a-7b8f-4c6d-9e0a-1b2c3d4e5f60:a8d48656c1a58b54b"
+                  ]
+                },
+                "agent": {
+                  "type": "string",
+                  "enum": [
+                    "claude_code",
+                    "codex",
+                    "copilot_vscode",
+                    "antigravity"
+                  ],
+                  "description": "Agent sinh ra session."
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Prompt đầu tiên giao cho session con, tối đa 200 ký tự.",
+                  "maxLength": 200
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "turnCount": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "user",
+          "agent",
+          "agentVersion",
+          "model",
+          "repoRemote",
+          "branch",
+          "cwdRelative",
+          "startedAt",
+          "endedAt",
+          "turnCount",
+          "usage",
+          "title",
+          "parentSessionId",
+          "childCount",
+          "permissionMode",
+          "sourceId",
+          "device",
+          "instructionFiles",
+          "childSessionIds",
+          "children"
+        ],
+        "description": "Thông tin session (như `SessionDetail` của dashboard, không gồm turn; turn ở `turns`).",
+        "additionalProperties": false
+      },
+      "turns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "seq",
+            "role",
+            "kind",
+            "ts",
+            "model",
+            "text",
+            "textTruncated",
+            "tool",
+            "output",
+            "diff",
+            "usage",
+            "interrupted"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant",
+                "system"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "prompt",
+                "reply",
+                "tool_call",
+                "tool_result",
+                "compaction"
+              ]
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời điểm của turn."
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Nội dung (đã che secret), cắt còn tối đa 2000 ký tự."
+            },
+            "textTruncated": {
+              "type": "boolean",
+              "description": "true khi `text` đã bị cắt ở 2000 ký tự."
+            },
+            "tool": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "status"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ok",
+                        "error",
+                        null
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "output": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "text",
+                    "truncated"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "Output của tool, cắt còn tối đa 2000 ký tự."
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "true khi output đã bị cắt (ở CLI hoặc ở đây)."
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "diff": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "added",
+                    "removed"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "added": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "removed": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "usage": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "input",
+                    "output"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "input": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "output": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "interrupted": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "page": {
+        "type": "object",
+        "required": [
+          "fromSeq",
+          "returned",
+          "totalTurns",
+          "nextFromSeq"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "fromSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalTurns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextFromSeq": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "`seq` để gọi trang kế; null khi đã hết turn."
+          }
+        }
+      }
+    }
+  }
+}

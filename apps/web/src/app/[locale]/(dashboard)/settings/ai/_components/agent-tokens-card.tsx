@@ -106,7 +106,6 @@ export function AgentTokensCard() {
             {t("loadError")}
           </p>
         )}
-        {tokens.data?.length === 0 && <p className="text-sm text-muted-foreground">{t("empty")}</p>}
         {revoke.error && (
           <p role="alert" className="text-sm text-destructive">
             {errorMessage(revoke.error)}
@@ -122,8 +121,6 @@ export function AgentTokensCard() {
                 <div className="min-w-0 space-y-0.5 text-sm">
                   <p className="font-medium break-words">{token.name}</p>
                   <p className="text-muted-foreground">
-                    {t("createdAt", { date: date(token.createdAt) })}
-                    {" · "}
                     {token.lastUsedAt
                       ? t("lastUsedAt", { date: date(token.lastUsedAt) })
                       : t("neverUsed")}

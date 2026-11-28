@@ -1,0 +1,12 @@
+{
+  "name": "weekly-review",
+  "description": "Báo cáo tuần của team cho leader: điểm, lỗi phổ biến nhất, ai tiến bộ, ai cần hỗ trợ.",
+  "arguments": [
+    {
+      "name": "projectId",
+      "description": "Project cần báo cáo (từ `list_projects`).",
+      "required": true
+    }
+  ],
+  "template": "Hãy viết báo cáo tuần của team cho tôi (leader) từ dữ liệu TeamLens của project `{{projectId}}`.\n\n1. Gọi `get_overview` cho project này (mặc định 8 tuần gần nhất) để lấy điểm theo tuần, token, chi phí ước tính và các nhận xét phổ biến nhất.\n2. Gọi `list_members`, rồi `get_member_profile` cho từng thành viên để so sánh với trung bình team.\n3. Viết báo cáo ngắn bằng tiếng Việt: (a) xu hướng điểm của team so với tuần trước, (b) 2 đến 3 lỗi phổ biến nhất kèm số liệu, (c) thành viên tiến bộ rõ, (d) thành viên có thể cần được hỗ trợ (nêu theo hướng giúp đỡ, không phê bình), (e) một gợi ý cho buổi chia sẻ của team.\n\nChỉ dùng số liệu có thật từ các tool, không bịa. Chi phí chỉ là ước tính từ bảng giá cố định, không phải hóa đơn."
+}

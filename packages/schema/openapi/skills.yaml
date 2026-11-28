@@ -1,13 +1,775 @@
-# KHUNG — chưa có endpoint. Task: M6.11 (S0 gom cụm + trang Skill Finder), M6.12 (S1 triage, S2 sinh SKILL.md),
-# M6.13 (S3 catalog nhiều nguồn + chọn skill). Người 3. Thiết kế: docs/AI_PLAN.md mục 3.2 "Skill Finder".
-#
-# Endpoint dự kiến (cookieAuth; leader theo project và theo người, member chỉ của mình):
-# - GET /api/v1/projects/{projectId}/skill-clusters (S0, heuristic, không gọi LLM; lọc theo userId)
-# - POST /api/v1/skill-clusters/{clusterId}/ai/triage (S1, kind `skill_triage`, subjectType `skill_cluster`)
-# - POST /api/v1/skill-clusters/{clusterId}/ai/skill (S2, kind `skill_content`, trả SKILL.md)
-# - GET/POST/PATCH/DELETE /api/v1/skill-catalog-sources (S3, nguồn catalog, leader)
-# - POST /api/v1/projects/{projectId}/ai/catalog-picks (S3, kind `catalog_picks`)
+# Nhóm `skills`: Skill Finder (docs/AI_PLAN.md mục 3.2). Người 3.
+# - GET /api/v1/projects/{projectId}/skill-clusters: S0, gom cụm prompt lặp lại bằng heuristic, KHÔNG gọi LLM (M6.11).
+# - GET/POST .../skill-clusters/{clusterId}/ai, .../ai/triage (S1, kind `skill_triage`) và .../ai/skill (S2, kind `skill_content`,
+#   trả SKILL.md), subjectType `skill_cluster`: nút AI dùng key BYO của người bấm (M6.12). `projectId` nằm trong path để server dựng lại cụm.
+# - GET/POST/PATCH/DELETE /api/v1/skill-catalog-sources: nguồn catalog skill cộng đồng (GitHub), leader quản lý (M6.13).
+# - GET/POST /api/v1/projects/{projectId}/ai/catalog-picks (S3, kind `catalog_picks`, subjectType `project`): AI chọn tối đa 5
+#   skill trong catalog hợp với workflow thật của người bấm (M6.13).
 # Nút AI dùng chung mã lỗi `llm_*` của ai.yaml và schema `AiResult`.
-#
-# Cách thêm endpoint: xem admin.yaml hoặc packages/schema/AGENTS.md.
-paths: {}
+paths:
+  /api/v1/projects/{projectId}/skill-clusters:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: listSkillClusters
+      tags: [skills]
+      summary: Các cụm prompt lặp lại của project (Skill Finder, S0)
+      description: |
+        Gom những prompt người dùng gõ lặp lại gần như giống nhau trong project, để gợi ý biến chúng thành skill hoặc
+        chỉ dẫn dùng chung. Heuristic thuần, không gọi LLM, không tốn tiền.
+
+        **Quyền:** leader thấy mọi thành viên (lọc được theo `userId`; xem dữ liệu của người khác ghi audit
+        `skill_clusters.view`); member chỉ thấy prompt của chính mình (đặt `userId` của người khác trả `403`).
+
+        **Cách gom (SPEC và AI_PLAN 3.2):** chỉ dùng prompt của **session gốc** (prompt trong session con do agent viết,
+        SPEC 9.1). Bỏ prompt dưới 15 hoặc trên 2000 ký tự và prompt rác ("tiếp", "ok", "continue"...). Chuẩn hóa NFC, giữ chữ
+        có dấu (tiếng Việt), thay mã, chuỗi, đường dẫn, URL, số bằng chỗ trống rồi tách từ, bỏ từ dừng tiếng Việt và tiếng Anh.
+        "Dấu vân tay" là 4 từ đầu tiên sau khi sắp xếp từ khóa theo thứ tự chữ cái; prompt cùng dấu vân tay vào một cụm. Cụm cần ít
+        nhất 3 lần lặp. Đây là gần đúng (cụm có thể thiếu hoặc lẫn); S1 (AI) sẽ lọc lại.
+
+        **Khoảng thời gian:** `from` (>=) và `to` (<) theo thời điểm của prompt, ISO 8601. Mặc định 30 ngày gần nhất; tối đa
+        90 ngày. Chỉ có prompt còn được lưu (retention). Tối đa 20000 prompt được xét; vượt thì lấy các prompt mới nhất và
+        `stats.truncated` là `true`.
+
+        **Đoạn trích** (`excerpt`) lấy từ nội dung prompt đã che secret ở máy thành viên, tối đa 160 ký tự.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Chỉ prompt của người này (leader; member chỉ được đặt chính mình).
+          schema:
+            $ref: './common.yaml#/components/schemas/Id'
+        - name: from
+          in: query
+          required: false
+          description: Chỉ prompt từ mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Chỉ prompt trước mốc này (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          description: Số cụm tối đa trả về (cụm nhiều lần lặp nhất trước).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Các cụm, nhiều lần lặp nhất trước. `clusters` rỗng khi chưa có prompt nào lặp đủ 3 lần.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillClusterList'
+              example:
+                range:
+                  from: '2026-10-29T00:00:00.000Z'
+                  to: '2026-11-28T00:00:00.000Z'
+                stats:
+                  promptsAnalyzed: 412
+                  promptsClustered: 31
+                  clusterCount: 2
+                  truncated: false
+                clusters:
+                  - id: 4f6c2d7e-1b3a-4c8e-9d5f-0a1b2c3d4e5f
+                    label: Chạy pnpm test rồi sửa lỗi lint trong file này
+                    count: 9
+                    userCount: 2
+                    firstSeenAt: '2026-11-03T08:12:00.000Z'
+                    lastSeenAt: '2026-11-27T15:40:00.000Z'
+                    users:
+                      - userId: 0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f
+                        name: Thành viên 1
+                        count: 6
+                      - userId: 7a1c3d4e-5f60-4b9d-8f9e-0b9d8f9e7c1a
+                        name: Thành viên 2
+                        count: 3
+                    examples:
+                      - sessionId: 2356eb16-0734-42a0-9c8a-892a394bcaf2
+                        turnSeq: 4
+                        ts: '2026-11-27T15:40:00.000Z'
+                        userId: 0b9d8f9e-7c1a-4f4e-9b0e-2f6a1c3d4e5f
+                        excerpt: Chạy pnpm test rồi sửa lỗi lint trong file src/cart.ts
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ClusterId'
+    get:
+      operationId: getSkillClusterAi
+      tags: [skills]
+      summary: Kết quả AI đã lưu của chính người gọi cho một cụm
+      description: |
+        Trả bản `skill_triage` (S1) và `skill_content` (S2) mới nhất của **chính người gọi** cho cụm, theo `locale`;
+        mỗi phần là `null` khi người gọi chưa bấm nút tương ứng. Không bao giờ trả kết quả của người khác. Không dựng lại cụm
+        nên không ghi audit; chỉ cần vào được project.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+            default: vi
+      responses:
+        '200':
+          description: Kết quả đã lưu (có thể cả hai đều `null`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillClusterAiResults'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/triage:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ClusterId'
+    post:
+      operationId: runSkillTriage
+      tags: [skills]
+      summary: S1 · AI đánh giá một cụm có đáng làm thành skill không
+      description: |
+        Trả `AiResult` kind `skill_triage`, subjectType `skill_cluster`, `result` theo `SkillTriageResult`
+        (`strong`, `maybe` hoặc `skip`, lý do, tên skill gợi ý). Ghi đè bản cũ của người gọi (cùng cụm, cùng locale).
+
+        Server **dựng lại cụm** từ prompt người gọi xem được trong khoảng `from`/`to` (mặc định 30 ngày, giống
+        `listSkillClusters`; đặt cùng bộ lọc `userId`, `from`, `to` như lúc xem danh sách) rồi gửi cho LLM tối đa 8 prompt của
+        cụm (mỗi prompt tối đa 600 ký tự, đã che secret ở máy thành viên) bằng **key của người gọi**. Quyền như
+        `listSkillClusters` (member chỉ prompt của mình); leader chạy AI trên prompt của người khác ghi audit
+        `skill_clusters.ai`. Cụm không còn trong khoảng đó thì `404 cluster_not_found`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunSkillAiRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ClusterNotFound'
+        '409':
+          $ref: './ai.yaml#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: './ai.yaml#/components/responses/LlmProviderError'
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
+
+  /api/v1/projects/{projectId}/skill-clusters/{clusterId}/ai/skill:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ClusterId'
+    post:
+      operationId: runSkillContent
+      tags: [skills]
+      summary: S2 · AI soạn SKILL.md từ một cụm
+      description: |
+        Trả `AiResult` kind `skill_content`, subjectType `skill_cluster`, `result` theo `SkillContentResult`
+        (tên, mô tả, hướng dẫn và nội dung `SKILL.md` đầy đủ). Cách dựng cụm, dữ liệu gửi cho LLM, quyền, audit và lỗi giống
+        `runSkillTriage`. Ghi đè bản cũ của người gọi (cùng cụm, cùng locale).
+
+        Web cho tải `SKILL.md` về; agent (Claude Code, Codex) có thể đọc lại bằng tool MCP `get_my_ai_results`
+        (subjectType `skill_cluster`) rồi ghi vào `.claude/skills/<tên>/SKILL.md`. Server **không** ghi file nào.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunSkillAiRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ClusterNotFound'
+        '409':
+          $ref: './ai.yaml#/components/responses/LlmKeyMissing'
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          $ref: './ai.yaml#/components/responses/LlmProviderError'
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
+
+  /api/v1/skill-catalog-sources:
+    get:
+      operationId: listSkillCatalogSources
+      tags: [skills]
+      summary: Các nguồn catalog skill cộng đồng của server
+      description: |
+        Danh sách nguồn mà S3 (`runCatalogPicks`) đọc skill từ đó. Mọi người đã đăng nhập đều xem được. Server tự thêm hai
+        nguồn mặc định ở lần đọc đầu tiên: `https://github.com/anthropics/skills` và
+        `https://github.com/github/awesome-copilot`; leader xóa hoặc thêm bớt thoải mái (xóa rồi không tự thêm lại).
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Danh sách nguồn, cũ nhất trước.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSourceList'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+    post:
+      operationId: createSkillCatalogSource
+      tags: [skills]
+      summary: Thêm một nguồn catalog (leader)
+      description: |
+        Chỉ nhận URL repo GitHub công khai dạng `https://github.com/{owner}/{repo}` (chấp nhận thêm `.git`, dấu `/` ở cuối,
+        `/tree/{nhánh}`; server chuẩn hóa về `https://github.com/{owner}/{repo}` và luôn đọc nhánh mặc định, nhánh trong URL bị bỏ). Server **không** gọi URL nào khác ngoài
+        `api.github.com` và `raw.githubusercontent.com`, nên không dùng được để dò mạng nội bộ. Không kiểm repo có tồn tại
+        lúc thêm; repo không đọc được chỉ bị bỏ qua khi chọn skill. Thêm URL đã có trả `409 source_exists`.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkillCatalogSourceRequest'
+      responses:
+        '201':
+          description: Nguồn vừa thêm.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSource'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/SourceExists'
+
+  /api/v1/skill-catalog-sources/{sourceId}:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    patch:
+      operationId: updateSkillCatalogSource
+      tags: [skills]
+      summary: Bật hoặc tắt một nguồn catalog (leader)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkillCatalogSourceRequest'
+      responses:
+        '200':
+          description: Nguồn sau khi cập nhật.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillCatalogSource'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    delete:
+      operationId: deleteSkillCatalogSource
+      tags: [skills]
+      summary: Xóa một nguồn catalog (leader)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Đã xóa.
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /api/v1/projects/{projectId}/ai/catalog-picks:
+    parameters:
+      - $ref: './common.yaml#/components/parameters/ProjectId'
+    get:
+      operationId: getCatalogPicks
+      tags: [skills]
+      summary: S3 · kết quả chọn skill đã lưu của người gọi
+      description: Chỉ trả kết quả của chính người gọi (kind `catalog_picks`, subjectType `project`, theo `locale`), hoặc `null`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            $ref: './ai.yaml#/components/schemas/AiLocale'
+      responses:
+        '200':
+          description: Kết quả đã lưu hoặc `null`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogPicksSaved'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+    post:
+      operationId: runCatalogPicks
+      tags: [skills]
+      summary: S3 · AI chọn tối đa 5 skill trong catalog hợp với workflow thật
+      description: |
+        Trả `AiResult` kind `catalog_picks`, subjectType `project` (subjectId là `projectId`), `result` theo
+        `SkillCatalogPicksResult`. Ghi đè bản cũ của người gọi (cùng project, cùng locale).
+
+        Các bước ở server: (1) dựng cụm prompt lặp lại của người gọi như `listSkillClusters` (cùng `userId`, `from`, `to`;
+        lấy tối đa 8 cụm lặp nhiều nhất); (2) đọc catalog từ các nguồn đang bật (tên và mô tả trong front matter của
+        `SKILL.md`, bộ nhớ đệm khoảng 6 giờ); (3) xếp theo độ trùng từ khóa với các cụm rồi lấy tối đa 100 ứng viên (điểm 0 không bị loại vì catalog thường bằng tiếng Anh còn prompt có thể bằng tiếng Việt); (4) gửi cụm (nhãn, số lần, số
+        người) và ứng viên cho LLM bằng **key của người gọi**. Nhãn cụm là nội dung prompt nên quyền và audit như
+        `runSkillTriage` (leader dùng prompt của người khác ghi `skill_clusters.ai`).
+
+        **Server chỉ giữ gợi ý hợp lệ:** LLM chọn theo mã ứng viên; mã không có trong danh sách bị bỏ, tên, mô tả và đường dẫn
+        lấy từ catalog chứ không từ LLM. Lý do (`reason`) phải trích số liệu của cụm (số lần, số người).
+
+        Lỗi riêng: `409 no_clusters` (chưa có cụm lặp nào để đối chiếu), `502 catalog_unavailable` (không đọc được nguồn
+        nào, hoặc không có nguồn nào đang bật). Chưa có key thì `409 llm_key_missing` trước khi đụng dữ liệu.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunSkillAiRequest'
+      responses:
+        '200':
+          $ref: './ai.yaml#/components/responses/AiResultOk'
+        '400':
+          $ref: './common.yaml#/components/responses/ValidationError'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthenticated'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: |
+            Chưa có API key (`llm_key_missing`) hoặc chưa có cụm lặp nào để đối chiếu (`no_clusters`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              examples:
+                noKey:
+                  value:
+                    error: llm_key_missing
+                    message: Bạn chưa cấu hình API key AI.
+                noClusters:
+                  value:
+                    error: no_clusters
+                    message: Chưa có prompt nào lặp lại đủ 3 lần trong khoảng này nên chưa có gì để đối chiếu với catalog.
+        '422':
+          $ref: './ai.yaml#/components/responses/LlmKeyRejected'
+        '429':
+          $ref: './ai.yaml#/components/responses/LlmQuotaExceeded'
+        '502':
+          description: |
+            Không đọc được catalog (`catalog_unavailable`) hoặc nhà cung cấp AI lỗi (`llm_provider_error`, `llm_bad_output`).
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/Error'
+              example:
+                error: catalog_unavailable
+                message: Không đọc được skill từ nguồn catalog nào. Kiểm tra nguồn đang bật và kết nối tới GitHub.
+        '504':
+          $ref: './ai.yaml#/components/responses/LlmTimeout'
+
+components:
+  parameters:
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+    ClusterId:
+      name: clusterId
+      in: path
+      required: true
+      description: '`id` của cụm trong `listSkillClusters` (UUID sinh từ project và dấu vân tay).'
+      schema:
+        $ref: './common.yaml#/components/schemas/Id'
+
+  responses:
+    SourceExists:
+      description: 'Nguồn này đã có (`error`: `source_exists`).'
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: source_exists
+            message: Nguồn catalog này đã có.
+    ClusterNotFound:
+      description: |
+        Không tìm thấy project (`error`: `not_found`) hoặc cụm không còn trong khoảng thời gian đã chọn
+        (`error`: `cluster_not_found`; thử mở rộng khoảng).
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/Error'
+          example:
+            error: cluster_not_found
+            message: Không tìm thấy cụm trong khoảng thời gian này, hãy thử mở rộng khoảng.
+
+  schemas:
+    RunSkillAiRequest:
+      type: object
+      required: [locale]
+      additionalProperties: false
+      properties:
+        locale:
+          $ref: './ai.yaml#/components/schemas/AiLocale'
+        userId:
+          description: Giống `userId` của `listSkillClusters` (leader; member chỉ được đặt chính mình).
+          $ref: './common.yaml#/components/schemas/Id'
+        from:
+          type: string
+          format: date-time
+          description: Giống `from` của `listSkillClusters`. Mặc định 30 ngày trước `to`.
+        to:
+          type: string
+          format: date-time
+          description: Giống `to` của `listSkillClusters`. Mặc định bây giờ.
+
+    SkillClusterAiResults:
+      type: object
+      required: [triage, skill]
+      additionalProperties: false
+      properties:
+        triage:
+          description: Kết quả `skill_triage` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+        skill:
+          description: Kết quả `skill_content` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+
+    SkillTriageResult:
+      type: object
+      description: '`result` của `AiResult` kind `skill_triage`.'
+      required: [verdict, reason, suggestedName, summary]
+      additionalProperties: false
+      properties:
+        verdict:
+          type: string
+          enum: [strong, maybe, skip]
+          description: |
+            `strong`: quy trình lặp lại rõ ràng, làm skill tiết kiệm công thật. `maybe`: có thể có ích nhưng việc hay thay đổi
+            hoặc nhỏ. `skip`: quá vặt, chỉ dùng một lần, hoặc là thông tin riêng của project (nên đưa vào AGENTS.md),
+            hoặc các prompt không thật sự cùng một việc.
+        reason:
+          type: string
+          description: Lý do, 2 đến 3 câu, theo ngôn ngữ của `locale`.
+        suggestedName:
+          type: string
+          maxLength: 60
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          description: Tên skill gợi ý, kebab-case (server chuẩn hóa nếu model trả sai dạng).
+        summary:
+          type: string
+          description: Một câu mô tả việc lặp lại.
+
+    SkillContentResult:
+      type: object
+      description: '`result` của `AiResult` kind `skill_content`.'
+      required: [name, description, body, markdown]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 60
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          description: Tên skill, kebab-case (server chuẩn hóa).
+        description:
+          type: string
+          description: Skill làm gì và khi nào agent nên dùng; đây là câu agent đọc để quyết định nạp skill.
+        body:
+          type: string
+          description: Hướng dẫn dạng Markdown, không gồm frontmatter.
+        markdown:
+          type: string
+          description: |
+            Nội dung `SKILL.md` đầy đủ: frontmatter YAML (`name`, `description`) rồi `body`. **Do server ghép** từ ba trường
+            trên (không phải model viết), nên frontmatter luôn hợp lệ.
+
+    SkillClusterList:
+      type: object
+      required: [range, stats, clusters]
+      additionalProperties: false
+      properties:
+        range:
+          type: object
+          description: Khoảng thời gian thực tế đã dùng.
+          required: [from, to]
+          additionalProperties: false
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        stats:
+          $ref: '#/components/schemas/SkillClusterStats'
+        clusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillCluster'
+
+    SkillClusterStats:
+      type: object
+      required: [promptsAnalyzed, promptsClustered, clusterCount, truncated]
+      additionalProperties: false
+      properties:
+        promptsAnalyzed:
+          type: integer
+          minimum: 0
+          description: Số prompt đã được xét (sau khi lọc session gốc, độ dài, prompt rác).
+        promptsClustered:
+          type: integer
+          minimum: 0
+          description: Số prompt nằm trong các cụm đủ 3 lần lặp (kể cả cụm vượt `limit`).
+        clusterCount:
+          type: integer
+          minimum: 0
+          description: Số cụm đủ 3 lần lặp (có thể nhiều hơn số cụm trả về khi vượt `limit`).
+        truncated:
+          type: boolean
+          description: true khi có hơn 20000 prompt trong khoảng và chỉ các prompt mới nhất được xét.
+
+    SkillCluster:
+      type: object
+      required: [id, label, count, userCount, firstSeenAt, lastSeenAt, users, examples]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+          description: |
+            Mã ổn định của cụm (UUID sinh từ project và dấu vân tay), dùng làm `subjectId` cho nút AI ở M6.12.
+            Không phụ thuộc bộ lọc người hay khoảng thời gian.
+        label:
+          type: string
+          description: Prompt tiêu biểu của cụm (độ dài vừa), tối đa 200 ký tự, đã che secret.
+        count:
+          type: integer
+          minimum: 3
+          description: Số lần prompt lặp lại trong khoảng và bộ lọc đã chọn.
+        userCount:
+          type: integer
+          minimum: 1
+          description: Số thành viên đã gõ prompt thuộc cụm.
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        users:
+          type: array
+          description: Tối đa 5 người gõ nhiều nhất, theo số lần giảm dần.
+          items:
+            $ref: '#/components/schemas/SkillClusterUser'
+        examples:
+          type: array
+          maxItems: 3
+          description: Tối đa 3 lần xuất hiện gần nhất.
+          items:
+            $ref: '#/components/schemas/SkillClusterExample'
+
+    SkillClusterUser:
+      type: object
+      required: [userId, name, count]
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+
+    SkillClusterExample:
+      type: object
+      required: [sessionId, turnSeq, ts, userId, excerpt]
+      additionalProperties: false
+      properties:
+        sessionId:
+          $ref: './common.yaml#/components/schemas/Id'
+        turnSeq:
+          type: integer
+          minimum: 0
+          description: '`seq` của prompt trong session (để nhảy tới đúng turn).'
+        ts:
+          type: string
+          format: date-time
+        userId:
+          $ref: './common.yaml#/components/schemas/Id'
+        excerpt:
+          type: string
+          description: Đoạn trích prompt, tối đa 160 ký tự, đã che secret, khoảng trắng đã gộp.
+
+    SkillCatalogSource:
+      type: object
+      required: [id, url, kind, enabled, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: './common.yaml#/components/schemas/Id'
+        url:
+          type: string
+          description: URL chuẩn hóa, `https://github.com/{owner}/{repo}`.
+          examples: ['https://github.com/anthropics/skills']
+        kind:
+          type: string
+          enum: [github]
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    SkillCatalogSourceList:
+      type: object
+      required: [sources]
+      additionalProperties: false
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillCatalogSource'
+
+    CreateSkillCatalogSourceRequest:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          maxLength: 300
+          description: URL repo GitHub công khai (xem `createSkillCatalogSource`).
+
+    UpdateSkillCatalogSourceRequest:
+      type: object
+      required: [enabled]
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+
+    CatalogPicksSaved:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          description: Kết quả `catalog_picks` của người gọi, hoặc null.
+          oneOf:
+            - $ref: './ai.yaml#/components/schemas/AiResult'
+            - type: 'null'
+
+    SkillCatalogPick:
+      type: object
+      required: [name, description, sourceUrl, skillUrl, reason]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Tên skill trong catalog (lấy từ catalog, không từ LLM).
+        description:
+          type: string
+          description: Mô tả trong front matter của SKILL.md, đã cắt gọn.
+        sourceUrl:
+          type: string
+          description: URL repo nguồn.
+        skillUrl:
+          type: string
+          description: Link GitHub tới `SKILL.md`.
+        reason:
+          type: string
+          description: Vì sao hợp với workflow, có trích số liệu của cụm (số lần, số người).
+
+    SkillCatalogPicksResult:
+      type: object
+      description: '`result` của `AiResult` kind `catalog_picks`. Tối đa 5 gợi ý, có thể rỗng.'
+      required: [picks, candidatesConsidered]
+      additionalProperties: false
+      properties:
+        picks:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/SkillCatalogPick'
+        candidatesConsidered:
+          type: integer
+          minimum: 0
+          description: Số skill trong catalog đã đưa vào xét sau bước lọc sơ.
